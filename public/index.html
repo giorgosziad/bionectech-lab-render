@@ -471,42 +471,58 @@ function maybeFoldSummary(){
   .catch(function(){}).then(function(){ _folding=false; });
 }
 function runBackground(payload, prompt){
-  delete payload.bg; delete payload.jobId;
-  var who = (personaSel==='nicolle'?'Nicolle':'Karam');
-  addTurn('claude','… '+who+' is working on this — a big build can take a few minutes. Keeping the line open until it’s done …');
-  var secs = 0;
-  var ticker = setInterval(function(){
-    secs += 5;
-    if(current.turns.length){
-      var _lt = current.turns[current.turns.length-1];
-      if(_lt && _lt.role==='claude' && /is working on this/.test(_lt.text||'')){
-        _lt.text = '… '+who+' is working on this — '+secs+'s in. Big builds take a few minutes; keeping the line open …';
-        renderTurns();
-      }
-    }
-  }, 5000);
-  api('chat',{method:'POST',body:JSON.stringify(payload)}).then(function(r){
-    clearInterval(ticker);
+  var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+  payload.jobId = jobId; payload.bg = true;
+  addTurn('claude','… '+(personaSel==='nicolle'?'Nicolle':'Karam')+' is thinking deeply on this — this can take a little while. I\'ll have it shortly …');
+  // Kick off the background job (returns 202 immediately).
+  api('chat-background',{method:'POST',body:JSON.stringify(payload)}).then(function(){
+    var tries = 0, maxTries = 360; // ~12 min at 2s intervals
+    var poll = setInterval(function(){
+      tries++;
+      // Gentle progress reassurance so a long job never feels stuck (updates the placeholder text).
+      if(tries % 15 === 0 && current.turns.length){ var _lt=current.turns[current.turns.length-1]; if(_lt && _lt.role==='claude' && / is thinking deeply on this/.test(_lt.text||'')){ var _secs=tries*2; _lt.text='… '+(personaSel==='nicolle'?'Nicolle':'Karam')+' is working through it — '+_secs+'s in. Big files take a little longer; I\'ll have it shortly …'; renderTurns(); } }
+      api('chat-result',{method:'POST',body:JSON.stringify({jobId:jobId})}).then(function(r){
+        if(!(r.ok && r.data)) return;
+        var st = r.data.status;
+        if(st==='done'){
+          clearInterval(poll);
+          var d = (r.data.result)||{};
+          current.turns.pop();
+          if(d.text){ addTurnA('claude',d.text,d.aegis,d.model,d.persona,d.websearched); if(autoRead) speak(d.text,d.persona||personaSel); pushLive(personaSel, prompt, d.text); }
+          else { addTurn('claude','That did not come through ('+((d.error)||'no text')+'). Mind trying once more? (info@bionectech.com)'); if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); } }
+          $('send').disabled=(!unlimited&&remaining<=0);
+        } else if(st==='error'){
+          clearInterval(poll);
+          current.turns.pop();
+          var em=((r.data.result&&r.data.result.error))||'error';
+          addTurn('claude','That did not come through ('+em+'). Mind trying once more? (info@bionectech.com)');
+          if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); }
+          $('send').disabled=false;
+        } else if(st==='missing' && tries>30){
+          // job never registered — the background function isn't deployed on this site yet. Fall back
+          // to SYNC, but cap it hard (no deep thinking, modest output) so it finishes within the 26s
+          // limit instead of 504-ing. Tell the user the file may be trimmed and to deploy background.
+          clearInterval(poll);
+          current.turns.pop();
+          delete payload.bg; delete payload.jobId;
+          payload.smart=false; payload.fast=false; payload.maxTokens=8000;
+          addTurn('claude','… (running the quick path — deploy the background function for full large-file support) …');
+          api('chat',{method:'POST',body:JSON.stringify(payload)}).then(function(rr){
+            current.turns.pop();
+            if(rr.ok&&rr.data&&rr.data.text){ addTurnA('claude',rr.data.text,rr.data.aegis,rr.data.model,rr.data.persona,rr.data.websearched); if(autoRead) speak(rr.data.text,rr.data.persona||personaSel); pushLive(personaSel, prompt, rr.data.text); }
+            else { var em2=(rr.data&&rr.data.error)||('HTTP '+rr.status); addTurn('claude','That did not come through ('+em2+'). For large files, the background function needs deploying — or send a smaller file. (info@bionectech.com)'); if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); } }
+            $('send').disabled=(!unlimited&&remaining<=0);
+          }).catch(function(){ current.turns.pop(); addTurn('claude','I can\'t reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)'); $('send').disabled=false; });
+        }
+        if(tries>=maxTries){ clearInterval(poll); current.turns.pop(); addTurn('claude','This one is taking longer than expected. It may still finish — try asking again, or send a smaller file. (info@bionectech.com)'); $('send').disabled=false; }
+      }).catch(function(){ /* transient poll error — keep polling */ });
+    }, 2000);
+  }).catch(function(){
     current.turns.pop();
-    if(r.ok && r.data && r.data.text){
-      addTurnA('claude', r.data.text, r.data.aegis, r.data.model, r.data.persona, r.data.websearched);
-      if(autoRead) speak(r.data.text, r.data.persona||personaSel);
-      pushLive(personaSel, prompt, r.data.text);
-    } else {
-      var em = (r.data && r.data.error) || ('HTTP '+r.status);
-      addTurn('claude','That did not come through ('+em+'). Mind trying once more? (info@bionectech.com)');
-      if(payload.files && payload.files.length){ pending = payload.files.concat(pending); renderChips(); }
-    }
-    $('send').disabled = (!unlimited && remaining<=0);
-  }).catch(function(e){
-    clearInterval(ticker);
-    current.turns.pop();
-    addTurn('claude','I couldn’t reach the Lab just now — a connection hiccup. Your attachment was kept; please try again. (info@bionectech.com)');
-    if(payload.files && payload.files.length){ pending = payload.files.concat(pending); renderChips(); }
-    $('send').disabled = false;
+    addTurn('claude','I can\'t reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)');
+    $('send').disabled=false;
   });
 }
-
 function send(){
   var prompt=($('ask').value||'').trim();
   if(!prompt && pending.length===0) return;
