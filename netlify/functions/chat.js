@@ -249,7 +249,7 @@ async function handleChat(event, user) {
   // Builder mode delivers whole files — give it room to output a complete file without truncating.
   // Background/file turns get the most (a full site rewrite can be large); sync builder gets a solid floor.
   if ((b.mode === 'builder') || (b.files && b.files.length)) {
-    maxTokens = Math.max(maxTokens, b.bg ? 48000 : 16000);
+    maxTokens = Math.max(maxTokens, b.bg ? 64000 : 16000);
   }
   if (b.web) maxTokens = Math.min(maxTokens, 4000); // web turns: small generation so search + answer fit timeout
   if (typeof b.maxTokens === 'number' && b.maxTokens >= 256 && b.maxTokens <= 8192 && b.mode !== 'builder' && !(b.files && b.files.length)) maxTokens = b.maxTokens;
