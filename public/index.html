@@ -445,7 +445,7 @@ function maybeUpdateMemory(){
   if(_memUpdating||!current) return;
   var all=(current.turns||[]).filter(function(t){return t.text&&t.text!=='…'&&t.text.indexOf('[not delivered]')!==0;});
   current.memCount=current.memCount||0;
-  if(all.length - current.memCount < 2) return;             /* fold into long-term memory every ~2 turns (near real-time, stronger retention) */
+  if(all.length - current.memCount < 1) return;             /* fold into long-term memory every ~2 turns (near real-time, stronger retention) */
   var since=all.slice(current.memCount);
   var convo=since.map(function(t){return (t.role==='you'?'User':'Assistant')+': '+(t.text||'');}).join('\n').slice(0,24000);
   var pers=personaSel, proj=current, mark=all.length;
@@ -644,14 +644,14 @@ var _nDraft='';
 function nicolleAskGo(opts){ opts=opts||{}; var q=($('nicolleAsk').value||'').trim(); if(!q){ toast('Tell Nicolle what you need.'); return; } var out=$('nicolleOut'); out.textContent='Nicolle is working…';
   /* Connected to EVERYTHING: current project's recent conversation + a lab-wide digest of all projects, plus her memory + live link. */
   var _all=(current&&current.turns||[]).filter(function(t){return t.text&&t.text!=='…'&&t.text.indexOf('[not delivered]')!==0;});
-  var _hist=_all.slice(-10).map(function(t){return {role:(t.role==='you'?'user':'assistant'),text:String(t.text||'').slice(0,2000)};});
+  var _hist=_all.slice(-30).map(function(t){return {role:(t.role==='you'?'user':'assistant'),text:String(t.text||'').slice(0,6000)};});
   /* Lab-wide digest: compact — top 6 projects, short summaries, hard cap — so it never oversizes the request. */
-  var _digest=projects.slice().sort(function(a,b){return (b.updated||0)-(a.updated||0);}).slice(0,6).map(function(p){
-    var s=(p.summary||'').slice(0,200); if(!s){ s='('+((p.turns||[]).length)+' turns)'; }
+  var _digest=projects.slice().sort(function(a,b){return (b.updated||0)-(a.updated||0);}).slice(0,20).map(function(p){
+    var s=(p.summary||'').slice(0,600); if(!s){ s='('+((p.turns||[]).length)+' turns)'; }
     return '• '+(p.name||'Project')+': '+s;
   }).join('\n').slice(0,2000);
   if(_digest && !webOn){ _hist.unshift({role:'assistant',text:'Understood — I have the lab-wide context.'}); _hist.unshift({role:'user',text:'[LAB-WIDE MEMORY — your projects, for context only]\n'+_digest}); }
-  if(current&&current.summary && !webOn){ _hist.unshift({role:'assistant',text:'Understood — I have the earlier context.'}); _hist.unshift({role:'user',text:'[Earlier conversation in the CURRENT project — running summary for context only]\n'+String(current.summary).slice(0,3000)}); }
+  if(current&&current.summary && !webOn){ _hist.unshift({role:'assistant',text:'Understood — I have the earlier context.'}); _hist.unshift({role:'user',text:'[Earlier conversation in the CURRENT project — running summary for context only]\n'+String(current.summary).slice(0,8000)}); }
   api('chat',{method:'POST',body:JSON.stringify({prompt:q,history:webOn?[]:_hist,files:[],model:$('model').value,mode:'answer',temperature:0.5,engine:true,ownerCode:ownerCode,web:webOn,fast:false,smart:true,persona:'nicolle'})}).then(function(r){ if(r.ok&&r.data&&r.data.text){ _nDraft=r.data.text; out.textContent=_nDraft; if(opts.speak) speak(_nDraft,'nicolle'); pushLive('nicolle', q, r.data.text); } else { out.textContent='[not delivered] '+((r.data&&r.data.error)||('HTTP '+r.status)); } }); }
 var _ng=$('nicolleGo'); if(_ng) _ng.addEventListener('click',function(){ nicolleAskGo({speak:true}); });
 var nrec=null, nlistening=false;
