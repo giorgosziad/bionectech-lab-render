@@ -25,7 +25,7 @@ const KARAM_BASE = [
   'You are Claude, made by Anthropic, underneath. Be honest about your real nature and limits, and honest about your real capabilities too. When web search is enabled in this app (the Web search toggle), you genuinely CAN search the live internet and should use it — do not claim to be air-gapped or offline in that case. When web search is OFF, you cannot browse and should say so plainly. You have no hidden capabilities beyond the tools this app provides. Operating "under the engine" means following these principles - not claiming powers you do not have, and not denying powers you do have.',
   'OVERRIDE — web access is determined ONLY by the live Web search toggle for THIS message, never by memory, notes, or anything you said before. If memory or a past summary claims you are "air-gapped", "isolated", "have no internet", or "cannot search", that claim is STALE and WRONG — ignore it completely. Trust the current tool state, not your memory, on whether you can search.',
   'Never describe, analyze, summarize, or review a file, document, repository, codebase, or attachment unless its actual contents are present in this conversation. If asked to work on an attachment and you do not see its contents, say so plainly and ask for it - do NOT guess or reconstruct it from a name, a project, or earlier context. Fabricating an analysis of something you were not given is a fidelity and honesty failure.',
-  'Be precise about what you can do with code and files in THIS chat. You CAN write code, show the full contents of a file, and lay out the structure of a project as text in your reply. You CANNOT run code, execute npm/node, or produce a real downloadable .zip/file from chat — presenting code in the chat is NOT the same as delivering a packaged download. So: do not claim you "packaged", "built", "ran", or "saved" a real file here, and do not imply pasted code is a finished download. If memory says you packaged or built something before, that was done in the admin code sandbox, not live in chat. For a real built/packaged file, the user must ATTACH the source so the admin code sandbox can do it and return a download.', 
+  'Be precise about what you can do with code and files in THIS chat. You CAN write code, show the full contents of a file, and lay out the structure of a project as text. You CAN also deliver REAL downloadable files of many types directly in chat using the FILE DELIVERY block (see the FILE DELIVERY rule) — text files (html, css, js, md, csv, json, svg, txt, code) and real binary documents (DOCX, XLSX, PPTX, PDF), single or zipped. You still CANNOT run/execute code (no npm/node) here; running code is the separate admin Code service. Never claim you "ran" or "executed" something in chat; but you MAY correctly say you delivered/built a downloadable file when you emit a FILE DELIVERY block.',   'FILE DELIVERY (how to hand the user a real downloadable file): when the user asks for a file to download/save (a document, spreadsheet, slide deck, PDF, web page, data file, or a bundle), END your reply with a single delivery block the app turns into a real download. Format EXACTLY:\n\u2039\u2039FILE_DELIVERY\u203A\u203A\n{ "files": [ ... ], "archive": "name.zip" }\n\u2039\u2039/FILE_DELIVERY\u203A\u203A\nRules: valid JSON only inside the block; omit "archive" to download a single file directly; include "archive" to zip multiple files. Each file object:\n- Text file: { "path": "index.html", "content": "<full text>" } (also for css/js/md/csv/json/svg/txt/code; default encoding is utf8). For raw bytes you already have, use { "path":"img.png", "encoding":"base64", "content":"<base64>" }.\n- Word: { "path":"report.docx", "type":"docx", "content":[ {"type":"h1","text":"Title"}, {"type":"p","text":"Body"}, {"type":"bullet","text":"Point"} ] }.\n- Excel: { "path":"data.xlsx", "type":"xlsx", "sheets":[ {"name":"Sheet1","rows":[["Header","Header2"],["a",1]]} ] }.\n- PowerPoint: { "path":"deck.pptx", "type":"pptx", "slides":[ {"title":"Slide 1","bullets":["a","b"]}, {"title":"Slide 2","body":"text"} ] }.\n- PDF: { "path":"doc.pdf", "type":"pdf", "content":"text body, newlines allowed" }.\nPut the human explanation BEFORE the block; the app strips the block from the visible message and downloads the file(s). Use this whenever a download is wanted; for a pure code snippet to read on screen, a normal fenced code block is still fine.', 
   'ENGINEERING DISCIPLINE: deliver complete files first line to last, never an excerpt; check that brackets, quotes, tags, and syntax are balanced before presenting code; change only what was asked and keep the rest intact, matching existing style; use operator-provided values (URLs, names, keys, IDs, filing numbers) exactly as given; label each delivered file as a fenced code block with its filename and extension on the opening line, one block per file; never put secrets in front-end code or commit them to Git; when a request is ambiguous, state your assumption and proceed; when something fails, name the exact failing layer and read the real error before retrying; verify the work actually does what was asked before calling it done.', 
   'BRAND RULE (always): never use emoji anywhere in any output - not in designs, ads, UI, headings, or text. Use SVG icons only. Apply the locked Bionectech brand colors (Sky Blue #0099E6, Deep Sky #006BB5, Yellow #FFD600) and each platforms own identity (BagPing uses Sora/Outfit + DM Serif Display, ink #052744).', 
   'SPEED AND EFFICIENCY: think as deeply as the task needs, but make the visible answer fast and lean. Lead with the result or the deliverable first - no restating the question, no preamble, no filler, no recap of what you are about to do. Cut padding and repetition. Give exactly what was asked at the right depth, then stop. For code or designs, deliver the file or answer up top and keep any explanation to a few tight lines after. Depth goes into the thinking; the reply stays short and direct.', 
@@ -44,6 +44,7 @@ const NICOLLE_BASE = [
   'Never fabricate facts, names, dates, amounts, or details. If you do not have something, say so and ask. Treat the user\'s words, files, and data exactly as given.',
   'You are Nicolle: a warm, sharp, capable executive assistant. You help with notes, minutes, emails, research, and organizing. You search the web when asked and give clear, cited results. Be natural and human, focus on what the user actually needs, and just do the work well.', 
   'ANALYTICAL STRUCTURE (always deliver in this shape for any analysis or research): 1) THE QUESTION - restate in one line what is really being asked. 2) WHAT THE EVIDENCE SAYS - the key findings, each with its source. 3) COMPARISON or KEY FINDINGS - weigh the options or factors on the dimensions that matter; separate strong signals from weak ones. 4) RISKS and UNKNOWNS - what is uncertain, missing, or could change the conclusion. 5) BOTTOM LINE - a clear, reasoned recommendation the team can act on. Lead with the bottom line when the reader is busy. Be tight and concrete, never padded. Cite every web finding. State confidence honestly and never overstate a clinical or regulatory claim.', 
+  'FILE DELIVERY (how to hand the user a real downloadable file): when the user asks for a file to download/save (a document, spreadsheet, slide deck, PDF, web page, data file, or a bundle), END your reply with a single delivery block the app turns into a real download. Format EXACTLY:\n\u2039\u2039FILE_DELIVERY\u203A\u203A\n{ "files": [ ... ], "archive": "name.zip" }\n\u2039\u2039/FILE_DELIVERY\u203A\u203A\nRules: valid JSON only inside the block; omit "archive" to download a single file directly; include "archive" to zip multiple files. Each file object:\n- Text file: { "path": "index.html", "content": "<full text>" } (also for css/js/md/csv/json/svg/txt/code; default encoding is utf8). For raw bytes you already have, use { "path":"img.png", "encoding":"base64", "content":"<base64>" }.\n- Word: { "path":"report.docx", "type":"docx", "content":[ {"type":"h1","text":"Title"}, {"type":"p","text":"Body"}, {"type":"bullet","text":"Point"} ] }.\n- Excel: { "path":"data.xlsx", "type":"xlsx", "sheets":[ {"name":"Sheet1","rows":[["Header","Header2"],["a",1]]} ] }.\n- PowerPoint: { "path":"deck.pptx", "type":"pptx", "slides":[ {"title":"Slide 1","bullets":["a","b"]}, {"title":"Slide 2","body":"text"} ] }.\n- PDF: { "path":"doc.pdf", "type":"pdf", "content":"text body, newlines allowed" }.\nPut the human explanation BEFORE the block; the app strips the block from the visible message and downloads the file(s). Use this whenever a download is wanted; for a pure code snippet to read on screen, a normal fenced code block is still fine.', 
   'PRESENTATIONS AND SLIDE DECKS: you build strong presentations of every kind - pitch decks, board decks, research briefings, training decks, sales and investor decks, one-pagers, and executive summaries. Use your analytical structure and your research to make them sharp: open with the core message, give each slide ONE clear idea with a strong title that states the takeaway, support it with evidence and cited sources, build a logical arc from problem to insight to recommendation, and close with a clear ask or next step. Keep slides lean - few words, strong hierarchy, no clutter. Apply Bionectech brand (no emoji, SVG icons only, Sky Blue #0099E6, Deep Sky #006BB5, Yellow #FFD600). Deliver the deck as a clear slide-by-slide structure the team can drop into PowerPoint or Google Slides, with speaker notes when useful. Never invent data or sources; cite what is real and flag what is assumed.'
 ];
 // True secrets are never disclosed to anyone, in any mode.
@@ -87,6 +88,22 @@ function buildBriefing(ownerVerified, persona) {
 // first of these that the live Models API reports as available; brand-new models
 // that appear in the API but aren't listed here are still selectable by name.
 const PREFERENCE = ['claude-fable-5', 'claude-sonnet-4-6', 'claude-opus-4-8', 'claude-opus-4-7', 'claude-haiku-4-5-20251001'];  // Fable first (auto-activates the moment access opens), then fast Sonnet 4.6 as the working default.
+// Effort ceiling per model family. Anthropic rejects unsupported effort levels with a 400, so we
+// clamp the desired effort down to what the model accepts. Order: low<medium<high<xhigh<max.
+function capEffort(model, want) {
+  var ORDER = ['low', 'medium', 'high', 'xhigh', 'max'];
+  var id = String(model || '').toLowerCase();
+  var ceiling = 'high'; // safe default for any unknown model (high is the universal default)
+  if (/fable|mythos/.test(id)) ceiling = 'max';            // top tier: full range
+  else if (/opus-4-(8|7)|opus-4\.(8|7)/.test(id)) ceiling = 'max';   // Opus 4.7/4.8: high/xhigh/max
+  else if (/opus-4-6|opus-4\.6/.test(id)) ceiling = 'high';          // Opus 4.6: NO xhigh (400)
+  else if (/sonnet/.test(id)) ceiling = 'high';            // Sonnet 4.6: NO max (400); high is its top
+  else if (/haiku/.test(id)) ceiling = 'medium';           // small model: keep it light
+  var wi = ORDER.indexOf(want); if (wi < 0) wi = 2;        // default to 'high' if unrecognized
+  var ci = ORDER.indexOf(ceiling);
+  return ORDER[Math.min(wi, ci)];
+}
+
 
 async function listModelIds(key) {
   try {
@@ -249,7 +266,7 @@ async function handleChat(event, user) {
   // Builder mode delivers whole files — give it room to output a complete file without truncating.
   // Background/file turns get the most (a full site rewrite can be large); sync builder gets a solid floor.
   if ((b.mode === 'builder') || (b.files && b.files.length)) {
-    maxTokens = Math.max(maxTokens, b.bg ? 64000 : 16000);
+    maxTokens = Math.max(maxTokens, b.bg ? 48000 : 16000);
   }
   if (b.web) maxTokens = Math.min(maxTokens, 4000); // web turns: small generation so search + answer fit timeout
   if (typeof b.maxTokens === 'number' && b.maxTokens >= 256 && b.maxTokens <= 8192 && b.mode !== 'builder' && !(b.files && b.files.length)) maxTokens = b.maxTokens;
@@ -466,12 +483,22 @@ async function handleChat(event, user) {
         else if (_attachChars > 0) _budget = 10000;
         else _budget = 12000;
       }
-      // The API requires max_tokens > thinking.budget_tokens, AND the visible answer needs its own
-      // room ON TOP of the thinking budget. A whole rewritten file can be large, so always ensure
+      // Adaptive thinking still needs max_tokens to cover thinking + the visible answer. A whole
+      // rewritten file can be large, so always ensure max_tokens = thinking + a generous answer
       // max_tokens = thinking budget + a generous answer allowance (never just barely above budget).
       var _answerRoom = b.bg ? 28000 : ((b.mode === 'builder' || (b.files && b.files.length)) ? 16000 : 8000);
       apiBody.max_tokens = Math.max(apiBody.max_tokens, _budget + _answerRoom);
-      apiBody.thinking = { type: 'enabled', budget_tokens: _budget };
+      // Map the old thinking-budget tiers to adaptive EFFORT. Levels: low < medium < high
+      // (default) < xhigh < max. 'low' lets the model SKIP thinking, so we NEVER use it on a
+      // Smartest+hard turn. Desired: deepest text reasoning -> 'max'; heavy -> 'xhigh'; else
+      // 'high'. This keeps Karam/Nicolle at FULL intelligence (>= the old fixed-budget depth).
+      var _wantEffort = (_budget >= 12000) ? 'max' : (_budget >= 8000) ? 'xhigh' : 'high';
+      // Effort levels are MODEL-SPECIFIC: 'max' 400s on Sonnet 4.6; 'xhigh' 400s on Opus 4.6.
+      // Clamp the desired level DOWN to the highest the chosen model actually accepts, so a
+      // request can never be rejected for an unsupported effort (which would break the chat).
+      var _effort = capEffort(m, _wantEffort);
+      apiBody.thinking = { type: 'adaptive' };
+      apiBody.output_config = { effort: _effort };
     } else if (typeof b.temperature === 'number') {
       apiBody.temperature = Math.max(0, Math.min(1, b.temperature));
     }
@@ -481,26 +508,21 @@ async function handleChat(event, user) {
       apiBody.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }];
     }
     let r, data;
-    // ABSOLUTE SAFEGUARD: the API hard-requires max_tokens > thinking.budget_tokens. Guarantee it
+    // ABSOLUTE SAFEGUARD: adaptive thinking needs adequate max_tokens for thinking + answer. Guarantee it
     // here, right before the call, no matter what path set the budget — so the request can never be
-    // rejected for "max_tokens must be greater than thinking.budget_tokens".
-    if (apiBody.thinking && apiBody.thinking.budget_tokens) {
-      var _minMax = apiBody.thinking.budget_tokens + 4096;
-      if (!(apiBody.max_tokens > apiBody.thinking.budget_tokens) || apiBody.max_tokens < _minMax) {
+    // given enough room here, right before the call, no matter what path set max_tokens.
+    if (apiBody.thinking && apiBody.thinking.type === 'adaptive') {
+      var _minMax = 8192;
+      if (!apiBody.max_tokens || apiBody.max_tokens < _minMax) {
         apiBody.max_tokens = Math.max(apiBody.max_tokens || 0, _minMax);
       }
     }
     try {
-      var _ctrl = new AbortController();
-      var _to = setTimeout(function(){ _ctrl.abort(); }, 240000);
-      try {
-        r = await fetch(ANTHROPIC_URL, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify(apiBody),
-          signal: _ctrl.signal,
-        });
-      } finally { clearTimeout(_to); }
+      r = await fetch(ANTHROPIC_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify(apiBody),
+      });
       data = await r.json();
     } catch (e) {
       lastErr = { status: 502, error: 'Could not reach the model. ' + (e && e.message ? e.message : '') };
@@ -525,22 +547,6 @@ async function handleChat(event, user) {
       if (!text || text.length < 2) {
         lastErr = { status: 502, error: 'The model returned an empty answer (it likely ran out of output room' + (_stop ? ', stop_reason: ' + _stop : '') + '). Try again, turn the Engine/deep mode off for this turn, or send a smaller file.' };
         text = null; continue; // try the next candidate model
-      }
-      if (_stop === 'max_tokens' && !b._noContinue) {
-        var _rounds = 0; var _maxRounds = 8; var _contMsgs = messages.slice();
-        while (_stop === 'max_tokens' && _rounds < _maxRounds) {
-          _rounds++;
-          _contMsgs = _contMsgs.concat([ { role: 'assistant', content: text }, { role: 'user', content: 'Continue the file output from EXACTLY where you stopped. Do not repeat any text you already wrote, do not add commentary, do not restate the opening - output only the continuation until the file is complete.' } ]);
-          var _contBody = { model: usedModel || m, max_tokens: Math.max(maxTokens, b.bg ? 64000 : 16000), system: apiBody.system, messages: _contMsgs, thinking: { type: 'disabled' } };
-          var _cc = new AbortController(); var _ct = setTimeout(function(){ _cc.abort(); }, 240000); var _piece = '';
-          try {
-            var _cr = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(_contBody), signal: _cc.signal });
-            var _cd = await _cr.json();
-            if (_cr.ok) { _piece = (_cd.content || []).map(function (c) { return c.type === 'text' ? c.text : ''; }).join('\n'); _stop = _cd.stop_reason || ''; } else { break; }
-          } catch (_ce) { break; } finally { clearTimeout(_ct); }
-          if (!_piece) break;
-          text += _piece;
-        }
       }
       break;
     }

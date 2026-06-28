@@ -117,6 +117,12 @@
   .presence .pdot{width:7px;height:7px;border-radius:50%;background:var(--live);box-shadow:0 0 7px var(--live)}
   .hide{display:none!important}
 </style>
+<!-- File delivery + builders (Karam/Nicolle can hand off any file type) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div id="toast"></div>
@@ -408,7 +414,7 @@ $('renProj').addEventListener('click',function(){if(!current)return;var n=(windo
 $('delProj').addEventListener('click',function(){if(!current)return;if(!window.confirm('Delete project?'))return;projects=projects.filter(function(p){return p.id!==current.id;});if(projects.length===0)projects=[{id:newId(),name:'Project 1',turns:[],updated:Date.now()}];current=projects[0];renderProjects();renderTurns();saveData();});
 
 function addTurn(role,text){current.turns=current.turns||[];current.turns.push({role:role,text:text,persona:(role!=='you'?personaSel:undefined),ts:Date.now()});current.updated=Date.now();renderTurns();renderProjects();saveData();}
-function addTurnA(role,text,aegis,model,persona,websearched){current.turns=current.turns||[];var who=(role!=='you')?(persona||personaSel):undefined;current.turns.push({role:role,text:text,aegis:aegis||null,model:model||null,persona:who,websearched:!!websearched,ts:Date.now()});current.updated=Date.now();renderTurns();renderProjects();saveData();}
+function addTurnA(role,text,aegis,model,persona,websearched){current.turns=current.turns||[];var who=(role!=='you')?(persona||personaSel):undefined;var _turn={role:role,text:text,aegis:aegis||null,model:model||null,persona:who,websearched:!!websearched,ts:Date.now()};current.turns.push(_turn);current.updated=Date.now();renderTurns();renderProjects();saveData();if(role==='claude' && typeof KaramDeliver!=='undefined' && typeof text==='string' && text.indexOf('FILE_DELIVERY')>=0){ KaramDeliver.process(text).then(function(clean){ if(clean!==text){ _turn.text=clean; renderTurns(); saveData(); } }).catch(function(e){console.error(e);}); } }
 async function bigFileFlow(userTask, bigText, otherFiles, mode, temp){
   var task=userTask||'Review the attached document.';
   addTurn('you', task); $('send').disabled=true;
@@ -445,7 +451,7 @@ function maybeUpdateMemory(){
   if(_memUpdating||!current) return;
   var all=(current.turns||[]).filter(function(t){return t.text&&t.text!=='…'&&t.text.indexOf('[not delivered]')!==0;});
   current.memCount=current.memCount||0;
-  if(all.length - current.memCount < 1) return;             /* fold into long-term memory every ~2 turns (near real-time, stronger retention) */
+  if(all.length - current.memCount < 2) return;             /* fold into long-term memory every ~2 turns (near real-time, stronger retention) */
   var since=all.slice(current.memCount);
   var convo=since.map(function(t){return (t.role==='you'?'User':'Assistant')+': '+(t.text||'');}).join('\n').slice(0,24000);
   var pers=personaSel, proj=current, mark=all.length;
@@ -471,46 +477,58 @@ function maybeFoldSummary(){
   .catch(function(){}).then(function(){ _folding=false; });
 }
 function runBackground(payload, prompt){
-  // RENDER MODE: the server has no execution time limit, so we call chat directly and wait for the
-  // full answer. No background job, no Redis polling, no "missing" fallback, no spinning — the request
-  // simply stays open until the model finishes (even several minutes for a big file) and returns.
-  delete payload.bg; delete payload.jobId;
-  var who = (personaSel==='nicolle'?'Nicolle':'Karam');
-  addTurn('claude','… '+who+' is working on this — a big build can take a few minutes. Keeping the line open until it’s done …');
-  // Gentle progress counter so a long job never feels stuck.
-  var secs = 0;
-  var ticker = setInterval(function(){
-    secs += 5;
-    if(current.turns.length){
-      var _lt = current.turns[current.turns.length-1];
-      if(_lt && _lt.role==='claude' && /is working on this/.test(_lt.text||'')){
-        _lt.text = '… '+who+' is working on this — '+secs+'s in. Big builds take a few minutes; keeping the line open …';
-        renderTurns();
-      }
-    }
-  }, 5000);
-  api('chat',{method:'POST',body:JSON.stringify(payload)}).then(function(r){
-    clearInterval(ticker);
+  var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+  payload.jobId = jobId; payload.bg = true;
+  addTurn('claude','… '+(personaSel==='nicolle'?'Nicolle':'Karam')+' is thinking deeply on this — this can take a little while. I\'ll have it shortly …');
+  // Kick off the background job (returns 202 immediately).
+  api('chat-background',{method:'POST',body:JSON.stringify(payload)}).then(function(){
+    var tries = 0, maxTries = 360; // ~12 min at 2s intervals
+    var poll = setInterval(function(){
+      tries++;
+      // Gentle progress reassurance so a long job never feels stuck (updates the placeholder text).
+      if(tries % 15 === 0 && current.turns.length){ var _lt=current.turns[current.turns.length-1]; if(_lt && _lt.role==='claude' && / is thinking deeply on this/.test(_lt.text||'')){ var _secs=tries*2; _lt.text='… '+(personaSel==='nicolle'?'Nicolle':'Karam')+' is working through it — '+_secs+'s in. Big files take a little longer; I\'ll have it shortly …'; renderTurns(); } }
+      api('chat-result',{method:'POST',body:JSON.stringify({jobId:jobId})}).then(function(r){
+        if(!(r.ok && r.data)) return;
+        var st = r.data.status;
+        if(st==='done'){
+          clearInterval(poll);
+          var d = (r.data.result)||{};
+          current.turns.pop();
+          if(d.text){ addTurnA('claude',d.text,d.aegis,d.model,d.persona,d.websearched); if(autoRead) speak(d.text,d.persona||personaSel); pushLive(personaSel, prompt, d.text); }
+          else { addTurn('claude','That did not come through ('+((d.error)||'no text')+'). Mind trying once more? (info@bionectech.com)'); if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); } }
+          $('send').disabled=(!unlimited&&remaining<=0);
+        } else if(st==='error'){
+          clearInterval(poll);
+          current.turns.pop();
+          var em=((r.data.result&&r.data.result.error))||'error';
+          addTurn('claude','That did not come through ('+em+'). Mind trying once more? (info@bionectech.com)');
+          if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); }
+          $('send').disabled=false;
+        } else if(st==='missing' && tries>30){
+          // job never registered — the background function isn't deployed on this site yet. Fall back
+          // to SYNC, but cap it hard (no deep thinking, modest output) so it finishes within the 26s
+          // limit instead of 504-ing. Tell the user the file may be trimmed and to deploy background.
+          clearInterval(poll);
+          current.turns.pop();
+          delete payload.bg; delete payload.jobId;
+          payload.smart=false; payload.fast=false; payload.maxTokens=8000;
+          addTurn('claude','… (running the quick path — deploy the background function for full large-file support) …');
+          api('chat',{method:'POST',body:JSON.stringify(payload)}).then(function(rr){
+            current.turns.pop();
+            if(rr.ok&&rr.data&&rr.data.text){ addTurnA('claude',rr.data.text,rr.data.aegis,rr.data.model,rr.data.persona,rr.data.websearched); if(autoRead) speak(rr.data.text,rr.data.persona||personaSel); pushLive(personaSel, prompt, rr.data.text); }
+            else { var em2=(rr.data&&rr.data.error)||('HTTP '+rr.status); addTurn('claude','That did not come through ('+em2+'). For large files, the background function needs deploying — or send a smaller file. (info@bionectech.com)'); if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); } }
+            $('send').disabled=(!unlimited&&remaining<=0);
+          }).catch(function(){ current.turns.pop(); addTurn('claude','I can\'t reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)'); $('send').disabled=false; });
+        }
+        if(tries>=maxTries){ clearInterval(poll); current.turns.pop(); addTurn('claude','This one is taking longer than expected. It may still finish — try asking again, or send a smaller file. (info@bionectech.com)'); $('send').disabled=false; }
+      }).catch(function(){ /* transient poll error — keep polling */ });
+    }, 2000);
+  }).catch(function(){
     current.turns.pop();
-    if(r.ok && r.data && r.data.text){
-      addTurnA('claude', r.data.text, r.data.aegis, r.data.model, r.data.persona, r.data.websearched);
-      if(autoRead) speak(r.data.text, r.data.persona||personaSel);
-      pushLive(personaSel, prompt, r.data.text);
-    } else {
-      var em = (r.data && r.data.error) || ('HTTP '+r.status);
-      addTurn('claude','That did not come through ('+em+'). Mind trying once more? (info@bionectech.com)');
-      if(payload.files && payload.files.length){ pending = payload.files.concat(pending); renderChips(); }
-    }
-    $('send').disabled = (!unlimited && remaining<=0);
-  }).catch(function(e){
-    clearInterval(ticker);
-    current.turns.pop();
-    addTurn('claude','I couldn’t reach the Lab just now — a connection hiccup. Your attachment was kept; please try again. (info@bionectech.com)');
-    if(payload.files && payload.files.length){ pending = payload.files.concat(pending); renderChips(); }
-    $('send').disabled = false;
+    addTurn('claude','I can\'t reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)');
+    $('send').disabled=false;
   });
 }
-
 function send(){
   var prompt=($('ask').value||'').trim();
   if(!prompt && pending.length===0) return;
@@ -644,14 +662,14 @@ var _nDraft='';
 function nicolleAskGo(opts){ opts=opts||{}; var q=($('nicolleAsk').value||'').trim(); if(!q){ toast('Tell Nicolle what you need.'); return; } var out=$('nicolleOut'); out.textContent='Nicolle is working…';
   /* Connected to EVERYTHING: current project's recent conversation + a lab-wide digest of all projects, plus her memory + live link. */
   var _all=(current&&current.turns||[]).filter(function(t){return t.text&&t.text!=='…'&&t.text.indexOf('[not delivered]')!==0;});
-  var _hist=_all.slice(-30).map(function(t){return {role:(t.role==='you'?'user':'assistant'),text:String(t.text||'').slice(0,6000)};});
+  var _hist=_all.slice(-10).map(function(t){return {role:(t.role==='you'?'user':'assistant'),text:String(t.text||'').slice(0,2000)};});
   /* Lab-wide digest: compact — top 6 projects, short summaries, hard cap — so it never oversizes the request. */
-  var _digest=projects.slice().sort(function(a,b){return (b.updated||0)-(a.updated||0);}).slice(0,20).map(function(p){
-    var s=(p.summary||'').slice(0,600); if(!s){ s='('+((p.turns||[]).length)+' turns)'; }
+  var _digest=projects.slice().sort(function(a,b){return (b.updated||0)-(a.updated||0);}).slice(0,6).map(function(p){
+    var s=(p.summary||'').slice(0,200); if(!s){ s='('+((p.turns||[]).length)+' turns)'; }
     return '• '+(p.name||'Project')+': '+s;
   }).join('\n').slice(0,2000);
   if(_digest && !webOn){ _hist.unshift({role:'assistant',text:'Understood — I have the lab-wide context.'}); _hist.unshift({role:'user',text:'[LAB-WIDE MEMORY — your projects, for context only]\n'+_digest}); }
-  if(current&&current.summary && !webOn){ _hist.unshift({role:'assistant',text:'Understood — I have the earlier context.'}); _hist.unshift({role:'user',text:'[Earlier conversation in the CURRENT project — running summary for context only]\n'+String(current.summary).slice(0,8000)}); }
+  if(current&&current.summary && !webOn){ _hist.unshift({role:'assistant',text:'Understood — I have the earlier context.'}); _hist.unshift({role:'user',text:'[Earlier conversation in the CURRENT project — running summary for context only]\n'+String(current.summary).slice(0,3000)}); }
   api('chat',{method:'POST',body:JSON.stringify({prompt:q,history:webOn?[]:_hist,files:[],model:$('model').value,mode:'answer',temperature:0.5,engine:true,ownerCode:ownerCode,web:webOn,fast:false,smart:true,persona:'nicolle'})}).then(function(r){ if(r.ok&&r.data&&r.data.text){ _nDraft=r.data.text; out.textContent=_nDraft; if(opts.speak) speak(_nDraft,'nicolle'); pushLive('nicolle', q, r.data.text); } else { out.textContent='[not delivered] '+((r.data&&r.data.error)||('HTTP '+r.status)); } }); }
 var _ng=$('nicolleGo'); if(_ng) _ng.addEventListener('click',function(){ nicolleAskGo({speak:true}); });
 var nrec=null, nlistening=false;
@@ -1043,6 +1061,78 @@ function downloadFile(name,content){ var u=URL.createObjectURL(new Blob([content
 function downloadZip(files,zipName){ var z=buildZip(files); downloadFile(zipName||'karam-files.zip', z); }
 
 function renderChips(){ var c=$('chips'); if(!c) return; c.innerHTML=''; if(workingFile){ var wf=document.createElement('span'); wf.className='chip'; wf.style.cssText='background:rgba(255,214,0,0.15);border:1px solid var(--gold)'; wf.appendChild(document.createTextNode('Working with Karam: '+(workingFile.name||'file'))); var wx=document.createElement('b'); wx.textContent='x'; wx.title='Stop working on this file'; wx.addEventListener('click',function(){ workingFile=null; renderChips(); toast('Closed the working file. Back to normal chat.'); }); wf.appendChild(wx); c.appendChild(wf); } pending.forEach(function(fl,i){ var sp=document.createElement('span'); sp.className='chip'; sp.appendChild(document.createTextNode(fl.name||'file')); var x=document.createElement('b'); x.textContent='x'; x.addEventListener('click',function(){ pending.splice(i,1); renderChips(); }); sp.appendChild(x); c.appendChild(sp); }); }
+
+// ===== OFFICE FILE TEXT EXTRACTION (docx/xlsx/pptx are ZIP+XML; crack open with unzip()) =====
+function _xmlText(xml){ // strip tags, decode the common entities, collapse whitespace
+  if(!xml) return '';
+  var s=xml.replace(/<[^>]+>/g,' ');
+  s=s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&#(\d+);/g,function(m,n){try{return String.fromCharCode(parseInt(n,10));}catch(e){return ' ';}});
+  return s.replace(/[ \t\u00a0]+/g,' ').replace(/\s*\n\s*/g,'\n').trim();
+}
+function _entryByName(entries,re){ for(var i=0;i<entries.length;i++){ if(entries[i]&&re.test(entries[i].name)) return entries[i]; } return null; }
+function _entriesByName(entries,re){ var o=[]; for(var i=0;i<entries.length;i++){ if(entries[i]&&re.test(entries[i].name)) o.push(entries[i]); } return o; }
+function _dec(bytes){ try{ return new TextDecoder('utf-8',{fatal:false}).decode(bytes); }catch(e){ return ''; } }
+async function extractDocx(buf){
+  var entries=await unzip(buf), dec=_dec;
+  // main document + headers/footers + footnotes/endnotes, in reading order where we can
+  var parts=[];
+  var main=_entryByName(entries,/^word\/document\.xml$/i); if(main) parts.push(dec(main.bytes));
+  _entriesByName(entries,/^word\/(header|footer)\d*\.xml$/i).forEach(function(e){ parts.push(dec(e.bytes)); });
+  _entriesByName(entries,/^word\/(footnotes|endnotes)\.xml$/i).forEach(function(e){ parts.push(dec(e.bytes)); });
+  // Turn paragraph/break tags into newlines BEFORE stripping, so structure survives
+  var joined=parts.join('\n')
+    .replace(/<\/w:p>/gi,'\n').replace(/<w:br\b[^>]*\/?>/gi,'\n').replace(/<w:tab\b[^>]*\/?>/gi,'\t');
+  return _xmlText(joined);
+}
+async function extractPptx(buf){
+  var entries=await unzip(buf), dec=_dec;
+  var slides=_entriesByName(entries,/^ppt\/slides\/slide\d+\.xml$/i)
+    .sort(function(a,b){ function n(x){var m=x.name.match(/slide(\d+)\.xml/i);return m?parseInt(m[1],10):0;} return n(a)-n(b); });
+  var notes=_entriesByName(entries,/^ppt\/notesSlides\/notesSlide\d+\.xml$/i)
+    .sort(function(a,b){ function n(x){var m=x.name.match(/notesSlide(\d+)\.xml/i);return m?parseInt(m[1],10):0;} return n(a)-n(b); });
+  var out=[];
+  slides.forEach(function(s,i){
+    var xml=dec(s.bytes).replace(/<a:p>/gi,'\n').replace(/<\/a:p>/gi,'\n').replace(/<a:br\b[^>]*\/?>/gi,'\n');
+    var t=_xmlText(xml);
+    var note=notes[i]?_xmlText(dec(notes[i].bytes).replace(/<a:p>/gi,'\n')):'';
+    out.push('--- Slide '+(i+1)+' ---\n'+t+(note?('\n[Speaker notes] '+note):''));
+  });
+  return out.join('\n\n');
+}
+async function extractXlsx(buf){
+  var entries=await unzip(buf), dec=_dec;
+  // shared strings table
+  var shared=[]; var ss=_entryByName(entries,/^xl\/sharedStrings\.xml$/i);
+  if(ss){ var sx=dec(ss.bytes); var m=sx.match(/<si>[\s\S]*?<\/si>/gi)||[]; shared=m.map(function(si){ return _xmlText(si); }); }
+  var sheets=_entriesByName(entries,/^xl\/worksheets\/sheet\d+\.xml$/i)
+    .sort(function(a,b){ function n(x){var m=x.name.match(/sheet(\d+)\.xml/i);return m?parseInt(m[1],10):0;} return n(a)-n(b); });
+  var out=[];
+  sheets.forEach(function(sh,si){
+    var xml=dec(sh.bytes); var rows=xml.match(/<row\b[\s\S]*?<\/row>/gi)||[]; var lines=[];
+    rows.forEach(function(row){
+      var cells=row.match(/<c\b[\s\S]*?(\/>|<\/c>)/gi)||[]; var vals=[];
+      cells.forEach(function(c){
+        var isStr=/t="s"/i.test(c); var vm=c.match(/<v>([\s\S]*?)<\/v>/i);
+        var inline=c.match(/<is>[\s\S]*?<\/is>/i);
+        var val='';
+        if(inline){ val=_xmlText(inline[0]); }
+        else if(vm){ val=isStr ? (shared[parseInt(vm[1],10)]||'') : vm[1]; }
+        vals.push(val);
+      });
+      if(vals.join('').trim()!=='') lines.push(vals.join('\t'));
+    });
+    if(lines.length) out.push('--- Sheet '+(si+1)+' ---\n'+lines.join('\n'));
+  });
+  return out.join('\n\n');
+}
+async function extractOffice(file){
+  var name=(file.name||'').toLowerCase(); var buf=await file.arrayBuffer();
+  if(/\.docx$/i.test(name)) return await extractDocx(buf);
+  if(/\.pptx$/i.test(name)) return await extractPptx(buf);
+  if(/\.xlsx$/i.test(name)) return await extractXlsx(buf);
+  throw new Error('unsupported office file');
+}
+
 function readFile(file){ return new Promise(function(res){ var name=file.name||'file', type=file.type||''; if(/\.(rar|7z|bz2|xz|jar|war)$/i.test(name)){ toast('Can\'t open '+name+' in the browser. Extract it and attach the files inside.'); res(null); return; } if(/^image\//.test(type)){ var r=new FileReader(); r.onload=function(){ res({kind:'image',media_type:type,data:String(r.result).split(',')[1],name:name}); }; r.readAsDataURL(file); } else if(type==='application/pdf'||/\.pdf$/i.test(name)){ var r2=new FileReader(); r2.onload=function(){ res({kind:'document',media_type:'application/pdf',data:String(r2.result).split(',')[1],name:name}); }; r2.readAsDataURL(file); } else { var r3=new FileReader(); r3.onload=function(){ res({kind:'text',text:String(r3.result),name:name}); }; r3.readAsText(file); } }); }
 var _linkBtn=$('linkBtn'); if(_linkBtn) _linkBtn.addEventListener('click',function(){
   var url=window.prompt('Paste a link for Karam to work on (a public page or raw file):');
@@ -1062,8 +1152,8 @@ async function gunzip(u8){ var ds=new DecompressionStream('gzip'); var st=new Bl
 async function unzip(buf){ var dv=new DataView(buf); var u8=new Uint8Array(buf); var out=[]; var eocd=-1; for(var i=u8.length-22;i>=0;i--){ if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; } } if(eocd<0) throw new Error('not a valid zip'); var cnt=dv.getUint16(eocd+10,true); var p=dv.getUint32(eocd+16,true); for(var n=0;n<cnt;n++){ if(dv.getUint32(p,true)!==0x02014b50) break; var method=dv.getUint16(p+10,true); var compSize=dv.getUint32(p+20,true); var nameLen=dv.getUint16(p+28,true); var extraLen=dv.getUint16(p+30,true); var commentLen=dv.getUint16(p+32,true); var lho=dv.getUint32(p+42,true); var nm=new TextDecoder().decode(u8.subarray(p+46,p+46+nameLen)); p+=46+nameLen+extraLen+commentLen; if(/\/$/.test(nm)) continue; var lNameLen=dv.getUint16(lho+26,true); var lExtraLen=dv.getUint16(lho+28,true); var dataStart=lho+30+lNameLen+lExtraLen; var comp=u8.subarray(dataStart,dataStart+compSize); var data; if(method===0) data=comp; else if(method===8){ try{ data=await inflateRaw(comp); }catch(e){ continue; } } else continue; out.push({name:nm,bytes:data}); } return out; }
 function untar(u8){ var out=[]; var off=0; var dec=new TextDecoder(); while(off+512<=u8.length){ var nm=dec.decode(u8.subarray(off,off+100)).replace(/\u0000.*$/,''); if(!nm){ break; } var szStr=dec.decode(u8.subarray(off+124,off+136)).replace(/\u0000.*$/,'').trim(); var size=parseInt(szStr,8)||0; var tf=String.fromCharCode(u8[off+156]); var dataStart=off+512; if(tf==='0'||tf==='\u0000'||tf===''){ out.push({name:nm,bytes:u8.subarray(dataStart,dataStart+size)}); } off=dataStart+Math.ceil(size/512)*512; } return out; }
 function isTextName(nm){ return /\.(js|jsx|ts|tsx|mjs|cjs|json|md|markdown|txt|html?|css|scss|less|csv|tsv|xml|ya?ml|toml|ini|env|sh|bash|zsh|py|rb|go|rs|java|kt|c|h|hpp|cpp|cc|sql|svg|conf|cfg|properties|gradle|php|pl|lua|r|dart|swift)$/i.test(nm) || /(^|\/)(_headers|_redirects|Dockerfile|Makefile|Procfile|README|LICENSE|CHANGELOG|\.env[a-z.]*|\.gitignore|\.npmrc|netlify\.toml|package\.json|tsconfig\.json|robots\.txt)$/i.test(nm); }
-async function extractArchive(file){ var name=(file.name||'').toLowerCase(); var buf=await file.arrayBuffer(); var u8=new Uint8Array(buf); var raw=[]; if(/\.zip$/i.test(name)) raw=await unzip(buf); else if(/\.tar$/i.test(name)) raw=untar(u8); else if(/\.(tgz|tar\.gz)$/i.test(name)){ raw=untar(await gunzip(u8)); } else if(/\.gz$/i.test(name)){ raw=[{name:name.replace(/\.gz$/,''),bytes:await gunzip(u8)}]; } else throw new Error('unsupported archive'); var out=[]; var dec=new TextDecoder('utf-8',{fatal:false}); for(var i=0;i<raw.length;i++){ var en=raw[i]; if(!en||!en.name) continue; var nmf=en.name; if(/(^|\/)(node_modules|\.git|dist|build)\//i.test(nmf)) continue; if(!isTextName(nmf)) continue; if(en.bytes.length>1000000) continue; var txt=dec.decode(en.bytes); if(txt.indexOf('\u0000')>=0) continue; out.push({kind:'text',name:nmf.split('/').pop().slice(0,120),text:'### '+nmf+'\n'+txt}); if(out.length>=300) break; } return out; }
-async function processIncoming(files){ for(var i=0;i<files.length;i++){ var file=files[i]; var name=(file.name||'').toLowerCase(); if(codeActive() && !isTextName(name) && !/^(text\/|application\/(json|javascript|xml))/.test(file.type||'') && !/\.(zip|tar|tgz|gz)$/i.test(name)){ try{ var rawf=await readFileRaw(file); if(rawf){ pending.push(rawf); renderChips(); toast('Attached '+file.name+' — Karam will run code on it.'); } }catch(e){} continue; } if(/\.(zip|tar|tgz|gz)$/i.test(name)||/\.tar\.gz$/i.test(name)){ if(typeof DecompressionStream==='undefined'){ toast('This browser can\'t extract archives. Please extract '+file.name+' and attach the files inside.'); continue; } try{ toast('Reading '+file.name+'…'); var entries=await extractArchive(file); if(entries.length){ var _bundle='### ARCHIVE: '+file.name+' ('+entries.length+' files — keep them together; rebuild and return as a single .zip named '+file.name+')\n\n'; entries.forEach(function(en){ if(en){ _bundle += '\n'+en.text+'\n'; } }); pending.push({kind:'text',name:file.name,text:_bundle,archive:true,archiveName:file.name}); renderChips(); toast('Loaded '+file.name+' ('+entries.length+' files, kept together). Tell Karam what to do — he\'ll return a .zip.'); } else { toast('No readable text files found in '+file.name+'.'); } }catch(err){ toast('Could not read '+file.name+': '+((err&&err.message)||'error')); } } else { try{ var fl=await readFile(file); if(fl){ pending.push(fl); renderChips(); } }catch(e){} } } }
+async function extractArchive(file){ var name=(file.name||'').toLowerCase(); var buf=await file.arrayBuffer(); var u8=new Uint8Array(buf); var raw=[]; if(/\.zip$/i.test(name)) raw=await unzip(buf); else if(/\.tar$/i.test(name)) raw=untar(u8); else if(/\.(tgz|tar\.gz)$/i.test(name)){ raw=untar(await gunzip(u8)); } else if(/\.gz$/i.test(name)){ raw=[{name:name.replace(/\.gz$/,''),bytes:await gunzip(u8)}]; } else throw new Error('unsupported archive'); var out=[]; var dec=new TextDecoder('utf-8',{fatal:false}); for(var i=0;i<raw.length;i++){ var en=raw[i]; if(!en||!en.name) continue; var nmf=en.name; if(/(^|\/)(node_modules|\.git|dist|build)\//i.test(nmf)) continue; if(!isTextName(nmf)) continue; if(en.bytes.length>500000) continue; var txt=dec.decode(en.bytes); if(txt.indexOf('\u0000')>=0) continue; out.push({kind:'text',name:nmf.split('/').pop().slice(0,120),text:'### '+nmf+'\n'+txt}); if(out.length>=80) break; } return out; }
+async function processIncoming(files){ for(var i=0;i<files.length;i++){ var file=files[i]; var name=(file.name||'').toLowerCase(); if(codeActive() && !isTextName(name) && !/^(text\/|application\/(json|javascript|xml))/.test(file.type||'') && !/\.(zip|tar|tgz|gz)$/i.test(name)){ try{ var rawf=await readFileRaw(file); if(rawf){ pending.push(rawf); renderChips(); toast('Attached '+file.name+' — Karam will run code on it.'); } }catch(e){} continue; } if(/\.(zip|tar|tgz|gz)$/i.test(name)||/\.tar\.gz$/i.test(name)){ if(typeof DecompressionStream==='undefined'){ toast('This browser can\'t extract archives. Please extract '+file.name+' and attach the files inside.'); continue; } try{ toast('Reading '+file.name+'…'); var entries=await extractArchive(file); if(entries.length){ var _bundle='### ARCHIVE: '+file.name+' ('+entries.length+' files — keep them together; rebuild and return as a single .zip named '+file.name+')\n\n'; entries.forEach(function(en){ if(en){ _bundle += '\n'+en.text+'\n'; } }); pending.push({kind:'text',name:file.name,text:_bundle,archive:true,archiveName:file.name}); renderChips(); toast('Loaded '+file.name+' ('+entries.length+' files, kept together). Tell Karam what to do — he\'ll return a .zip.'); } else { toast('No readable text files found in '+file.name+'.'); } }catch(err){ toast('Could not read '+file.name+': '+((err&&err.message)||'error')); } } else if(/\.(docx|pptx|xlsx)$/i.test(name)){ if(typeof DecompressionStream==='undefined'){ toast('This browser can\'t open '+file.name+'. Try Chrome/Edge, or paste the text.'); continue; } try{ toast('Reading '+file.name+'\u2026'); var _otext=await extractOffice(file); if(_otext && _otext.trim()){ pending.push({kind:'text',name:file.name,text:'### '+file.name+'\n'+_otext}); renderChips(); toast('Loaded '+file.name+'.'); } else { toast('No readable text found in '+file.name+'.'); } }catch(err){ toast('Could not read '+file.name+': '+((err&&err.message)||'error')); } } else { try{ var fl=await readFile(file); if(fl){ pending.push(fl); renderChips(); } }catch(e){} } } }
 $('fileInput').addEventListener('change',function(e){ var files=Array.prototype.slice.call(e.target.files||[]); processIncoming(files).then(function(){ $('fileInput').value=''; }); });
 
 /* ---- Folder support: a dropped/picked folder becomes ONE .tar automatically ---- */
@@ -1105,6 +1195,96 @@ $('restoreFile').addEventListener('change',function(e){ var file=(e.target.files
 $('exportBtn').addEventListener('click',function(){ if(!current) return; var lines=(current.turns||[]).map(function(t){ return (t.role==='you'?'YOU:\n':'CLAUDE:\n')+t.text+'\n'; }).join('\n'); download((current.name||'project')+'.txt', lines||'(empty)','text/plain'); });
 $('checkBtn').addEventListener('click',function(){ toast('Checking...'); api('me',{method:'GET'}).then(function(r){ if(r.ok&&r.data){ toast('Connected as '+r.data.desk+' ('+r.data.role+'). '+(r.data.unlimited?'Unlimited time.':(r.data.remainingMin+' min left today.'))); } else if(r.status===401){ toast('Session expired - sign in again.'); } else { toast('Server reachable but: '+((r.data&&r.data.error)||('HTTP '+r.status))); } }).catch(function(){ toast('Could not reach the server.'); }); });
 $('clearBtn').addEventListener('click',function(){ if(!current) return; if(!window.confirm('Clear all messages in this project?')) return; current.turns=[]; renderTurns(); renderProjects(); saveData(); });
+
+/* ===== KARAM/NICOLLE FILE DELIVERY — build & download ANY file type in-browser ===== */
+var KaramDeliver = (function(){
+  var OPEN="\u2039\u2039FILE_DELIVERY\u203A\u203A", CLOSE="\u2039\u2039/FILE_DELIVERY\u203A\u203A";
+  function b64ToBytes(b64){ var s=String(b64).replace(/\s+/g,''); var bin=atob(s); var u=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i); return u; }
+  function dl(blob,fname){ var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download=fname||'file'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(url);},1500); }
+  function extract(text){ if(typeof text!=='string')return null; var s=text.indexOf(OPEN),e=text.indexOf(CLOSE); if(s<0||e<0||e<s)return null; var inner=text.slice(s+OPEN.length,e).trim(); inner=inner.replace(/^```[a-zA-Z]*\s*/,'').replace(/```$/,'').trim(); try{return JSON.parse(inner);}catch(err){ console.error('[deliver] bad JSON',err); return null; } }
+  function strip(text){ if(typeof text!=='string')return text; var s=text.indexOf(OPEN),e=text.indexOf(CLOSE); if(s<0||e<0||e<s)return text; return (text.slice(0,s)+text.slice(e+CLOSE.length)).trim(); }
+
+  // ---- builders for real Office/PDF binaries from structured content ----
+  async function buildDocx(f){
+    if(typeof docx==='undefined') throw new Error('docx lib not loaded');
+    var D=docx, kids=[];
+    var blocks = Array.isArray(f.content)?f.content : String(f.content||'').split(/\n/).map(function(line){return {type:'p',text:line};});
+    blocks.forEach(function(b){
+      if(typeof b==='string') b={type:'p',text:b};
+      if(b.type==='h1'||b.type==='h2'||b.type==='h3'){ kids.push(new D.Paragraph({text:b.text||'',heading:b.type==='h1'?D.HeadingLevel.HEADING_1:b.type==='h2'?D.HeadingLevel.HEADING_2:D.HeadingLevel.HEADING_3})); }
+      else if(b.type==='bullet'){ kids.push(new D.Paragraph({text:b.text||'',bullet:{level:0}})); }
+      else { kids.push(new D.Paragraph({children:[new D.TextRun({text:b.text||'',bold:!!b.bold})]})); }
+    });
+    var doc=new D.Document({sections:[{children:kids}]});
+    return await D.Packer.toBlob(doc);
+  }
+  async function buildXlsx(f){
+    if(typeof XLSX==='undefined') throw new Error('xlsx lib not loaded');
+    var wb=XLSX.utils.book_new();
+    var sheets = f.sheets || [{name:(f.sheetName||'Sheet1'), rows:f.rows||[]}];
+    sheets.forEach(function(sh,i){ var ws=XLSX.utils.aoa_to_sheet(sh.rows||[]); XLSX.utils.book_append_sheet(wb,ws,(sh.name||('Sheet'+(i+1))).slice(0,31)); });
+    var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    return new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  }
+  async function buildPptx(f){
+    if(typeof PptxGenJS==='undefined') throw new Error('pptxgenjs not loaded');
+    var p=new PptxGenJS();
+    (f.slides||[]).forEach(function(s){
+      var sl=p.addSlide();
+      if(s.title) sl.addText(String(s.title),{x:0.5,y:0.3,w:'90%',h:0.8,fontSize:28,bold:true,color:'052744'});
+      var body=[];
+      if(Array.isArray(s.bullets)) body=s.bullets.map(function(t){return {text:String(t),options:{bullet:true}};});
+      else if(s.body) body=[{text:String(s.body)}];
+      if(body.length) sl.addText(body,{x:0.5,y:1.3,w:'90%',h:4.5,fontSize:16,color:'333333'});
+    });
+    var blob=await p.write('blob');
+    return blob;
+  }
+  function buildPdf(f){
+    if(!window.jspdf||!window.jspdf.jsPDF) throw new Error('jspdf not loaded');
+    var doc=new window.jspdf.jsPDF();
+    var text = Array.isArray(f.content)?f.content.map(function(b){return typeof b==='string'?b:(b.text||'');}).join('\n') : String(f.content||'');
+    var lines=doc.splitTextToSize(text,180); var y=15;
+    lines.forEach(function(ln){ if(y>280){doc.addPage();y=15;} doc.text(ln,15,y); y+=7; });
+    return doc.output('blob');
+  }
+
+  async function buildOne(f){
+    var path=f.path||f.name||'file'; var type=(f.type||'').toLowerCase()||(path.split('.').pop()||'').toLowerCase();
+    if(type==='docx') return {blob:await buildDocx(f), name:path.replace(/\.[^.]*$/,'')+'.docx'};
+    if(type==='xlsx') return {blob:await buildXlsx(f), name:path.replace(/\.[^.]*$/,'')+'.xlsx'};
+    if(type==='pptx') return {blob:await buildPptx(f), name:path.replace(/\.[^.]*$/,'')+'.pptx'};
+    if(type==='pdf')  return {blob:buildPdf(f),        name:path.replace(/\.[^.]*$/,'')+'.pdf'};
+    // text or base64 (html, css, js, md, csv, json, svg, png, etc.)
+    var enc=(f.encoding||'utf8').toLowerCase();
+    if(enc==='base64') return {blob:new Blob([b64ToBytes(f.content||'')]), name:path.split('/').pop()};
+    return {blob:new Blob([f.content==null?'':String(f.content)],{type:'text/plain;charset=utf-8'}), name:path.split('/').pop()};
+  }
+
+  async function deliver(payload){
+    if(!payload||!Array.isArray(payload.files)||!payload.files.length) return false;
+    // build each file
+    var built=[];
+    for(var i=0;i<payload.files.length;i++){ try{ built.push(await buildOne(payload.files[i])); }catch(e){ console.error('[deliver] build failed',payload.files[i],e); toast('Could not build '+((payload.files[i]&&(payload.files[i].path||payload.files[i].name))||'a file')+': '+(e.message||e)); } }
+    if(!built.length) return false;
+    // single file => download directly; multiple => zip
+    if(built.length===1 && !payload.archive){ dl(built[0].blob, built[0].name); return true; }
+    if(typeof JSZip==='undefined'){ built.forEach(function(b){dl(b.blob,b.name);}); return true; }
+    var zip=new JSZip();
+    for(var j=0;j<built.length;j++){ var ab=await built[j].blob.arrayBuffer(); zip.file(payload.files[j].path||built[j].name, ab); }
+    var zb=await zip.generateAsync({type:'blob',compression:'DEFLATE'});
+    dl(zb, payload.archive||'deliverables.zip');
+    return true;
+  }
+
+  function process(text){
+    var p=extract(text);
+    if(!p) return Promise.resolve(text);
+    return deliver(p).then(function(ok){ if(ok) toast('File ready — downloaded.'); return strip(text); }).catch(function(e){ console.error(e); return strip(text); });
+  }
+  return { process:process, extract:extract, strip:strip, deliver:deliver };
+})();
+
 </script>
 </body>
 </html>
