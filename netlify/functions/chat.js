@@ -526,6 +526,22 @@ async function handleChat(event, user) {
         lastErr = { status: 502, error: 'The model returned an empty answer (it likely ran out of output room' + (_stop ? ', stop_reason: ' + _stop : '') + '). Try again, turn the Engine/deep mode off for this turn, or send a smaller file.' };
         text = null; continue; // try the next candidate model
       }
+      if (_stop === 'max_tokens' && !b._noContinue) {
+        var _rounds = 0; var _maxRounds = 8; var _contMsgs = messages.slice();
+        while (_stop === 'max_tokens' && _rounds < _maxRounds) {
+          _rounds++;
+          _contMsgs = _contMsgs.concat([ { role: 'assistant', content: text }, { role: 'user', content: 'Continue the file output from EXACTLY where you stopped. Do not repeat any text you already wrote, do not add commentary, do not restate the opening - output only the continuation until the file is complete.' } ]);
+          var _contBody = { model: usedModel || m, max_tokens: Math.max(maxTokens, b.bg ? 64000 : 16000), system: apiBody.system, messages: _contMsgs, thinking: { type: 'disabled' } };
+          var _cc = new AbortController(); var _ct = setTimeout(function(){ _cc.abort(); }, 240000); var _piece = '';
+          try {
+            var _cr = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(_contBody), signal: _cc.signal });
+            var _cd = await _cr.json();
+            if (_cr.ok) { _piece = (_cd.content || []).map(function (c) { return c.type === 'text' ? c.text : ''; }).join('\n'); _stop = _cd.stop_reason || ''; } else { break; }
+          } catch (_ce) { break; } finally { clearTimeout(_ct); }
+          if (!_piece) break;
+          text += _piece;
+        }
+      }
       break;
     }
     lastErr = { status: r.status, error: (data && data.error && data.error.message) || 'Anthropic API error.', triedModel: m };
