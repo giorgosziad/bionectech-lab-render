@@ -496,6 +496,14 @@ async function handleChat(event, user) {
       // Effort levels are MODEL-SPECIFIC: 'max' 400s on Sonnet 4.6; 'xhigh' 400s on Opus 4.6.
       // Clamp the desired level DOWN to the highest the chosen model actually accepts, so a
       // request can never be rejected for an unsupported effort (which would break the chat).
+      // TIME BUDGET CAP (prevents 504): max/xhigh make the model think much longer. The sync turn
+      // has a ~26s ceiling, so on sync we cap effort at 'high' (still the full default — the model
+      // almost always thinks at high, nothing is skipped). The background turn has 15 minutes, so it
+      // keeps the deep 'max'/'xhigh'. Web turns stay 'high'. This restores Karam's intelligence
+      // without timing out: deep thinking happens on the background path that has time for it.
+      var _timeCeil = b.bg ? 'max' : 'high';
+      var _ORDER = ['low','medium','high','xhigh','max'];
+      if (_ORDER.indexOf(_wantEffort) > _ORDER.indexOf(_timeCeil)) _wantEffort = _timeCeil;
       var _effort = capEffort(m, _wantEffort);
       apiBody.thinking = { type: 'adaptive' };
       apiBody.output_config = { effort: _effort };
@@ -517,14 +525,33 @@ async function handleChat(event, user) {
         apiBody.max_tokens = Math.max(apiBody.max_tokens || 0, _minMax);
       }
     }
+    // DEADLINE GUARD: abort the call before the platform's request timeout so a long think can
+    // never hang into a 504. Sync turns ~22s; background turns get a long window (13 min).
+    var _deadlineMs = b.bg ? 13 * 60 * 1000 : 22000;
+    var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var _to = _ac ? setTimeout(function(){ try { _ac.abort(); } catch (e) {} }, _deadlineMs) : null;
     try {
       r = await fetch(ANTHROPIC_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify(apiBody),
+        signal: _ac ? _ac.signal : undefined,
       });
       data = await r.json();
+      if (_to) clearTimeout(_to);
     } catch (e) {
+      if (_to) clearTimeout(_to);
+      // If we aborted on the deadline on a SYNC turn, retry ONCE with NO thinking so the user
+      // gets a fast answer instead of a 504. (Omit thinking entirely = no extended thinking.)
+      var _aborted = e && (e.name === 'AbortError' || /abort/i.test(String(e && e.message)));
+      if (_aborted && !b.bg && !apiBody._noThinkRetry) {
+        try {
+          var _fastBody = { model: m, max_tokens: Math.max(8000, maxTokens), system: apiBody.system, messages: messages, _noThinkRetry: true };
+          var _r2 = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(_fastBody) });
+          var _d2 = await _r2.json();
+          if (_r2.ok) { usedModel = m; text = (_d2.content || []).map(function (c) { return c.type === 'text' ? c.text : ''; }).join('\n').trim(); if (text && text.length >= 2) break; }
+        } catch (e3) {}
+      }
       lastErr = { status: 502, error: 'Could not reach the model. ' + (e && e.message ? e.message : '') };
       continue; // network hiccup — try the next candidate
     }
@@ -537,7 +564,9 @@ async function handleChat(event, user) {
       // with thinking OFF and a big output ceiling so the actual file/answer gets written.
       if ((!text || text.length < 2) && !apiBody._retried) {
         apiBody._retried = true;
-        var retryBody = { model: m, max_tokens: Math.max(maxTokens, b.bg ? 48000 : 16000), system: apiBody.system, messages: messages, thinking: { type: 'disabled' } };
+        // Newer models (Opus 4.7/4.8) reject thinking:{type:'disabled'}; to run WITHOUT thinking you
+        // simply OMIT the thinking field. So this retry has no thinking/output_config at all.
+        var retryBody = { model: m, max_tokens: Math.max(maxTokens, b.bg ? 48000 : 16000), system: apiBody.system, messages: messages };
         try {
           var rr2 = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(retryBody) });
           var dd2 = await rr2.json();

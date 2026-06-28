@@ -570,8 +570,14 @@ function send(){
   var _payload={prompt:prompt,history:history,files:files,model:$('model').value,mode:(_hasFile?'builder':mode),temperature:temp,engine:engineOn,ownerCode:ownerCode,web:webOn,fast:false,smart:true,persona:personaSel};
   // With deepest thinking on, file fixes need the 15-min background window. Route files to background;
   // if it isn't deployed, runBackground automatically falls back to a capped sync path.
-  var _heavy = _hasFile || _payload.smart === true || (prompt && prompt.length > 100) || /design|build|create|website|landing|page|ad|full|complete|rewrite|app|present|redesign|continue/i.test(prompt);
-  if(_heavy){ runBackground(_payload, prompt); return; }
+  // ROUTING: the synchronous 'chat' function is always mounted and reliable. The background
+  // function may not be mounted on every deploy; routing normal turns to it caused a long
+  // poll-then-504. So only send GENUINELY heavy jobs (large attachments) to background; every
+  // normal turn goes straight to the fast sync path, which now uses time-capped effort so it
+  // answers within the limit at full default intelligence.
+  var _attachChars = 0; (files||[]).forEach(function(f){ _attachChars += (f && (f.text? f.text.length : (f.data? f.data.length : 0))) || 0; });
+  var _veryHeavy = _attachChars > 120000; // only big attachments truly need the 15-min window
+  if(_veryHeavy){ runBackground(_payload, prompt); return; }
   addTurn('claude','…');
   api('chat',{method:'POST',body:JSON.stringify(_payload)}).then(function(r){
     current.turns.pop();
