@@ -113,4 +113,8 @@ app.get('*', function (req, res) {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, function () { console.log('Bionectech AI Lab listening on ' + PORT); });
+const server = app.listen(PORT, function () { console.log('Bionectech AI Lab listening on ' + PORT); });
+// Big builds can run for several minutes; keep sockets open so long jobs are not cut off.
+server.keepAliveTimeout = 1000 * 60 * 20; // 20 min
+server.headersTimeout   = 1000 * 60 * 20 + 5000;
+server.requestTimeout   = 0; // no hard request timeout
