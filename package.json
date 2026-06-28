@@ -1,0 +1,16 @@
+{
+  "name": "bionectech-ai-lab-backend",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Bionectech AI Lab backend on Render — Express server wrapping the existing functions. No 60s/15-min limit, so heavy chat jobs run to completion.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
