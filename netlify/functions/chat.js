@@ -501,9 +501,9 @@ async function handleChat(event, user) {
       // almost always thinks at high, nothing is skipped). The background turn has 15 minutes, so it
       // keeps the deep 'max'/'xhigh'. Web turns stay 'high'. This restores Karam's intelligence
       // without timing out: deep thinking happens on the background path that has time for it.
-      var _timeCeil = b.bg ? 'max' : 'high';
-      var _ORDER = ['low','medium','high','xhigh','max'];
-      if (_ORDER.indexOf(_wantEffort) > _ORDER.indexOf(_timeCeil)) _wantEffort = _timeCeil;
+      // Render has no request timeout, so BOTH sync and background can use the deepest effort.
+      // No time-cap needed — keep the desired effort (max for deep text reasoning). This gives
+      // Karam/Nicolle full intelligence on every turn, not just background ones.
       var _effort = capEffort(m, _wantEffort);
       apiBody.thinking = { type: 'adaptive' };
       apiBody.output_config = { effort: _effort };
@@ -527,7 +527,10 @@ async function handleChat(event, user) {
     }
     // DEADLINE GUARD: abort the call before the platform's request timeout so a long think can
     // never hang into a 504. Sync turns ~22s; background turns get a long window (13 min).
-    var _deadlineMs = b.bg ? 13 * 60 * 1000 : 22000;
+    // Render has no platform request timeout (server.js sets requestTimeout=0, 20-min keepalive),
+    // so we give every turn a GENEROUS deadline — long enough that real deep thinking is never
+    // cut off, short enough to avoid a truly infinite hang. Background gets the full window.
+    var _deadlineMs = b.bg ? 18 * 60 * 1000 : 5 * 60 * 1000;
     var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var _to = _ac ? setTimeout(function(){ try { _ac.abort(); } catch (e) {} }, _deadlineMs) : null;
     try {
