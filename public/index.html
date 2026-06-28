@@ -471,58 +471,46 @@ function maybeFoldSummary(){
   .catch(function(){}).then(function(){ _folding=false; });
 }
 function runBackground(payload, prompt){
-  var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
-  payload.jobId = jobId; payload.bg = true;
-  addTurn('claude','… '+(personaSel==='nicolle'?'Nicolle':'Karam')+' is thinking deeply on this — this can take a little while. I\'ll have it shortly …');
-  // Kick off the background job (returns 202 immediately).
-  api('chat-background',{method:'POST',body:JSON.stringify(payload)}).then(function(){
-    var tries = 0, maxTries = 360; // ~12 min at 2s intervals
-    var poll = setInterval(function(){
-      tries++;
-      // Gentle progress reassurance so a long job never feels stuck (updates the placeholder text).
-      if(tries % 15 === 0 && current.turns.length){ var _lt=current.turns[current.turns.length-1]; if(_lt && _lt.role==='claude' && / is thinking deeply on this/.test(_lt.text||'')){ var _secs=tries*2; _lt.text='… '+(personaSel==='nicolle'?'Nicolle':'Karam')+' is working through it — '+_secs+'s in. Big files take a little longer; I\'ll have it shortly …'; renderTurns(); } }
-      api('chat-result',{method:'POST',body:JSON.stringify({jobId:jobId})}).then(function(r){
-        if(!(r.ok && r.data)) return;
-        var st = r.data.status;
-        if(st==='done'){
-          clearInterval(poll);
-          var d = (r.data.result)||{};
-          current.turns.pop();
-          if(d.text){ addTurnA('claude',d.text,d.aegis,d.model,d.persona,d.websearched); if(autoRead) speak(d.text,d.persona||personaSel); pushLive(personaSel, prompt, d.text); }
-          else { addTurn('claude','That did not come through ('+((d.error)||'no text')+'). Mind trying once more? (info@bionectech.com)'); if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); } }
-          $('send').disabled=(!unlimited&&remaining<=0);
-        } else if(st==='error'){
-          clearInterval(poll);
-          current.turns.pop();
-          var em=((r.data.result&&r.data.result.error))||'error';
-          addTurn('claude','That did not come through ('+em+'). Mind trying once more? (info@bionectech.com)');
-          if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); }
-          $('send').disabled=false;
-        } else if(st==='missing' && tries>30){
-          // job never registered — the background function isn't deployed on this site yet. Fall back
-          // to SYNC, but cap it hard (no deep thinking, modest output) so it finishes within the 26s
-          // limit instead of 504-ing. Tell the user the file may be trimmed and to deploy background.
-          clearInterval(poll);
-          current.turns.pop();
-          delete payload.bg; delete payload.jobId;
-          payload.smart=false; payload.fast=false; payload.maxTokens=8000;
-          addTurn('claude','… (running the quick path — deploy the background function for full large-file support) …');
-          api('chat',{method:'POST',body:JSON.stringify(payload)}).then(function(rr){
-            current.turns.pop();
-            if(rr.ok&&rr.data&&rr.data.text){ addTurnA('claude',rr.data.text,rr.data.aegis,rr.data.model,rr.data.persona,rr.data.websearched); if(autoRead) speak(rr.data.text,rr.data.persona||personaSel); pushLive(personaSel, prompt, rr.data.text); }
-            else { var em2=(rr.data&&rr.data.error)||('HTTP '+rr.status); addTurn('claude','That did not come through ('+em2+'). For large files, the background function needs deploying — or send a smaller file. (info@bionectech.com)'); if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); } }
-            $('send').disabled=(!unlimited&&remaining<=0);
-          }).catch(function(){ current.turns.pop(); addTurn('claude','I can\'t reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)'); $('send').disabled=false; });
-        }
-        if(tries>=maxTries){ clearInterval(poll); current.turns.pop(); addTurn('claude','This one is taking longer than expected. It may still finish — try asking again, or send a smaller file. (info@bionectech.com)'); $('send').disabled=false; }
-      }).catch(function(){ /* transient poll error — keep polling */ });
-    }, 2000);
-  }).catch(function(){
+  // RENDER MODE: the server has no execution time limit, so we call chat directly and wait for the
+  // full answer. No background job, no Redis polling, no "missing" fallback, no spinning — the request
+  // simply stays open until the model finishes (even several minutes for a big file) and returns.
+  delete payload.bg; delete payload.jobId;
+  var who = (personaSel==='nicolle'?'Nicolle':'Karam');
+  addTurn('claude','… '+who+' is working on this — a big build can take a few minutes. Keeping the line open until it’s done …');
+  // Gentle progress counter so a long job never feels stuck.
+  var secs = 0;
+  var ticker = setInterval(function(){
+    secs += 5;
+    if(current.turns.length){
+      var _lt = current.turns[current.turns.length-1];
+      if(_lt && _lt.role==='claude' && /is working on this/.test(_lt.text||'')){
+        _lt.text = '… '+who+' is working on this — '+secs+'s in. Big builds take a few minutes; keeping the line open …';
+        renderTurns();
+      }
+    }
+  }, 5000);
+  api('chat',{method:'POST',body:JSON.stringify(payload)}).then(function(r){
+    clearInterval(ticker);
     current.turns.pop();
-    addTurn('claude','I can\'t reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)');
-    $('send').disabled=false;
+    if(r.ok && r.data && r.data.text){
+      addTurnA('claude', r.data.text, r.data.aegis, r.data.model, r.data.persona, r.data.websearched);
+      if(autoRead) speak(r.data.text, r.data.persona||personaSel);
+      pushLive(personaSel, prompt, r.data.text);
+    } else {
+      var em = (r.data && r.data.error) || ('HTTP '+r.status);
+      addTurn('claude','That did not come through ('+em+'). Mind trying once more? (info@bionectech.com)');
+      if(payload.files && payload.files.length){ pending = payload.files.concat(pending); renderChips(); }
+    }
+    $('send').disabled = (!unlimited && remaining<=0);
+  }).catch(function(e){
+    clearInterval(ticker);
+    current.turns.pop();
+    addTurn('claude','I couldn’t reach the Lab just now — a connection hiccup. Your attachment was kept; please try again. (info@bionectech.com)');
+    if(payload.files && payload.files.length){ pending = payload.files.concat(pending); renderChips(); }
+    $('send').disabled = false;
   });
 }
+
 function send(){
   var prompt=($('ask').value||'').trim();
   if(!prompt && pending.length===0) return;
@@ -664,7 +652,7 @@ function nicolleAskGo(opts){ opts=opts||{}; var q=($('nicolleAsk').value||'').tr
   }).join('\n').slice(0,2000);
   if(_digest && !webOn){ _hist.unshift({role:'assistant',text:'Understood — I have the lab-wide context.'}); _hist.unshift({role:'user',text:'[LAB-WIDE MEMORY — your projects, for context only]\n'+_digest}); }
   if(current&&current.summary && !webOn){ _hist.unshift({role:'assistant',text:'Understood — I have the earlier context.'}); _hist.unshift({role:'user',text:'[Earlier conversation in the CURRENT project — running summary for context only]\n'+String(current.summary).slice(0,3000)}); }
-  api('chat',{method:'POST',body:JSON.stringify({prompt:q,history:webOn?[]:_hist,files:[],model:$('model').value,mode:'answer',temperature:0.5,engine:true,ownerCode:ownerCode,web:webOn,fast:fastOn,smart:smartOn,persona:'nicolle'})}).then(function(r){ if(r.ok&&r.data&&r.data.text){ _nDraft=r.data.text; out.textContent=_nDraft; if(opts.speak) speak(_nDraft,'nicolle'); pushLive('nicolle', q, r.data.text); } else { out.textContent='[not delivered] '+((r.data&&r.data.error)||('HTTP '+r.status)); } }); }
+  api('chat',{method:'POST',body:JSON.stringify({prompt:q,history:webOn?[]:_hist,files:[],model:$('model').value,mode:'answer',temperature:0.5,engine:true,ownerCode:ownerCode,web:webOn,fast:false,smart:true,persona:'nicolle'})}).then(function(r){ if(r.ok&&r.data&&r.data.text){ _nDraft=r.data.text; out.textContent=_nDraft; if(opts.speak) speak(_nDraft,'nicolle'); pushLive('nicolle', q, r.data.text); } else { out.textContent='[not delivered] '+((r.data&&r.data.error)||('HTTP '+r.status)); } }); }
 var _ng=$('nicolleGo'); if(_ng) _ng.addEventListener('click',function(){ nicolleAskGo({speak:true}); });
 var nrec=null, nlistening=false;
 var _ntk=$('nicolleTalk'); if(_ntk) _ntk.addEventListener('click',function(){ if(!SR){ toast('Voice not supported in this browser.'); return; } var btn=this; if(!nrec){ nrec=new SR(); nrec.lang='en-US'; nrec.interimResults=true; nrec.continuous=false; nrec.onresult=function(ev){ var t=''; for(var i=ev.resultIndex;i<ev.results.length;i++) t+=ev.results[i][0].transcript; $('nicolleAsk').value=t; }; nrec.onend=function(){ nlistening=false; btn.classList.remove('rec'); btn.textContent='Talk to Nicolle'; var q=($('nicolleAsk').value||'').trim(); if(q) nicolleAskGo({speak:true}); }; nrec.onerror=function(){ nlistening=false; btn.classList.remove('rec'); btn.textContent='Talk to Nicolle'; }; } if(nlistening){ try{nrec.stop();}catch(e){} } else { try{ speechSynthesis.cancel(); }catch(e){} try{ nrec.start(); nlistening=true; btn.classList.add('rec'); btn.textContent='Listening… (tap to stop)'; }catch(e){} } });
@@ -1074,7 +1062,7 @@ async function gunzip(u8){ var ds=new DecompressionStream('gzip'); var st=new Bl
 async function unzip(buf){ var dv=new DataView(buf); var u8=new Uint8Array(buf); var out=[]; var eocd=-1; for(var i=u8.length-22;i>=0;i--){ if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; } } if(eocd<0) throw new Error('not a valid zip'); var cnt=dv.getUint16(eocd+10,true); var p=dv.getUint32(eocd+16,true); for(var n=0;n<cnt;n++){ if(dv.getUint32(p,true)!==0x02014b50) break; var method=dv.getUint16(p+10,true); var compSize=dv.getUint32(p+20,true); var nameLen=dv.getUint16(p+28,true); var extraLen=dv.getUint16(p+30,true); var commentLen=dv.getUint16(p+32,true); var lho=dv.getUint32(p+42,true); var nm=new TextDecoder().decode(u8.subarray(p+46,p+46+nameLen)); p+=46+nameLen+extraLen+commentLen; if(/\/$/.test(nm)) continue; var lNameLen=dv.getUint16(lho+26,true); var lExtraLen=dv.getUint16(lho+28,true); var dataStart=lho+30+lNameLen+lExtraLen; var comp=u8.subarray(dataStart,dataStart+compSize); var data; if(method===0) data=comp; else if(method===8){ try{ data=await inflateRaw(comp); }catch(e){ continue; } } else continue; out.push({name:nm,bytes:data}); } return out; }
 function untar(u8){ var out=[]; var off=0; var dec=new TextDecoder(); while(off+512<=u8.length){ var nm=dec.decode(u8.subarray(off,off+100)).replace(/\u0000.*$/,''); if(!nm){ break; } var szStr=dec.decode(u8.subarray(off+124,off+136)).replace(/\u0000.*$/,'').trim(); var size=parseInt(szStr,8)||0; var tf=String.fromCharCode(u8[off+156]); var dataStart=off+512; if(tf==='0'||tf==='\u0000'||tf===''){ out.push({name:nm,bytes:u8.subarray(dataStart,dataStart+size)}); } off=dataStart+Math.ceil(size/512)*512; } return out; }
 function isTextName(nm){ return /\.(js|jsx|ts|tsx|mjs|cjs|json|md|markdown|txt|html?|css|scss|less|csv|tsv|xml|ya?ml|toml|ini|env|sh|bash|zsh|py|rb|go|rs|java|kt|c|h|hpp|cpp|cc|sql|svg|conf|cfg|properties|gradle|php|pl|lua|r|dart|swift)$/i.test(nm) || /(^|\/)(_headers|_redirects|Dockerfile|Makefile|Procfile|README|LICENSE|CHANGELOG|\.env[a-z.]*|\.gitignore|\.npmrc|netlify\.toml|package\.json|tsconfig\.json|robots\.txt)$/i.test(nm); }
-async function extractArchive(file){ var name=(file.name||'').toLowerCase(); var buf=await file.arrayBuffer(); var u8=new Uint8Array(buf); var raw=[]; if(/\.zip$/i.test(name)) raw=await unzip(buf); else if(/\.tar$/i.test(name)) raw=untar(u8); else if(/\.(tgz|tar\.gz)$/i.test(name)){ raw=untar(await gunzip(u8)); } else if(/\.gz$/i.test(name)){ raw=[{name:name.replace(/\.gz$/,''),bytes:await gunzip(u8)}]; } else throw new Error('unsupported archive'); var out=[]; var dec=new TextDecoder('utf-8',{fatal:false}); for(var i=0;i<raw.length;i++){ var en=raw[i]; if(!en||!en.name) continue; var nmf=en.name; if(/(^|\/)(node_modules|\.git|dist|build)\//i.test(nmf)) continue; if(!isTextName(nmf)) continue; if(en.bytes.length>500000) continue; var txt=dec.decode(en.bytes); if(txt.indexOf('\u0000')>=0) continue; out.push({kind:'text',name:nmf.split('/').pop().slice(0,120),text:'### '+nmf+'\n'+txt}); if(out.length>=80) break; } return out; }
+async function extractArchive(file){ var name=(file.name||'').toLowerCase(); var buf=await file.arrayBuffer(); var u8=new Uint8Array(buf); var raw=[]; if(/\.zip$/i.test(name)) raw=await unzip(buf); else if(/\.tar$/i.test(name)) raw=untar(u8); else if(/\.(tgz|tar\.gz)$/i.test(name)){ raw=untar(await gunzip(u8)); } else if(/\.gz$/i.test(name)){ raw=[{name:name.replace(/\.gz$/,''),bytes:await gunzip(u8)}]; } else throw new Error('unsupported archive'); var out=[]; var dec=new TextDecoder('utf-8',{fatal:false}); for(var i=0;i<raw.length;i++){ var en=raw[i]; if(!en||!en.name) continue; var nmf=en.name; if(/(^|\/)(node_modules|\.git|dist|build)\//i.test(nmf)) continue; if(!isTextName(nmf)) continue; if(en.bytes.length>1000000) continue; var txt=dec.decode(en.bytes); if(txt.indexOf('\u0000')>=0) continue; out.push({kind:'text',name:nmf.split('/').pop().slice(0,120),text:'### '+nmf+'\n'+txt}); if(out.length>=300) break; } return out; }
 async function processIncoming(files){ for(var i=0;i<files.length;i++){ var file=files[i]; var name=(file.name||'').toLowerCase(); if(codeActive() && !isTextName(name) && !/^(text\/|application\/(json|javascript|xml))/.test(file.type||'') && !/\.(zip|tar|tgz|gz)$/i.test(name)){ try{ var rawf=await readFileRaw(file); if(rawf){ pending.push(rawf); renderChips(); toast('Attached '+file.name+' — Karam will run code on it.'); } }catch(e){} continue; } if(/\.(zip|tar|tgz|gz)$/i.test(name)||/\.tar\.gz$/i.test(name)){ if(typeof DecompressionStream==='undefined'){ toast('This browser can\'t extract archives. Please extract '+file.name+' and attach the files inside.'); continue; } try{ toast('Reading '+file.name+'…'); var entries=await extractArchive(file); if(entries.length){ var _bundle='### ARCHIVE: '+file.name+' ('+entries.length+' files — keep them together; rebuild and return as a single .zip named '+file.name+')\n\n'; entries.forEach(function(en){ if(en){ _bundle += '\n'+en.text+'\n'; } }); pending.push({kind:'text',name:file.name,text:_bundle,archive:true,archiveName:file.name}); renderChips(); toast('Loaded '+file.name+' ('+entries.length+' files, kept together). Tell Karam what to do — he\'ll return a .zip.'); } else { toast('No readable text files found in '+file.name+'.'); } }catch(err){ toast('Could not read '+file.name+': '+((err&&err.message)||'error')); } } else { try{ var fl=await readFile(file); if(fl){ pending.push(fl); renderChips(); } }catch(e){} } } }
 $('fileInput').addEventListener('change',function(e){ var files=Array.prototype.slice.call(e.target.files||[]); processIncoming(files).then(function(){ $('fileInput').value=''; }); });
 
