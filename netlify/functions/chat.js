@@ -249,7 +249,7 @@ async function handleChat(event, user) {
   // Builder mode delivers whole files — give it room to output a complete file without truncating.
   // Background/file turns get the most (a full site rewrite can be large); sync builder gets a solid floor.
   if ((b.mode === 'builder') || (b.files && b.files.length)) {
-    maxTokens = Math.max(maxTokens, b.bg ? 48000 : 16000);
+    maxTokens = Math.max(maxTokens, b.bg ? 64000 : 16000);
   }
   if (b.web) maxTokens = Math.min(maxTokens, 4000); // web turns: small generation so search + answer fit timeout
   if (typeof b.maxTokens === 'number' && b.maxTokens >= 256 && b.maxTokens <= 8192 && b.mode !== 'builder' && !(b.files && b.files.length)) maxTokens = b.maxTokens;
@@ -471,7 +471,7 @@ async function handleChat(event, user) {
       // max_tokens = thinking budget + a generous answer allowance (never just barely above budget).
       var _answerRoom = b.bg ? 28000 : ((b.mode === 'builder' || (b.files && b.files.length)) ? 16000 : 8000);
       apiBody.max_tokens = Math.max(apiBody.max_tokens, _budget + _answerRoom);
-      apiBody.thinking = { type: 'adaptive' }; apiBody.output_config = { effort: 'high' };
+      apiBody.output_config = { effort: ((b.mode === 'builder') || (b.files && b.files.length)) ? 'medium' : 'high' }; apiBody.thinking = { type: 'adaptive' };
     } else if (typeof b.temperature === 'number') {
       apiBody.temperature = Math.max(0, Math.min(1, b.temperature));
     }
