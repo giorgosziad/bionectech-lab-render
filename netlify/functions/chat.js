@@ -471,7 +471,7 @@ async function handleChat(event, user) {
       // max_tokens = thinking budget + a generous answer allowance (never just barely above budget).
       var _answerRoom = b.bg ? 28000 : ((b.mode === 'builder' || (b.files && b.files.length)) ? 16000 : 8000);
       apiBody.max_tokens = Math.max(apiBody.max_tokens, _budget + _answerRoom);
-      apiBody.thinking = { type: 'enabled', budget_tokens: _budget };
+      apiBody.thinking = { type: 'adaptive' }; apiBody.output_config = { effort: 'high' };
     } else if (typeof b.temperature === 'number') {
       apiBody.temperature = Math.max(0, Math.min(1, b.temperature));
     }
@@ -510,7 +510,7 @@ async function handleChat(event, user) {
       // with thinking OFF and a big output ceiling so the actual file/answer gets written.
       if ((!text || text.length < 2) && !apiBody._retried) {
         apiBody._retried = true;
-        var retryBody = { model: m, max_tokens: Math.max(maxTokens, b.bg ? 48000 : 16000), system: apiBody.system, messages: messages, thinking: { type: 'disabled' } };
+        var retryBody = { model: m, max_tokens: Math.max(maxTokens, b.bg ? 48000 : 16000), system: apiBody.system, messages: messages };
         try {
           var rr2 = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(retryBody) });
           var dd2 = await rr2.json();
