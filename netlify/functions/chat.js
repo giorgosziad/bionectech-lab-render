@@ -249,7 +249,7 @@ async function handleChat(event, user) {
   // Builder mode delivers whole files — give it room to output a complete file without truncating.
   // Background/file turns get the most (a full site rewrite can be large); sync builder gets a solid floor.
   if ((b.mode === 'builder') || (b.files && b.files.length)) {
-    maxTokens = Math.max(maxTokens, b.bg ? 64000 : 16000);
+    maxTokens = Math.max(maxTokens, b.bg ? 48000 : 16000);
   }
   if (b.web) maxTokens = Math.min(maxTokens, 4000); // web turns: small generation so search + answer fit timeout
   if (typeof b.maxTokens === 'number' && b.maxTokens >= 256 && b.maxTokens <= 8192 && b.mode !== 'builder' && !(b.files && b.files.length)) maxTokens = b.maxTokens;
@@ -471,7 +471,7 @@ async function handleChat(event, user) {
       // max_tokens = thinking budget + a generous answer allowance (never just barely above budget).
       var _answerRoom = b.bg ? 28000 : ((b.mode === 'builder' || (b.files && b.files.length)) ? 16000 : 8000);
       apiBody.max_tokens = Math.max(apiBody.max_tokens, _budget + _answerRoom);
-      apiBody.output_config = { effort: ((b.mode === 'builder') || (b.files && b.files.length)) ? 'medium' : 'high' }; apiBody.thinking = { type: 'adaptive' };
+      apiBody.thinking = { type: 'enabled', budget_tokens: _budget };
     } else if (typeof b.temperature === 'number') {
       apiBody.temperature = Math.max(0, Math.min(1, b.temperature));
     }
@@ -491,11 +491,16 @@ async function handleChat(event, user) {
       }
     }
     try {
-      r = await fetch(ANTHROPIC_URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify(apiBody),
-      });
+      var _ctrl = new AbortController();
+      var _to = setTimeout(function(){ _ctrl.abort(); }, 240000);
+      try {
+        r = await fetch(ANTHROPIC_URL, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify(apiBody),
+          signal: _ctrl.signal,
+        });
+      } finally { clearTimeout(_to); }
       data = await r.json();
     } catch (e) {
       lastErr = { status: 502, error: 'Could not reach the model. ' + (e && e.message ? e.message : '') };
@@ -510,7 +515,7 @@ async function handleChat(event, user) {
       // with thinking OFF and a big output ceiling so the actual file/answer gets written.
       if ((!text || text.length < 2) && !apiBody._retried) {
         apiBody._retried = true;
-        var retryBody = { model: m, max_tokens: Math.max(maxTokens, b.bg ? 48000 : 16000), system: apiBody.system, messages: messages };
+        var retryBody = { model: m, max_tokens: Math.max(maxTokens, b.bg ? 48000 : 16000), system: apiBody.system, messages: messages, thinking: { type: 'disabled' } };
         try {
           var rr2 = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(retryBody) });
           var dd2 = await rr2.json();
