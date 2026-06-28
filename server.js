@@ -85,23 +85,26 @@ app.all('/.netlify/functions/chat-background', async function (req, res) {
   const jobId = (body.jobId || '').toString();
   if (!jobId) { res.status(400).send('Missing jobId.'); return; }
 
-  // Return 202 immediately so the front-end starts polling (unchanged behavior)...
+  // Return 202 immediately so the front-end starts polling.
   res.status(202).send('accepted');
 
-  // ...then run the real work to completion in the background of THIS process.
-  // No platform timeout on Render, so it finishes and stores the result.
+  // Then run the real work to completion. No platform timeout on Render.
   const key = 'job:' + jobId;
-  try { await writeJSON(null, key, { status: 'running', startedAt: Date.now() }); } catch (e) {}
+  console.log('[bg] job ' + jobId + ' START');
+  try { await writeJSON(null, key, { status: 'running', startedAt: Date.now() }); } catch (e) { console.log('[bg] could not write running state: ' + e.message); }
   try {
     const out = await handleChat(event, user);
     let payload = null;
     try { payload = JSON.parse(out.body || '{}'); } catch (e) { payload = { error: 'Bad result.' }; }
     const ok = out.statusCode >= 200 && out.statusCode < 300;
     await writeJSON(null, key, { status: ok ? 'done' : 'error', httpStatus: out.statusCode, result: payload, finishedAt: Date.now() });
+    console.log('[bg] job ' + jobId + ' DONE status=' + out.statusCode + (ok ? '' : (' error=' + (payload && payload.error ? payload.error : '?'))));
   } catch (e) {
+    console.log('[bg] job ' + jobId + ' THREW: ' + (e && e.message ? e.message : String(e)) + (e && e.stack ? ('\n' + e.stack) : ''));
     try { await writeJSON(null, key, { status: 'error', httpStatus: 500, result: { error: 'Background chat failed: ' + (e && e.message ? e.message : String(e)) }, finishedAt: Date.now() }); } catch (e2) {}
   }
 });
+
 
 // ---- Serve the front-end (public/) so the whole Lab runs from one Render service ----
 app.use(express.static(path.join(__dirname, 'public')));
