@@ -1,28 +1,45 @@
-// server.js — Bionectech AI Lab on Render (replaces Netlify Functions).
-// Why Render: a Render Web Service has no 15-minute/60-second function limit,
-// so heavy "background" chat jobs simply run to completion and return directly —
-// no job-storage, no polling, no quick-path fallback. The 60s-kill problem is gone.
+// Bionectech AI Lab — Render Node server (Express adapter for Netlify-style functions).
 //
-// This server reuses your EXISTING function files unchanged. Each Netlify function
-// exports `handler(event)`; we translate an Express (req,res) into the same `event`
-// shape those handlers expect, call the handler, and write its {statusCode,headers,body}
-// back to the Express response. Your business logic is untouched.
+// Heavy chat jobs run to completion and return directly — no job-storage, no polling.
+// Each Netlify function exports `handler(event)`; we translate an Express (req,res) into
+// the same `event` shape those handlers expect, call the handler, and write its
+// {statusCode,headers,body} back to the Express response. Business logic is untouched.
 
 const express = require('express');
 const path = require('path');
 
 const app = express();
 
-// Capture the raw body as a string (handlers do JSON.parse(event.body) themselves).
-app.use(express.text({ type: '*/*', limit: '50mb' }));
+// ---- Bulletproof raw-body reader ----------------------------------------------------
+// We do NOT use express.text()/express.json() because a body-parser stream that never
+// fires 'end' (content-length / keep-alive edge cases behind Render's proxy) leaves the
+// request hanging forever. Instead we read the raw body ourselves with a hard safety
+// timeout, so a POST body is ALWAYS captured and the route always runs.
+function readRawBody(req) {
+  return new Promise(function (resolve) {
+    // If a body parser already populated req.body, use it.
+    if (typeof req.body === 'string' && req.body.length) { resolve(req.body); return; }
+    var data = '';
+    var done = false;
+    function finish() { if (done) return; done = true; resolve(data); }
+    try {
+      req.setEncoding('utf8');
+      req.on('data', function (c) { data += c; });
+      req.on('end', finish);
+      req.on('error', finish);
+      req.on('aborted', finish);
+      // Safety: if the stream never ends, resolve with what we have after 10s so the
+      // handler still runs instead of hanging the socket.
+      setTimeout(finish, 10000);
+    } catch (e) { finish(); }
+  });
+}
 
-// ---- Adapter: Express (req,res)  ->  Netlify-style event -> handler -> res ----
-function toEvent(req) {
+function toEvent(req, rawBody) {
   return {
     httpMethod: req.method,
     headers: req.headers || {},
-    // handlers do JSON.parse(event.body || '{}'); body is a raw string here.
-    body: (typeof req.body === 'string' && req.body.length) ? req.body : '',
+    body: (typeof rawBody === 'string' && rawBody.length) ? rawBody : '',
     queryStringParameters: req.query || {},
     path: req.path,
   };
@@ -30,19 +47,20 @@ function toEvent(req) {
 
 async function runHandler(handler, req, res) {
   try {
-    const event = toEvent(req);
+    const rawBody = await readRawBody(req);
+    const event = toEvent(req, rawBody);
     const out = await handler(event);
     const status = (out && out.statusCode) || 200;
     const headers = (out && out.headers) || {};
     Object.keys(headers).forEach(function (h) { res.set(h, headers[h]); });
+    if (!res.get('Content-Type')) res.set('Content-Type', 'application/json');
     res.status(status).send((out && out.body) != null ? out.body : '');
   } catch (e) {
     res.status(500).json({ error: 'Server error: ' + (e && e.message ? e.message : String(e)) });
   }
 }
 
-// ---- Mount every existing function at /.netlify/functions/<name> ----
-// (Same path the front-end already calls, so index.html needs ZERO changes.)
+// ---- Mount every existing function at /.netlify/functions/<name> --------------------
 const FUNCTIONS = [
   'chat', 'chat-result', 'login', 'me', 'data', 'memory',
   'team', 'admin', 'lessons', 'models', 'engine', 'fetchurl',
@@ -66,17 +84,13 @@ FUNCTIONS.forEach(function (name) {
   console.log('Mounted ' + route);
 });
 
-// ---- chat-background becomes a SYNCHRONOUS direct run (the whole point of Render) ----
-// On Netlify this kicked off an async job + Redis polling because of the 60s limit.
-// On Render there is no such limit, so we just run handleChat directly and return the
-// answer. The front-end's runBackground() polls chat-result, so to stay 100% compatible
-// WITHOUT touching index.html, we still store the result under the jobId and let the
-// existing poller pick it up — but the job now actually finishes because nothing kills it.
+// ---- chat-background: synchronous direct run ----------------------------------------
 const { userFrom, writeJSON } = require('./netlify/functions/lib/auth');
 const { handleChat } = require('./netlify/functions/chat');
 
 app.all('/.netlify/functions/chat-background', async function (req, res) {
-  const event = toEvent(req);
+  const rawBody = await readRawBody(req);
+  const event = toEvent(req, rawBody);
   const user = userFrom(event);
   if (!user) { res.status(401).send('Sign in first.'); return; }
 
@@ -85,10 +99,8 @@ app.all('/.netlify/functions/chat-background', async function (req, res) {
   const jobId = (body.jobId || '').toString();
   if (!jobId) { res.status(400).send('Missing jobId.'); return; }
 
-  // Return 202 immediately so the front-end starts polling.
   res.status(202).send('accepted');
 
-  // Then run the real work to completion. No platform timeout on Render.
   const key = 'job:' + jobId;
   console.log('[bg] job ' + jobId + ' START');
   try { await writeJSON(null, key, { status: 'running', startedAt: Date.now() }); } catch (e) { console.log('[bg] could not write running state: ' + e.message); }
@@ -105,8 +117,7 @@ app.all('/.netlify/functions/chat-background', async function (req, res) {
   }
 });
 
-
-// ---- Serve the front-end (public/) so the whole Lab runs from one Render service ----
+// ---- Serve the front-end (public/) --------------------------------------------------
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', function (req, res) {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -114,7 +125,6 @@ app.get('*', function (req, res) {
 
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, function () { console.log('Bionectech AI Lab listening on ' + PORT); });
-// Big builds can run for several minutes; keep sockets open so long jobs are not cut off.
-server.keepAliveTimeout = 1000 * 60 * 20; // 20 min
+server.keepAliveTimeout = 1000 * 60 * 20;       // 20 min
 server.headersTimeout   = 1000 * 60 * 20 + 5000;
-server.requestTimeout   = 0; // no hard request timeout
+server.requestTimeout   = 0;                     // no hard request timeout
