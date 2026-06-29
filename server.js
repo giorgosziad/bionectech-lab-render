@@ -47,9 +47,12 @@ function toEvent(req, rawBody) {
 
 async function runHandler(handler, req, res) {
   try {
+    console.log('[req '+req.method+' '+req.path+'] reading body');
     const rawBody = await readRawBody(req);
+    console.log('[req '+req.path+'] body='+(rawBody?rawBody.length:0));
     const event = toEvent(req, rawBody);
     const out = await handler(event);
+    console.log('[req '+req.path+'] handler done status='+(out&&out.statusCode));
     const status = (out && out.statusCode) || 200;
     const headers = (out && out.headers) || {};
     Object.keys(headers).forEach(function (h) { res.set(h, headers[h]); });
