@@ -30,7 +30,7 @@ function readRawBody(req) {
       req.on('aborted', finish);
       // Safety: if the stream never ends, resolve with what we have after 10s so the
       // handler still runs instead of hanging the socket.
-      setTimeout(finish, 10000);
+      setTimeout(finish, 5 * 60 * 1000); // 5min: allow big MB uploads to fully arrive
     } catch (e) { finish(); }
   });
 }

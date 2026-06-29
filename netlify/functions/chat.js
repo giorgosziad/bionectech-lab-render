@@ -331,7 +331,7 @@ async function handleChat(event, user) {
       content.push({ type: 'document', source: { type: 'text', media_type: 'text/plain', data: f.text }, title: (f.name || 'attachment').toString().slice(0, 120) });
     }
   }
-  if (totalChars > 25 * 1024 * 1024) return json(413, { error: 'Attachments too large for one request (over 25MB). Split into smaller parts.' });
+  if (totalChars > 50 * 1024 * 1024) return json(413, { error: 'Attachments too large for one request (over 50MB). Split into smaller parts.' });
   content.push({ type: 'text', text: prompt || 'Please review the attached file(s) and do the work described.' });
 
   let lessons = [];
