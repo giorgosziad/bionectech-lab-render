@@ -117,6 +117,25 @@ app.all('/.netlify/functions/chat-background', async function (req, res) {
   }
 });
 
+// ---- SECURITY: block sensitive paths from the web ----------------------------------
+// The engine source, repo config, and metadata files must never be downloadable by an
+// outsider. Any request for these returns 404 before static serving can reach them.
+var BLOCKED = [
+  /^\/netlify\//i,            // engine + function SOURCE (lib/aegis/full.js, etc.)
+  /^\/README(\.md)?$/i,
+  /^\/package(-lock)?\.json$/i,
+  /^\/netlify\.toml$/i,
+  /^\/tsconfig\.json$/i,
+  /^\/server\.js$/i,
+  /^\/\.[^/]+$/,             // dotfiles: .env, .gitignore, .npmrc, etc.
+  /^\/(LICENSE|CHANGELOG|Dockerfile|Procfile|Makefile)$/i
+];
+app.use(function (req, res, next) {
+  var p = (req.path || '');
+  for (var i = 0; i < BLOCKED.length; i++) { if (BLOCKED[i].test(p)) { return res.status(404).send('Not found'); } }
+  next();
+});
+
 // ---- Serve the front-end (public/) --------------------------------------------------
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', function (req, res) {
