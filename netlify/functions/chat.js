@@ -4,6 +4,7 @@ const AEGIS = require('./lib/aegis');
 const { valuesText } = require('./lib/values');
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+let _MEM_MODEL_CACHE = null; // { id, ts } in-memory newest-model cache (works without Redis)
 // Transient network blips to the API surface as 'fetch failed' (TypeError). Retry a few times
 // with a short backoff so a single hiccup never kills a turn. Aborts (deadline) are NOT retried.
 async function fetchWithRetry(url, opts, tries) {
@@ -135,7 +136,7 @@ function capEffort(model, want) {
 async function listModelIds(key) {
   try {
     var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var _to = _ac ? setTimeout(function(){ try { _ac.abort(); } catch (e) {} }, 4000) : null;
+    var _to = _ac ? setTimeout(function(){ try { _ac.abort(); } catch (e) {} }, 2000) : null;
     const r = await fetch('https://api.anthropic.com/v1/models?limit=100', {
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
       signal: _ac ? _ac.signal : undefined
@@ -257,12 +258,13 @@ async function handleChat(event, user) {
   const _explicitModel = !!(reqModel && reqModel !== 'auto' && /^claude-[a-z0-9.\-]+$/i.test(reqModel));
   if (b.smart && _smartHard && !_explicitModel) {
     try {
-      let _disc = null;
-      try { _disc = await readJSON(null, 'model:newest', null); } catch (e) { _disc = null; }
+      let _disc = _MEM_MODEL_CACHE;
+      if (!_disc) { try { _disc = await readJSON(null, 'model:newest', null); } catch (e) { _disc = null; } }
       const _fresh = _disc && _disc.id && _disc.ts && (Date.now() - _disc.ts < 6 * 3600 * 1000);
+      if (_fresh) { _MEM_MODEL_CACHE = _disc; }
       if (!_fresh && process.env.ANTHROPIC_API_KEY) {
         var _mac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-        var _mto = _mac ? setTimeout(function(){ try { _mac.abort(); } catch (e) {} }, 4000) : null;
+        var _mto = _mac ? setTimeout(function(){ try { _mac.abort(); } catch (e) {} }, 2000) : null;
         const _mr = await fetch('https://api.anthropic.com/v1/models?limit=40', {
           headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
           signal: _mac ? _mac.signal : undefined
@@ -285,7 +287,7 @@ async function handleChat(event, user) {
             return String(b2.created_at || '').localeCompare(String(a.created_at || '')); // then newest
           });
           const _top = _list[0] && _list[0].id;
-          if (_top) { _disc = { id: _top, ts: Date.now() }; try { await writeJSON(null, 'model:newest', _disc); } catch (e) {} }
+          if (_top) { _disc = { id: _top, ts: Date.now() }; _MEM_MODEL_CACHE = _disc; try { await writeJSON(null, 'model:newest', _disc); } catch (e) {} }
         }
       }
       if (_disc && _disc.id) candidates.unshift(_disc.id); // newest discovered model goes first
