@@ -491,14 +491,14 @@ async function handleChat(event, user) {
         // improving the fix. Keep thinking moderate on files so the whole job finishes in a few
         // minutes (within the poll window); reserve the deepest thinking for text-only reasoning.
         const _attachChars = totalChars || 0;
-        if (_attachChars > 250000) _budget = 6000;
+        if (_attachChars > 250000) _budget = 16000; // big attachment still gets deep thinking
         else if (_attachChars > 100000) _budget = 8000;
         else if (_attachChars > 0) _budget = 12000;
         else _budget = 12000; // text-only deep reasoning (max intelligence)
       } else {
         // Synchronous turn (26s ceiling): keep deep for text, cap for files so it finishes.
         const _attachChars = totalChars || 0;
-        if (_attachChars > 250000) _budget = 4000;
+        if (_attachChars > 250000) _budget = 12000; // big attachment still gets solid thinking on sync
         else if (_attachChars > 60000) _budget = 6000;
         else if (_attachChars > 0) _budget = 10000;
         else _budget = 12000;
@@ -556,7 +556,7 @@ async function handleChat(event, user) {
     // Render has no platform request timeout (server.js sets requestTimeout=0, 20-min keepalive),
     // so we give every turn a GENEROUS deadline — long enough that real deep thinking is never
     // cut off, short enough to avoid a truly infinite hang. Background gets the full window.
-    var _deadlineMs = b.bg ? 18 * 60 * 1000 : 5 * 60 * 1000;
+    var _deadlineMs = b.bg ? 18 * 60 * 1000 : 15 * 60 * 1000; // sync raised 5->15 min so big projects finish
     var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var _to = _ac ? setTimeout(function(){ try { _ac.abort(); } catch (e) {} }, _deadlineMs) : null;
     try {
