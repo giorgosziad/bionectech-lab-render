@@ -536,6 +536,8 @@ async function handleChat(event, user) {
       // Builder/file turns get the FULL model output room so a big file ships COMPLETE in one
       // response (no splitting). maxOutFor clamps to the model's real max afterward.
       var _isBuild = (b.mode === 'builder' || (b.files && b.files.length));
+      // On builds, keep thinking modest so the FILE gets the most output room (file > thinking).
+      if (_isBuild && _budget > 8000) _budget = 8000;
       var _answerRoom = _isBuild ? 124000 : (b.bg ? 28000 : 8000);
       apiBody.max_tokens = Math.max(apiBody.max_tokens, _budget + _answerRoom);
       // For build/file turns, push straight to the model's true max so nothing caps the file size.
