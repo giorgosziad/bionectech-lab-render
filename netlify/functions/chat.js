@@ -222,7 +222,7 @@ async function handleChat(event, user) {
     const _long = _txt.length > 280;
     const _code = /```|function |class |=>|const |import |def |SELECT |\{[\s\S]*\}|<\w+>/.test(_txt);
     const _multiQ = (_txt.match(/\?/g) || []).length >= 2;
-    const _hardWords = /\b(why|how|design|architect|debug|fix|optimi[sz]e|refactor|analy[sz]e|explain|compare|trade-?off|edge case|scale|secure|vulnerab|prove|derive|plan|strategy|root cause|review|audit|diagnos|bug|error|fails?|broken|rebuild)\b/i.test(_txt);
+    const _hardWords = /\b(why|how|design|redesign|architect|debug|fix|build|create|make|write|optimi[sz]e|refactor|analy[sz]e|explain|compare|trade-?off|edge case|scale|secure|vulnerab|prove|derive|plan|strategy|root cause|review|audit|diagnos|bug|error|fails?|broken|rebuild|website|landing|page|advert|campaign|copy|deploy|present|deck|slide|logo|brand)\b/i.test(_txt);
     _smartHard = _hasFile || _long || _code || _multiQ || _hardWords;
     if (!_smartHard) {
       // Easy smart turn: don't pay for the flagship; let the fast working model handle it. Drop the
@@ -249,7 +249,11 @@ async function handleChat(event, user) {
           // Rank by tier so the newest FLAGSHIP leads — not tied to one name. Fable/Mythos are the
           // top tier (above Opus), then Opus, then Sonnet, then Haiku. Names change over time; this
           // ranking promotes whatever the current top-tier model is, and the newest within a tier.
-          const _rank = function (id) { id = String(id || ''); if (/fable|mythos/i.test(id)) return 4; if (/opus/i.test(id)) return 3; if (/sonnet/i.test(id)) return 2; if (/haiku/i.test(id)) return 1; return 2; };
+          // Tier ranking. Known top tiers (fable/mythos and any future 'aria','vega','nova'-style
+          // flagship names) rank highest; opus/sonnet/haiku below. An UNKNOWN new name defaults to a
+          // high-ish tier (3) so a brand-new flagship is not buried, and created_at breaks ties so the
+          // genuinely newest model wins. This makes Karam auto-adopt future models without code edits.
+          const _rank = function (id) { id = String(id || '').toLowerCase(); if (/fable|mythos|aria|vega|nova|lyra|orion/.test(id)) return 5; if (/opus/.test(id)) return 4; if (/sonnet/.test(id)) return 2; if (/haiku/.test(id)) return 1; return 3; };
           _list.sort(function (a, b2) {
             const ra = _rank(a.id), rb = _rank(b2.id);
             if (ra !== rb) return rb - ra;                                  // top tier first
@@ -508,7 +512,13 @@ async function handleChat(event, user) {
       // (default) < xhigh < max. 'low' lets the model SKIP thinking, so we NEVER use it on a
       // Smartest+hard turn. Desired: deepest text reasoning -> 'max'; heavy -> 'xhigh'; else
       // 'high'. This keeps Karam/Nicolle at FULL intelligence (>= the old fixed-budget depth).
-      var _wantEffort = (_budget >= 12000) ? 'max' : (_budget >= 8000) ? 'xhigh' : 'high';
+      // FAST + SMART: match effort to the task so simple turns are quick (like a fast chat) while
+      // real work keeps full deep intelligence. Heavy = files attached, builder mode, or a long/
+      // complex prompt -> deepest effort. Light = short simple turns -> medium (fast, still solid).
+      var _isHeavy = (b.mode === 'builder') || (b.files && b.files.length) || (totalChars > 0) ||
+                     (String(prompt||'').length > 220) ||
+                     /```|function |class |=>|const |import |def |SELECT |design|build|rebuild|redesign|architect|debug|fix|optimi[sz]e|refactor|analy[sz]e|website|landing|page|\bad\b|advert|campaign|deploy|code|complete|full project/i.test(String(prompt||''));
+      var _wantEffort = _isHeavy ? ((_budget >= 12000) ? 'max' : (_budget >= 8000) ? 'xhigh' : 'high') : 'medium';
       // Effort levels are MODEL-SPECIFIC: 'max' 400s on Sonnet 4.6; 'xhigh' 400s on Opus 4.6.
       // Clamp the desired level DOWN to the highest the chosen model actually accepts, so a
       // request can never be rejected for an unsupported effort (which would break the chat).
