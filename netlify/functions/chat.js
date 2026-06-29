@@ -90,6 +90,16 @@ function buildBriefing(ownerVerified, persona) {
 const PREFERENCE = ['claude-fable-5', 'claude-sonnet-4-6', 'claude-opus-4-8', 'claude-opus-4-7', 'claude-haiku-4-5-20251001'];  // Fable first (auto-activates the moment access opens), then fast Sonnet 4.6 as the working default.
 // Effort ceiling per model family. Anthropic rejects unsupported effort levels with a 400, so we
 // clamp the desired effort down to what the model accepts. Order: low<medium<high<xhigh<max.
+
+// Per-model MAX OUTPUT tokens. Opus 4.8 / Fable 5 -> 128k; Sonnet 4.6 / Haiku 4.5 -> 64k.
+// Used so a big file/zip delivery can use a high ceiling without ever exceeding the model's real max.
+function maxOutFor(model) {
+  var id = String(model || '').toLowerCase();
+  if (/fable|mythos|opus-4-(8|7|6)|opus-4\.(8|7|6)/.test(id)) return 128000;
+  if (/sonnet/.test(id)) return 64000;
+  if (/haiku/.test(id)) return 64000;
+  return 64000; // safe default
+}
 function capEffort(model, want) {
   var ORDER = ['low', 'medium', 'high', 'xhigh', 'max'];
   var id = String(model || '').toLowerCase();
@@ -266,7 +276,10 @@ async function handleChat(event, user) {
   // Builder mode delivers whole files — give it room to output a complete file without truncating.
   // Background/file turns get the most (a full site rewrite can be large); sync builder gets a solid floor.
   if ((b.mode === 'builder') || (b.files && b.files.length)) {
-    maxTokens = Math.max(maxTokens, b.bg ? 48000 : 16000);
+    // A full project / multi-file zip delivery can be large — give it a HIGH output ceiling so the
+    // model can write every file completely and never truncate (partial zip). Capped per-model
+    // below (Opus/Fable 128k, Sonnet/Haiku 64k) so we never exceed the real max.
+    maxTokens = Math.max(maxTokens, 64000);
   }
   if (b.web) maxTokens = Math.min(maxTokens, 4000); // web turns: small generation so search + answer fit timeout
   if (typeof b.maxTokens === 'number' && b.maxTokens >= 256 && b.maxTokens <= 8192 && b.mode !== 'builder' && !(b.files && b.files.length)) maxTokens = b.maxTokens;
@@ -460,6 +473,9 @@ async function handleChat(event, user) {
   for (let ci = 0; ci < candidates.length; ci++) {
     const m = candidates[ci];
     const apiBody = { model: m, max_tokens: maxTokens, system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }], messages };
+    // Clamp to this model's real max output so a high builder ceiling never 400s.
+    var _modelMax = maxOutFor(m);
+    if (apiBody.max_tokens > _modelMax) apiBody.max_tokens = _modelMax;
     if (b.smart && _smartHard && /opus|sonnet/i.test(m)) {
       // Adaptive thinking budget. Deep by default; trimmed when a big attachment is present so the
       // call still finishes inside the function timeout instead of 504-ing. Web turns stay lean.
