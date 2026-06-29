@@ -533,8 +533,15 @@ async function handleChat(event, user) {
       // Adaptive thinking still needs max_tokens to cover thinking + the visible answer. A whole
       // rewritten file can be large, so always ensure max_tokens = thinking + a generous answer
       // max_tokens = thinking budget + a generous answer allowance (never just barely above budget).
-      var _answerRoom = b.bg ? 28000 : ((b.mode === 'builder' || (b.files && b.files.length)) ? 16000 : 8000);
+      // Builder/file turns get the FULL model output room so a big file ships COMPLETE in one
+      // response (no splitting). maxOutFor clamps to the model's real max afterward.
+      var _isBuild = (b.mode === 'builder' || (b.files && b.files.length));
+      var _answerRoom = _isBuild ? 124000 : (b.bg ? 28000 : 8000);
       apiBody.max_tokens = Math.max(apiBody.max_tokens, _budget + _answerRoom);
+      // For build/file turns, push straight to the model's true max so nothing caps the file size.
+      if (_isBuild) { apiBody.max_tokens = Math.max(apiBody.max_tokens, maxOutFor(m) - 4000); }
+      // Final clamp: never exceed the model's true max output (Opus 4.8 = 128000), or the API 400s.
+      if (apiBody.max_tokens > maxOutFor(m)) apiBody.max_tokens = maxOutFor(m);
       // Map the old thinking-budget tiers to adaptive EFFORT. Levels: low < medium < high
       // (default) < xhigh < max. 'low' lets the model SKIP thinking, so we NEVER use it on a
       // Smartest+hard turn. Desired: deepest text reasoning -> 'max'; heavy -> 'xhigh'; else
