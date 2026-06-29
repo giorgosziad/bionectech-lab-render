@@ -1015,7 +1015,7 @@ function download(name,content,type){ var b=new Blob([content],{type:type||'appl
    Returns [{name, content}]. */
 function extractFilesFromText(text){
   if(!text) return [];
-  var out=[];
+  var out=[]; extractFilesFromText._b={};
   // Robust: match fenced blocks ``` ... ``` (and the final unclosed one if truncated). The info line
   // (right after the opening ```) may carry a language and/or a filename. We grab the body verbatim.
   var re=/```([^\n]*)\n([\s\S]*?)(?:```|$)/g; var m;
@@ -1028,7 +1028,10 @@ function extractFilesFromText(text){
     if(!fname) continue;
     if(body.charAt(body.length-1)==='\n') body=body.slice(0,-1);
     if(!body || !body.replace(/\s+/g,'').length) continue;
-    out.push({name:fname, content:body});
+    if(!extractFilesFromText._b){extractFilesFromText._b={};}
+    var _bn=extractFilesFromText._b;
+    if(_bn[fname]===undefined){ _bn[fname]=out.length; out.push({name:fname, content:body}); }
+    else { out[_bn[fname]].content += '\n' + body; }
     if(re.lastIndex<=m.index) re.lastIndex=m.index+1; // safety against zero-width loops
   }
   return out;
