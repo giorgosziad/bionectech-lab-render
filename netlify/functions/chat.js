@@ -283,7 +283,7 @@ async function handleChat(event, user) {
     // A full project / multi-file zip delivery can be large — give it a HIGH output ceiling so the
     // model can write every file completely and never truncate (partial zip). Capped per-model
     // below (Opus/Fable 128k, Sonnet/Haiku 64k) so we never exceed the real max.
-    maxTokens = Math.max(maxTokens, 64000);
+    maxTokens = Math.max(maxTokens, 128000); // ship BIG: clamped per-model by maxOutFor (Opus 4.8=128K)
   }
   if (b.web) maxTokens = Math.min(maxTokens, 4000); // web turns: small generation so search + answer fit timeout
   if (typeof b.maxTokens === 'number' && b.maxTokens >= 256 && b.maxTokens <= 8192 && b.mode !== 'builder' && !(b.files && b.files.length)) maxTokens = b.maxTokens;
@@ -304,7 +304,7 @@ async function handleChat(event, user) {
       content.push({ type: 'document', source: { type: 'text', media_type: 'text/plain', data: f.text }, title: (f.name || 'attachment').toString().slice(0, 120) });
     }
   }
-  if (totalChars > 5 * 1024 * 1024) return json(413, { error: 'Attachments too large for one request.' });
+  if (totalChars > 25 * 1024 * 1024) return json(413, { error: 'Attachments too large for one request (over 25MB). Split into smaller parts.' });
   content.push({ type: 'text', text: prompt || 'Please review the attached file(s) and do the work described.' });
 
   let lessons = [];
@@ -432,7 +432,7 @@ async function handleChat(event, user) {
   if (lastMsg && Array.isArray(lastMsg.content)) {
     hasAttachment = lastMsg.content.some(function (blk) { return blk && (blk.type === 'document' || blk.type === 'image'); });
   }
-  const BUDGET = hasAttachment ? 185000 : INPUT_BUDGET_TOKENS;
+  const BUDGET = hasAttachment ? 700000 : INPUT_BUDGET_TOKENS; // Opus 4.8 has 1M context; allow big files
   function approxTokens(m) {
     let chars = 0;
     const c = m && m.content;
