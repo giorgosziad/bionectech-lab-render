@@ -4,6 +4,23 @@ const AEGIS = require('./lib/aegis');
 const { valuesText } = require('./lib/values');
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+// Transient network blips to the API surface as 'fetch failed' (TypeError). Retry a few times
+// with a short backoff so a single hiccup never kills a turn. Aborts (deadline) are NOT retried.
+async function fetchWithRetry(url, opts, tries) {
+  tries = tries || 3;
+  var lastErr;
+  for (var i = 0; i < tries; i++) {
+    try {
+      return await fetch(url, opts);
+    } catch (e) {
+      lastErr = e;
+      var aborted = e && (e.name === 'AbortError' || /abort/i.test(String(e && e.message)));
+      if (aborted) throw e;                 // deadline abort: do not retry
+      if (i < tries - 1) await new Promise(function (r) { setTimeout(r, 400 * (i + 1)); });
+    }
+  }
+  throw lastErr;
+}
 
 // Karam — the Bionectech AI Lab persona. Principle-level only: contains NO
 // proprietary product details, formulas, env vars, or engine source, so nothing
@@ -117,9 +134,13 @@ function capEffort(model, want) {
 
 async function listModelIds(key) {
   try {
+    var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var _to = _ac ? setTimeout(function(){ try { _ac.abort(); } catch (e) {} }, 4000) : null;
     const r = await fetch('https://api.anthropic.com/v1/models?limit=100', {
-      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      signal: _ac ? _ac.signal : undefined
     });
+    if (_to) clearTimeout(_to);
     const j = await r.json();
     return ((j && j.data) || []).map(function (m) { return m && m.id; }).filter(Boolean);
   } catch (e) { return []; }
@@ -240,9 +261,13 @@ async function handleChat(event, user) {
       try { _disc = await readJSON(null, 'model:newest', null); } catch (e) { _disc = null; }
       const _fresh = _disc && _disc.id && _disc.ts && (Date.now() - _disc.ts < 6 * 3600 * 1000);
       if (!_fresh && process.env.ANTHROPIC_API_KEY) {
+        var _mac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        var _mto = _mac ? setTimeout(function(){ try { _mac.abort(); } catch (e) {} }, 4000) : null;
         const _mr = await fetch('https://api.anthropic.com/v1/models?limit=40', {
-          headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }
+          headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+          signal: _mac ? _mac.signal : undefined
         });
+        if (_mto) clearTimeout(_mto);
         if (_mr.ok) {
           const _mj = await _mr.json();
           const _list = (_mj && _mj.data) || [];
@@ -560,7 +585,7 @@ async function handleChat(event, user) {
     var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var _to = _ac ? setTimeout(function(){ try { _ac.abort(); } catch (e) {} }, _deadlineMs) : null;
     try {
-      r = await fetch(ANTHROPIC_URL, {
+      r = await fetchWithRetry(ANTHROPIC_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify(apiBody),
