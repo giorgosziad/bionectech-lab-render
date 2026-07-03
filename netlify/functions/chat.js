@@ -385,9 +385,9 @@ async function handleChat(event, user) {
           // ranking promotes whatever the current top-tier model is, and the newest within a tier.
           // Tier ranking. Known top tiers (fable/mythos and any future 'aria','vega','nova'-style
           // flagship names) rank highest; opus/sonnet/haiku below. An UNKNOWN new name defaults to a
-          // high-ish tier (3) so a brand-new flagship is not buried, and created_at breaks ties so the
+          // the TOP flagship tier (5) so a brand-new flagship is never buried behind an older known model, and created_at breaks ties so the
           // genuinely newest model wins. This makes Karam auto-adopt future models without code edits.
-          const _rank = function (id) { id = String(id || '').toLowerCase(); if (/fable|mythos|aria|vega|nova|lyra|orion/.test(id)) return 5; if (/opus/.test(id)) return 4; if (/sonnet/.test(id)) return 2; if (/haiku/.test(id)) return 1; return 3; };
+          const _rank = function (id) { id = String(id || '').toLowerCase(); if (/fable|mythos|aria|vega|nova|lyra|orion/.test(id)) return 5; if (/opus/.test(id)) return 4; if (/sonnet/.test(id)) return 2; if (/haiku/.test(id)) return 1; return 5; };  // UNKNOWN new name -> top flagship tier, so a brand-new model leads by created_at
           _list.sort(function (a, b2) {
             const ra = _rank(a.id), rb = _rank(b2.id);
             if (ra !== rb) return rb - ra;                                  // top tier first
