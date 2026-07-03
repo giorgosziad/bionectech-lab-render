@@ -335,6 +335,12 @@ async function handleChat(event, user) {
     candidates = candidates.filter(function (m) { return !/haiku/i.test(m); });
     if (!candidates.length || !/sonnet|opus|fable/i.test(candidates[0])) candidates.unshift('claude-sonnet-4-6');
   }
+  // FABLE FALLBACK: when Fable leads (selected or smart), fall back to Opus 4.8 BEFORE Sonnet,
+  // because Fable now refuses/reroutes some tasks by design. Cost-neutral: non-Fable turns keep
+  // Sonnet as the default. To change the fallback tier, edit the model string below.
+  if (candidates.length && /fable/i.test(candidates[0]) && candidates[1] !== 'claude-opus-4-8') {
+    candidates.splice(1, 0, 'claude-opus-4-8');
+  }
   // AUTO-ROUTING: within Smartest, decide if THIS message is actually hard. Only hard messages
   // get the expensive deep brain (Opus + 24k thinking + protocol). Easy ones answer cheap & fast.
   // This makes Smartest both smarter (depth where it counts) and cheaper (no waste on easy turns).
@@ -725,6 +731,16 @@ async function handleChat(event, user) {
       usedModel = m;
       text = (data.content || []).map(function (c) { return c.type === 'text' ? c.text : ''; }).join('\n').trim();
       var _stop = data.stop_reason || '';
+      // FABLE 5 REFUSAL: Fable's safety classifier can DECLINE a request, returning stop_reason
+      // 'refusal' as a 200 (not an error) with no usable text. Do not retry the same model (it will
+      // refuse again) and do not mislabel it 'empty/out of room' - fall through to the next candidate
+      // (Opus/Sonnet), which can usually serve it.
+      if (_stop === 'refusal') {
+        var _rc = '';
+        try { _rc = (data.content || []).map(function (c) { return c && c.type === 'refusal' ? (c.refusal || 'declined') : ''; }).join(' ').trim(); } catch (e) {}
+        lastErr = { status: 200, error: 'Model declined this request (stop_reason: refusal' + (_rc ? ', ' + _rc : '') + '); fell back to the next model.', triedModel: m };
+        text = null; continue;
+      }
       // If the model ran out of room before writing any visible answer (all budget went to thinking,
       // or output hit the ceiling immediately), text can come back empty. Retry ONCE on the same model
       // with thinking OFF and a big output ceiling so the actual file/answer gets written.
