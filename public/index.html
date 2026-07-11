@@ -199,7 +199,7 @@
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build THINK-2035</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="activeModel" style="color:var(--light-sky);letter-spacing:1px;font-size:11px;margin-left:6px"></span><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build MODELFIX-2100</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -387,7 +387,12 @@ function startHeartbeat(){ setInterval(function(){ if(document.hidden) return; a
 /* ── data: projects + notes ── */
 var projects=[],notes=[],current=null,saveT=null;
 function newId(){return 'p_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6);}
-function loadModels(){ api('models',{method:'GET'}).then(function(r){ var sel=$('model'); if(!sel) return; var live=(r.data&&r.data.models)||[]; var prev=''; try{ prev=sessionStorage.getItem('bnt_model')||''; }catch(e){}
+/* MODEL SELECTION MUST NEVER BE SILENTLY LOST.
+   loadModels() is ASYNC and wipes the <select> to rebuild it. If it resolved AFTER the operator had
+   already picked a model, their choice was replaced with 'auto' — which is Fable. They picked Sonnet
+   and watched Fable run. The dropdown still LOOKED right; the value sent was not.
+   Fix: capture whatever is currently selected BEFORE rebuilding, and restore THAT first. */
+function loadModels(){ var _liveSel = ($('model') && $('model').value) || ''; api('models',{method:'GET'}).then(function(r){ var sel=$('model'); if(!sel) return; var live=(r.data&&r.data.models)||[]; var prev=''; try{ prev=sessionStorage.getItem('bnt_model')||''; }catch(e){}
   /* PINNED models always appear, even if the live API does not list them yet (e.g. Fable 5 while access is gated). Live models merge on top. */
   var pinned=[{id:'claude-fable-5',name:'Claude Fable 5'},{id:'claude-opus-4-8',name:'Claude Opus 4.8'},{id:'claude-opus-4-7',name:'Claude Opus 4.7'},{id:'claude-sonnet-4-6',name:'Claude Sonnet 4.6'},{id:'claude-opus-4-6',name:'Claude Opus 4.6'},{id:'claude-opus-4-5',name:'Claude Opus 4.5'},{id:'claude-haiku-4-5-20251001',name:'Claude Haiku 4.5'},{id:'claude-sonnet-4-5',name:'Claude Sonnet 4.5'},{id:'claude-opus-4-1',name:'Claude Opus 4.1'}];
   var seen={}; var list=[];
@@ -395,7 +400,19 @@ function loadModels(){ api('models',{method:'GET'}).then(function(r){ var sel=$(
   live.forEach(function(m){ if(m&&m.id&&!seen[m.id]){ seen[m.id]=1; list.push({id:m.id,name:m.name||m.id}); } });
   sel.innerHTML=''; var o0=document.createElement('option'); o0.value='auto'; o0.textContent='Latest (auto)'; sel.appendChild(o0);
   list.forEach(function(m){ var o=document.createElement('option'); o.value=m.id; o.textContent=m.name; sel.appendChild(o); });
-  sel.value=prev||'auto'; if(!sel.value) sel.value='auto'; }); }
+  /* the operator's live choice wins, then the remembered one, then auto */
+  sel.value = (_liveSel && _liveSel !== 'auto') ? _liveSel : (prev || 'auto');
+  if(!sel.value) sel.value='auto';
+  try{ if(sel.value && sel.value!=='auto') sessionStorage.setItem('bnt_model', sel.value); }catch(e){}
+  paintModel(); }); }
+/* Show the model that will ACTUALLY run, right next to the persona. No more guessing. */
+function paintModel(){
+  var el=$('activeModel'); if(!el) return;
+  var sel=$('model'); if(!sel) return;
+  var v=sel.value;
+  var nm = (v==='auto') ? 'Latest (auto) \u2192 Fable 5' : (sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : v);
+  el.textContent = 'MODEL: ' + nm.toUpperCase();
+}
 /* ── DATA-LOSS GUARD ───────────────────────────────────────────────────────────────
    THE TRAP: loadData() had no error branch. A FAILED read (expired session, Redis
    down, a network blip) produced the SAME result as "brand new user with no work":
@@ -763,7 +780,7 @@ function send(){
     $('send').disabled=(!unlimited&&remaining<=0);
   }).catch(function(){ current.turns.pop(); addTurn('claude','I can\'t reach the Lab right now — looks like a connection hiccup. Please check your connection and try again in a moment. (info@bionectech.com)'); $('send').disabled=(!unlimited&&remaining<=0); });
 }
-$('model').addEventListener('change',function(){ try{ sessionStorage.setItem('bnt_model',this.value); }catch(e){} });
+$('model').addEventListener('change',function(){ try{ sessionStorage.setItem('bnt_model',this.value); }catch(e){} paintModel(); toast('Model set: ' + (this.options[this.selectedIndex]?this.options[this.selectedIndex].text:this.value)); });
 $('send').addEventListener('click',send);
 $('ask').addEventListener('keydown',function(e){if(e.key==='Enter')send();});
 
