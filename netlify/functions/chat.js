@@ -1261,6 +1261,21 @@ async function handleChat(event, user, res, onProgress) {
       if (_pRes && _pRes.ok && _pRes.body) {
         var _pTxt = '', _pStop = '', _pBuf = '', _pLast = 0, _pTd = new TextDecoder('utf-8');
         var _pSearching = false;
+        // THINKING IS SILENT. The model reasons before it writes a single token, and during that phase
+        // the stream emits NOTHING — so the read loop never iterates, onProgress never fires, and the
+        // display froze on "calling". A timer cannot go quiet: it reports the thinking phase every
+        // second until real text starts, then steps aside and lets the true token count take over.
+        var _pT0 = Date.now();
+        var _pHb = setInterval(function () {
+          if (_pTxt) return;                      // real text is flowing — the stream reports the truth now
+          try {
+            onProgress({
+              stage: _pSearching ? 'searching' : 'thinking',
+              model: m, chars: 0, tokens: 0,
+              waited: Math.round((Date.now() - _pT0) / 1000)
+            });
+          } catch (e) {}
+        }, 1000);
         try {
           var _pr = (typeof _pRes.body.getReader === 'function') ? _pRes.body.getReader() : null;
           while (true) {
@@ -1298,6 +1313,7 @@ async function handleChat(event, user, res, onProgress) {
             }
           }
         } catch (e) { /* stream broke — fall through to the buffered call below */ }
+        try { clearInterval(_pHb); } catch (e) {}   // the loop is over — stop the thinking timer
 
         if (_pTxt && _pTxt.trim().length > 1) {
           if (_to) clearTimeout(_to);
