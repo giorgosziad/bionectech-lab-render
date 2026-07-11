@@ -322,6 +322,10 @@ function sanitizeHistory(h, curPersona) {
     if (!m || (m.role !== 'user' && m.role !== 'assistant') || typeof m.text !== 'string' || !m.text.trim()) continue;
     if (m.role !== expect) continue;
     let content = m.text;
+    // RETIRED NAME in HISTORY: the model's OWN past turns literally say "Nadim here...". Same persona
+    // means they are not labelled as someone else's, so the model reads its own prior words and keeps
+    // being Nadim. Scrubbing memory was not enough — the transcript has to be scrubbed too.
+    content = String(content).replace(/\bNadim\b/gi, 'Giorgos');
     // IDENTITY BLEED — THE ROOT CAUSE: a project's history contains replies written by OTHER
     // colleagues. Unlabelled, they arrive as plain 'assistant' turns, so the model reads them as
     // ITS OWN prior words and simply keeps being that colleague ("Kostas here..."). No system
@@ -393,7 +397,19 @@ async function handleChat(event, user) {
   } else {
     candidates = PREFERENCE.slice();
   }
-  if (process.env.ANTHROPIC_MODEL) candidates.unshift(process.env.ANTHROPIC_MODEL);
+  // Declared HERE (before the candidate list is built) because the env-model guard below records
+  // into it. A `const` declared later would throw a TDZ ReferenceError on that exact path.
+  const _modelFailures = [];   // records WHY a model was skipped, so a fallback is never silent
+  // ENV MODEL GUARD: ANTHROPIC_MODEL is unshifted to the FRONT of the candidate list, so a malformed
+  // value (e.g. "CLAUDE FABLE 5" instead of "claude-fable-5") is tried FIRST on every request, gets
+  // rejected by the API, and silently pushes every reply onto the fallback model. Only accept a
+  // properly-formed model id; ignore anything else rather than poisoning every turn.
+  var _envModel = String(process.env.ANTHROPIC_MODEL || '').trim();
+  if (_envModel && /^claude-[a-z0-9.\-]+$/i.test(_envModel)) {
+    candidates.unshift(_envModel.toLowerCase());
+  } else if (_envModel) {
+    _modelFailures.push('Ignored invalid ANTHROPIC_MODEL env var: "' + _envModel + '" (must look like claude-fable-5). Fix or delete it in the service environment.');
+  }
   if (b.fast) candidates.unshift('claude-haiku-4-5-20251001'); // Fast mode: try the quickest model first
   // Smartest mode: lead with the best available flagship. We do NOT hardcode a single model name
   // (model names change as Anthropic ships new ones). PREFERENCE already starts with the current
@@ -487,11 +503,33 @@ async function handleChat(event, user) {
   if (b.smart) maxTokens = _smartHard ? 16000 : 5000; // hard: thinking + answer; easy: lean
   // Builder mode delivers whole files — give it room to output a complete file without truncating.
   // Background/file turns get the most (a full site rewrite can be large); sync builder gets a solid floor.
-  if ((b.mode === 'builder') || (b.files && b.files.length)) {
+  // SPEED: the Mode dropdown DEFAULTS to "Builder", so this used to pin max_tokens at 128,000 on every
+  // single message — including "HI". A huge ceiling makes the model plan for a huge answer. Only reach
+  // for the big ceiling when there is ACTUALLY a file attached, or the prompt genuinely asks for a build.
+  // ── WORK TIERS ───────────────────────────────────────────────────────────────────────────────
+  // These personas exist to WORK, not to say hello. Capability comes first; the speed comes from the
+  // STRUCTURAL fixes (6x smaller history, no wasted model call, cached doctrine, no 128k ceiling on
+  // ordinary turns) — never from making a colleague shallow on a real request.
+  //   TRIVIAL  = a bare greeting/acknowledgement. Short, no question, no task verb. -> fast path.
+  //   WORK     = everything else. Full default capability. This is the normal case.
+  //   BUILD    = a file is attached, or the request is to produce/rewrite something. -> full room.
+  var _p = String(prompt || '').trim();
+  var _wantsBuild = (b.files && b.files.length) ||
+    /\b(build|rebuild|create|write|generate|make|scaffold|redesign|refactor|draft|produce|full (site|project|file|app)|whole (site|file|project)|zip|deliver|complete file|entire file)\b/i.test(_p);
+  // Detecting "work" is impossible — it is an infinite set, and any keyword list will mis-classify a
+  // real request as chit-chat (it flagged "Handle the no-hurry objection" as a greeting). So invert
+  // it: a GREETING is a tiny, closed set. Match that explicitly. EVERYTHING else is WORK and gets
+  // full capability. Fail-safe direction: an unmatched message is treated as work, never as chit-chat.
+  var _trivial = !_wantsBuild && _p.length <= 30 && !/[?]/.test(_p) &&
+    /^(hi|hii+|hey|hello|helo|yo|hiya|sup|good (morning|afternoon|evening)|morning|thanks|thank you|thx|ty|ok|okay|k|cool|nice|great|perfect|got it|understood|noted|yes|no|yep|nope|sure|please|go ahead|continue|proceed)[\s!.,\u2019']*$/i.test(_p);
+  if (_wantsBuild) {
     // A full project / multi-file zip delivery can be large — give it a HIGH output ceiling so the
-    // model can write every file completely and never truncate (partial zip). Capped per-model
-    // below (Opus/Fable 128k, Sonnet/Haiku 64k) so we never exceed the real max.
-    maxTokens = Math.max(maxTokens, 128000); // ship BIG: clamped per-model by maxOutFor (Opus 4.8=128K)
+    // model can write every file completely and never truncate (partial zip). Capped per-model below.
+    maxTokens = Math.max(maxTokens, 128000);
+  } else if (_trivial) {
+    maxTokens = Math.min(Math.max(maxTokens, 4000), 8000);   // "hi" — no need for a big ceiling
+  } else {
+    maxTokens = Math.min(Math.max(maxTokens, 24000), 32000); // REAL WORK — room for a substantial answer
   }
   if (b.web) maxTokens = Math.min(maxTokens, 4000); // web turns: small generation so search + answer fit timeout
   if (typeof b.maxTokens === 'number' && b.maxTokens >= 256 && b.maxTokens <= 8192 && b.mode !== 'builder' && !(b.files && b.files.length)) maxTokens = b.maxTokens;
@@ -713,7 +751,6 @@ async function handleChat(event, user) {
   }
 
   let text = null, usedModel = null, lastErr = null;
-  const _modelFailures = [];   // records WHY a model was skipped, so the fallback is never silent
   for (let ci = 0; ci < candidates.length; ci++) {
     const m = candidates[ci];
     const apiBody = { model: m, max_tokens: maxTokens, system: [
@@ -723,7 +760,7 @@ async function handleChat(event, user) {
     // Clamp to this model's real max output so a high builder ceiling never 400s.
     var _modelMax = maxOutFor(m);
     if (apiBody.max_tokens > _modelMax) apiBody.max_tokens = _modelMax;
-    if (b.smart && _smartHard && /opus|sonnet/i.test(m)) {
+    if (b.smart && _smartHard && /opus|sonnet|fable|mythos/i.test(m)) {
       // Adaptive thinking budget. Deep by default; trimmed when a big attachment is present so the
       // call still finishes inside the function timeout instead of 504-ing. Web turns stay lean.
       let _budget;
@@ -785,8 +822,16 @@ async function handleChat(event, user) {
       var _effort = capEffort(m, _wantEffort);
       apiBody.thinking = { type: 'adaptive' };
       apiBody.output_config = { effort: _effort };
-    } else if (typeof b.temperature === 'number') {
-      apiBody.temperature = Math.max(0, Math.min(1, b.temperature));
+    } else {
+      // SPEED — THE BIG ONE: with no output_config, the model defaults to HIGH effort and runs
+      // extended thinking on EVERY message, including "HI". That was the slowness. With Smartest
+      // OFF we now ask for LOW effort, which lets the model skip thinking entirely on simple turns
+      // and answer immediately. File/builder work still gets MEDIUM so it stays careful.
+      // EFFORT: 'high' is the model's own default and is what a working colleague needs. Only a bare
+      // greeting drops to 'low'. A build gets 'high' too — writing a whole file carefully matters more
+      // than shaving a few seconds. Smartest ON (above) goes deeper still (xhigh/max).
+      apiBody.output_config = { effort: capEffort(m, _trivial ? 'low' : 'high') };
+      if (typeof b.temperature === 'number') apiBody.temperature = Math.max(0, Math.min(1, b.temperature));
     }
     // Nicolle searches the web herself: attach the web tool to her own call (single call, no 504).
     // Karam does not search — he solves from what Nicolle provides.
