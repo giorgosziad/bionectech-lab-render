@@ -1030,7 +1030,14 @@ async function handleChat(event, user, res, onProgress) {
       // everything. Depth is one toggle away: Smartest ON goes deep, and it is the operator's call,
       // not a guess made on their behalf. Builds still get the FULL 128k of output room, so nothing
       // truncates — they just do not also think for a minute first.
-      apiBody.output_config = { effort: capEffort(m, b.smart ? 'xhigh' : (_trivial ? 'low' : 'medium')) };
+      // A FILE REBUILD IS TRANSCRIPTION, NOT REASONING. The thinking was already done — it is in the
+      // brief. Karam's job is to WRITE the file. At 'medium' the model reasons between chunks and the
+      // token rate collapses to ~10/sec, which is why a rebuild crawled for 11 minutes and produced
+      // 7,000 tokens. 'low' tells it to write, not deliberate. Depth is still one toggle away
+      // (Smartest), and the operator chooses it — we never make that call for them.
+      var _rewrite = (b.files && b.files.length) && /\b(rebuild|rewrite|complete|whole|full|deliver)\b/i.test(String(prompt || ''));
+      var _eff = b.smart ? 'xhigh' : (_trivial ? 'low' : (_rewrite ? 'low' : 'medium'));
+      apiBody.output_config = { effort: capEffort(m, _eff) };
       if (typeof b.temperature === 'number') apiBody.temperature = Math.max(0, Math.min(1, b.temperature));
     }
     // Nicolle searches the web herself: attach the web tool to her own call (single call, no 504).

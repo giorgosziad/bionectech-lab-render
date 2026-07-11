@@ -199,7 +199,7 @@
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="activeModel" style="color:var(--light-sky);letter-spacing:1px;font-size:11px;margin-left:6px"></span><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build MODELFIX-2100</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="activeModel" style="color:var(--light-sky);letter-spacing:1px;font-size:11px;margin-left:6px"></span><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build POLL-2145</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -392,6 +392,28 @@ function newId(){return 'p_'+Date.now().toString(36)+'_'+Math.random().toString(
    already picked a model, their choice was replaced with 'auto' — which is Fable. They picked Sonnet
    and watched Fable run. The dropdown still LOOKED right; the value sent was not.
    Fix: capture whatever is currently selected BEFORE rebuilding, and restore THAT first. */
+/* RECOVER — if the browser ever stops watching a job, the ANSWER MAY STILL BE THERE. The server
+   finishes and writes it to the store regardless of whether anyone is listening. Never throw that away. */
+function recoverJob(){
+  var jid = window.__lastJobId;
+  if(!jid){ toast('No job to recover.'); return; }
+  toast('Checking for your file\u2026');
+  api('chat-result',{method:'POST',body:JSON.stringify({jobId:jid})}).then(function(r){
+    if(!(r.ok && r.data)){ toast('Could not reach the store.'); return; }
+    if(r.data.status === 'done' && r.data.result && r.data.result.text){
+      var d = r.data.result;
+      addTurnA('claude', d.text, d.aegis, d.model, d.persona, d.websearched, d.modelNote);
+      pushLive(personaSel, '(recovered)', d.text);
+      toast('Recovered your file.');
+      window.__lastJobId = null;
+    } else if(r.data.status === 'running'){
+      var pr = r.data.progress;
+      toast('Still working' + (pr && pr.tokens ? (' \u2014 ' + pr.tokens.toLocaleString() + ' tokens written so far') : '') + '. Try again in a minute.');
+    } else {
+      toast('That job is gone. Send it again.');
+    }
+  }).catch(function(){ toast('Could not reach the store.'); });
+}
 function loadModels(){ var _liveSel = ($('model') && $('model').value) || ''; api('models',{method:'GET'}).then(function(r){ var sel=$('model'); if(!sel) return; var live=(r.data&&r.data.models)||[]; var prev=''; try{ prev=sessionStorage.getItem('bnt_model')||''; }catch(e){}
   /* PINNED models always appear, even if the live API does not list them yet (e.g. Fable 5 while access is gated). Live models merge on top. */
   var pinned=[{id:'claude-fable-5',name:'Claude Fable 5'},{id:'claude-opus-4-8',name:'Claude Opus 4.8'},{id:'claude-opus-4-7',name:'Claude Opus 4.7'},{id:'claude-sonnet-4-6',name:'Claude Sonnet 4.6'},{id:'claude-opus-4-6',name:'Claude Opus 4.6'},{id:'claude-opus-4-5',name:'Claude Opus 4.5'},{id:'claude-haiku-4-5-20251001',name:'Claude Haiku 4.5'},{id:'claude-sonnet-4-5',name:'Claude Sonnet 4.5'},{id:'claude-opus-4-1',name:'Claude Opus 4.1'}];
@@ -587,7 +609,9 @@ function runBackground(payload, prompt){
   function _bgStop(){ try{ clearInterval(_bgTick); }catch(e){} }
   // Kick off the background job (returns 202 immediately).
   api('chat-background',{method:'POST',body:JSON.stringify(payload)}).then(function(){
-    var tries = 0, maxTries = 360; // ~12 min at 2s intervals
+    var tries = 0, maxTries = 900;   /* 900 x 2s = 30 MIN. The server tops out at 18 — the browser must
+                                       NEVER give up before the server does. It used to quit at 12 minutes
+                                       while the file was still being written. That was the bug. */ // ~12 min at 2s intervals
     var poll = setInterval(function(){
       tries++;
       // Gentle progress reassurance so a long job never feels stuck (updates the placeholder text).
@@ -629,7 +653,8 @@ function runBackground(payload, prompt){
             $('send').disabled=(!unlimited&&remaining<=0);
           }).catch(function(){ current.turns.pop(); addTurn('claude','I can\'t reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)'); $('send').disabled=false; });
         }
-        if(tries>=maxTries){ clearInterval(poll); _bgStop(); current.turns.pop(); addTurn('claude','This one is taking longer than expected. It may still finish — try asking again, or send a smaller file. (info@bionectech.com)'); $('send').disabled=false; }
+        if(tries>=maxTries){ clearInterval(poll); _bgStop();
+          window.__lastJobId = jobId;   /* keep it — the answer may still land in the store */ current.turns.pop(); addTurn('claude','This one is taking longer than expected. It may still finish — try asking again, or send a smaller file. (info@bionectech.com)'); $('send').disabled=false; }
       }).catch(function(){ /* transient poll error — keep polling */ });
     }, 2000);
   }).catch(function(){
