@@ -346,9 +346,13 @@ const PREFERENCE = ['claude-fable-5', 'claude-sonnet-4-6', 'claude-opus-4-8', 'c
 // An honest timeout message. The old one told the operator to "pick Sonnet" even when they were
 // already ON Sonnet — useless and insulting. Say which model actually ran, and name the setting that
 // is genuinely costing the time, rather than guessing.
-function _timeoutMsg(model, b) {
+function _timeoutMsg(model, b, budgetMs, elapsedMs) {
   var bits = [];
-  bits.push('Stopped after 85s on ' + (model || 'the model') + '.');
+  var secs = elapsedMs ? Math.round(elapsedMs / 1000) : null;
+  var budg = budgetMs ? Math.round(budgetMs / 1000) : null;
+  // The old message was hardcoded to "85s" even when the budget was 300s — it lied about its own
+  // limits, which is the one thing this Lab must never do.
+  bits.push('Stopped after ' + (secs ? secs + 's' : 'the time limit') + (budg ? (' (limit ' + budg + 's)') : '') + ' on ' + (model || 'the model') + '.');
   if (b && b.web) bits.push('Web search is ON — each search costs 40-60s before a word is written. Turn it off for file jobs.');
   if (b && b.smart) bits.push('Smartest is ON — that adds deep thinking on top. Turn it off for routine work.');
   if (/opus|fable|mythos/i.test(String(model))) bits.push('This is a deep-thinking model; Claude Sonnet 4.6 is several times faster for writing files.');
@@ -919,8 +923,12 @@ async function handleChat(event, user, res) {
   // successful work is not a safety feature. A file job gets the room it actually needs; ordinary
   // chat still fails fast so it can never hang.
   const _isFileJob = /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|word document|deck|slides|zip|deliver|download)\b/i.test(String(prompt || '')) || (b.files && b.files.length);
-  const _turnBudgetMs = b.bg ? (18 * 60 * 1000) : (_isFileJob ? 300000 : 85000);   // files: 5 min. chat: 85s.
-  const _turnEnd = Date.now() + _turnBudgetMs;
+  // A FULL FILE REBUILD IS NOT A CHAT TURN. Two files + web search + rewriting an entire application
+  // is genuinely minutes of work. 300s was still not enough and it was cutting off real work. Give a
+  // file job the room it actually needs; ordinary chat still fails fast so it can never hang.
+  const _turnBudgetMs = b.bg ? (18 * 60 * 1000) : (_isFileJob ? (10 * 60 * 1000) : 85000);   // files: 5 min. chat: 85s.
+  const _turnStart = Date.now();
+  const _turnEnd = _turnStart + _turnBudgetMs;
   const _msLeft = function () { return _turnEnd - Date.now(); };
   let text = null, usedModel = null, lastErr = null, _truncated = false;
   for (let ci = 0; ci < candidates.length; ci++) {
@@ -1076,9 +1084,16 @@ async function handleChat(event, user, res) {
     // (The background path returns 202 immediately and polls, so it is not bound by the proxy limit.)
     // A STREAMING turn is not bound by the proxy limit (bytes keep the connection alive), so it gets
     // the long deadline. A buffered turn must still abort at 88s, inside Render's ~100s proxy cut-off.
+    // OPERATOR'S MODEL, OR NOTHING. If they explicitly chose a model and it did not work, falling
+    // through to ANOTHER model spends the budget TWICE and then blames the wrong model in the error
+    // ("stopped on Opus" when they picked Sonnet). That is worse than useless. One explicit model,
+    // one attempt, an honest answer.
+    if (_explicitModel && usedModel === null && lastErr && m !== reqModel) {
+      break;
+    }
     // Out of time for the whole turn? Do not start another model — stop and be honest.
     if (_msLeft() <= 4000) {
-      lastErr = { status: 504, error: _timeoutMsg(m, b) };
+      lastErr = { status: 504, error: _timeoutMsg(m, b, _turnBudgetMs, Date.now() - _turnStart) };
       break;
     }
     var _deadlineMs = Math.max(5000, _msLeft());   // only ever the time that REMAINS
@@ -1243,7 +1258,7 @@ async function handleChat(event, user, res) {
       // watched a clock climb. One retry without thinking is fair; after that, STOP and say so.
       if (_aborted && !b.bg && apiBody._noThinkRetry) {
         _modelFailures.push(m + ' timed out');
-        lastErr = { status: 504, error: _timeoutMsg(m, b) };
+        lastErr = { status: 504, error: _timeoutMsg(m, b, _turnBudgetMs, Date.now() - _turnStart) };
         break;
       }
       if (_aborted && !b.bg && !apiBody._noThinkRetry) {
@@ -1253,7 +1268,7 @@ async function handleChat(event, user, res) {
           // Bind it to whatever is LEFT of the turn budget, and never start it if there is no time.
           if (_msLeft() <= 3000) {
             _modelFailures.push(m + ' timed out');
-            lastErr = { status: 504, error: _timeoutMsg(m, b) };
+            lastErr = { status: 504, error: _timeoutMsg(m, b, _turnBudgetMs, Date.now() - _turnStart) };
             break;
           }
           var _rac = (typeof AbortController !== 'undefined') ? new AbortController() : null;

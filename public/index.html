@@ -199,7 +199,7 @@
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build SIZE-1845</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build MODEL-1900</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -634,6 +634,18 @@ function send(){
     $('ask').value=''; bigFileFlow(prompt, _bigText, _otherFiles, mode, temp); return;
   }
   window.__lastPrompt = prompt;   /* so the file diagnostic knows what you actually asked for */
+  /* PRE-FLIGHT: a full file rebuild with Web search and Smartest both ON is minutes of wasted work
+     before a single word is written. Say so BEFORE the operator waits, not after. */
+  if(files && files.length && /\b(rebuild|rewrite|complete|full|deliver|whole)\b/i.test(prompt)){
+    var _bad = [];
+    if(webOn)   _bad.push('Web search');
+    if(smartOn) _bad.push('Smartest');
+    if(_bad.length){
+      toast('\u26A0 ' + _bad.join(' + ') + ' ' + (_bad.length>1?'are':'is') + ' ON. For a full file rebuild '
+            + (_bad.length>1?'they add':'it adds') + ' minutes before a word is written. Turn '
+            + (_bad.length>1?'them':'it') + ' off in Lab \u25be for a much faster, cleaner rebuild.');
+    }
+  }
   addTurn('you', prompt); $('ask').value=''; $('send').disabled=true;
   var _hasFile = (files && files.length>0);
   // DEEPEST THINKING ALWAYS: Karam runs in smart mode on every turn — the best available flagship
