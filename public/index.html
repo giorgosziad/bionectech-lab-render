@@ -593,7 +593,67 @@ function send(){
   // therefore not bound by the proxy limit at all.
   var _heavyJob = (files && files.length > 0) || (smartOn && prompt.length > 400);
   if(_heavyJob){ runBackground(_payload, prompt); return; }
+  /* ── STREAMING SEND ────────────────────────────────────────────────────────────────
+     Was: wait for the WHOLE answer, then show it — 30-60s of staring at a spinner.
+     Now: tokens are painted as they are written. First words in ~2s, and it flows.
+     It also removes the 502 entirely: bytes keep the connection alive past Render's
+     ~100s proxy cut-off. Falls back to the old buffered call if streaming is unavailable. */
+  _payload.stream = true;
   addTurn('claude','…');
+  var _sIdx = current.turns.length - 1;
+  var _hdrs = {'Content-Type':'application/json'};
+  if(TOKEN) _hdrs['Authorization']='Bearer '+TOKEN;
+  fetch('/.netlify/functions/chat',{method:'POST',headers:_hdrs,body:JSON.stringify(_payload)}).then(function(resp){
+    var ct = resp.headers.get('content-type')||'';
+    if(!resp.ok || ct.indexOf('text/event-stream') < 0){
+      /* not streaming (older deploy, or an error) — fall back to the buffered path */
+      return resp.text().then(function(t){
+        var j=null; try{ j=JSON.parse(t); }catch(e){}
+        current.turns.pop();
+        if(j && j.text){ addTurnA('claude',j.text,j.aegis,j.model,j.persona,j.websearched,j.modelNote); if(autoRead) speak(j.text,j.persona||personaSel); pushLive(personaSel, prompt, j.text); }
+        else { var em=(j&&j.error)||('HTTP '+resp.status); addTurn('claude','That did not come through ('+em+'). Mind trying once more? (info@bionectech.com)'); if(files&&files.length){ pending=files.concat(pending); renderChips(); } }
+        $('send').disabled=(!unlimited&&remaining<=0);
+      });
+    }
+    var reader = resp.body.getReader(), dec = new TextDecoder(), buf = '', full = '', meta = null;
+    var t = current.turns[_sIdx]; if(t) t.text = '';
+    function pump(){
+      return reader.read().then(function(step){
+        if(step.done){
+          if(!full.trim() && !meta){ if(current.turns[_sIdx]) current.turns[_sIdx].text='That did not come through. Mind trying once more? (info@bionectech.com)'; renderTurns(); }
+          $('send').disabled=(!unlimited&&remaining<=0);
+          if(meta){
+            var tt=current.turns[_sIdx];
+            if(tt){ tt.aegis=meta.aegis||null; tt.model=meta.model||null; tt.modelNote=meta.modelNote||null; tt.persona=meta.persona||personaSel; tt.websearched=!!meta.websearched; }
+            renderTurns(); saveData();
+            if(autoRead) speak(full, (meta&&meta.persona)||personaSel);
+            pushLive(personaSel, prompt, full);
+          }
+          return;
+        }
+        buf += dec.decode(step.value,{stream:true});
+        var lines = buf.split('\n'); buf = lines.pop();
+        for(var i=0;i<lines.length;i++){
+          var line = lines[i].trim();
+          if(line.indexOf('data:') !== 0) continue;
+          var pl = line.slice(5).trim();
+          if(!pl) continue;
+          var ev=null; try{ ev=JSON.parse(pl); }catch(e){ continue; }
+          if(ev.delta){ full += ev.delta; var tu=current.turns[_sIdx]; if(tu){ tu.text = full; renderTurns(); } }
+          else if(ev.error){ var te=current.turns[_sIdx]; if(te){ te.text = (full ? full + '\n\n' : '') + ev.error; renderTurns(); } }
+          else if(ev.done){ meta = ev; }
+        }
+        return pump();
+      });
+    }
+    return pump();
+  }).catch(function(){
+    if(current.turns[_sIdx]) current.turns[_sIdx].text = "I can't reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)";
+    renderTurns();
+    $('send').disabled=(!unlimited&&remaining<=0);
+  });
+  return;
+  /* ---- legacy buffered path (kept for reference / background fallback) ---- */
   api('chat',{method:'POST',body:JSON.stringify(_payload)}).then(function(r){
     current.turns.pop();
     if(r.ok&&r.data&&r.data.text){ addTurnA('claude',r.data.text,r.data.aegis,r.data.model,r.data.persona,r.data.websearched,r.data.modelNote); if(autoRead) speak(r.data.text,r.data.persona||personaSel); pushLive(personaSel, prompt, r.data.text); }

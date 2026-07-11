@@ -51,7 +51,11 @@ async function runHandler(handler, req, res) {
     const rawBody = await readRawBody(req);
     console.log('[req '+req.path+'] body='+(rawBody?rawBody.length:0));
     const event = toEvent(req, rawBody);
-    const out = await handler(event);
+    // STREAMING: the handler may write directly to `res` (Server-Sent Events) and return
+    // { __streamed: true }. Everything else keeps the old buffered {statusCode, headers, body}
+    // contract untouched — this is purely additive.
+    const out = await handler(event, res);
+    if (out && out.__streamed) { console.log('[req '+req.path+'] streamed'); return; }
     console.log('[req '+req.path+'] handler done status='+(out&&out.statusCode));
     const status = (out && out.statusCode) || 200;
     const headers = (out && out.headers) || {};
@@ -59,6 +63,7 @@ async function runHandler(handler, req, res) {
     if (!res.get('Content-Type')) res.set('Content-Type', 'application/json');
     res.status(status).send((out && out.body) != null ? out.body : '');
   } catch (e) {
+    if (res.headersSent) { try { res.end(); } catch (_) {} return; }
     res.status(500).json({ error: 'Server error: ' + (e && e.message ? e.message : String(e)) });
   }
 }

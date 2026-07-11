@@ -409,20 +409,20 @@ function sanitizeHistory(h, curPersona) {
 }
 
 
-exports.handler = async function (event) {
+exports.handler = async function (event, res) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors, body: '' };
   const user = userFrom(event);
   if (!user) return json(401, { error: 'Sign in first.' });
   if (event.httpMethod !== 'POST') return json(405, { error: 'Use POST.' });
   try {
-    return await handleChat(event, user);
+    return await handleChat(event, user, res);
   } catch (e) {
     // Surface the real reason instead of a bare platform 502, so failures are diagnosable.
     return json(500, { error: 'chat handler error: ' + (e && e.message ? e.message : String(e)) });
   }
 };
 
-async function handleChat(event, user) {
+async function handleChat(event, user, res) {
   const key = process.env.ANTHROPIC_API_KEY || '';
   if (!key) return json(500, { error: 'Server is missing ANTHROPIC_API_KEY.' });
 
@@ -807,6 +807,10 @@ async function handleChat(event, user) {
     return false;
   }
 
+  // STREAMING: on when the client asks for it AND we have a live response object (sync turns only —
+  // the background path buffers by design). Streaming also removes the ~100s proxy-timeout problem,
+  // because bytes keep flowing.
+  const _wantStream = !!(b.stream && res && !b.bg);
   let text = null, usedModel = null, lastErr = null;
   for (let ci = 0; ci < candidates.length; ci++) {
     const m = candidates[ci];
@@ -944,9 +948,105 @@ async function handleChat(event, user) {
     // Abort at 88s: comfortably inside the proxy limit, so we fail CLEANLY with a useful message and
     // can still fall through to a faster model, instead of being cut off mid-flight.
     // (The background path returns 202 immediately and polls, so it is not bound by the proxy limit.)
-    var _deadlineMs = b.bg ? 18 * 60 * 1000 : 88 * 1000;
+    // A STREAMING turn is not bound by the proxy limit (bytes keep the connection alive), so it gets
+    // the long deadline. A buffered turn must still abort at 88s, inside Render's ~100s proxy cut-off.
+    var _deadlineMs = (b.bg || _wantStream) ? 18 * 60 * 1000 : 88 * 1000;
     var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var _to = _ac ? setTimeout(function(){ try { _ac.abort(); } catch (e) {} }, _deadlineMs) : null;
+    // ── STREAMING PATH ───────────────────────────────────────────────────────────────────────
+    // The old behaviour buffered the ENTIRE answer before sending a single byte, so the operator
+    // stared at "…" for 30-60s while a long reply generated. Streaming sends each token as it is
+    // written: first words in ~2s, and the reply flows. Same total time, completely different feel.
+    // It ALSO permanently fixes the 502 — bytes flowing keep the connection alive, so Render's
+    // ~100s proxy timeout never fires on a long answer.
+    // Fallback safety: we only COMMIT to the stream once the API returns 200. If a model fails
+    // before any byte is sent, we fall through to the next candidate exactly as before.
+    if (_wantStream && res && !b.bg) {
+      var _sHdrs = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' };
+      if (_mcpBeta) _sHdrs['anthropic-beta'] = 'mcp-client-2025-11-20';
+      var _sBody = Object.assign({}, apiBody, { stream: true });
+      var sr = null;
+      try {
+        sr = await fetch(ANTHROPIC_URL, { method: 'POST', headers: _sHdrs, body: JSON.stringify(_sBody), signal: _ac ? _ac.signal : undefined });
+      } catch (e) {
+        if (_to) clearTimeout(_to);
+        _modelFailures.push(m + ': ' + ((e && e.message) || 'stream failed to open'));
+        lastErr = { status: 502, error: 'Could not reach the model.' };
+        continue;   // nothing sent yet — safe to try the next model
+      }
+      if (!sr.ok) {
+        if (_to) clearTimeout(_to);
+        var _sErr = null; try { _sErr = await sr.json(); } catch (e2) {}
+        lastErr = { status: sr.status, error: (_sErr && _sErr.error && _sErr.error.message) || 'Anthropic API error.', triedModel: m };
+        _modelFailures.push(m + ': ' + lastErr.error);
+        continue;   // still nothing sent — fall through to the next candidate
+      }
+      // COMMITTED: open the SSE response and pipe the deltas.
+      res.status(200);
+      res.set('Content-Type', 'text/event-stream; charset=utf-8');
+      res.set('Cache-Control', 'no-cache, no-transform');
+      res.set('Connection', 'keep-alive');
+      res.set('X-Accel-Buffering', 'no');   // never let a proxy buffer the stream
+      if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+      var _full = '', _stop2 = '', _buf = '';
+      var _reader = sr.body;
+      try {
+        for await (var chunk of _reader) {
+          _buf += chunk.toString('utf8');
+          var lines = _buf.split('\n');
+          _buf = lines.pop();
+          for (var li = 0; li < lines.length; li++) {
+            var line = lines[li].trim();
+            if (line.indexOf('data:') !== 0) continue;
+            var payload = line.slice(5).trim();
+            if (!payload || payload === '[DONE]') continue;
+            var ev = null; try { ev = JSON.parse(payload); } catch (e3) { continue; }
+            if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta' && ev.delta.text) {
+              _full += ev.delta.text;
+              res.write('data: ' + JSON.stringify({ delta: ev.delta.text }) + '\n\n');
+            } else if (ev.type === 'message_delta' && ev.delta && ev.delta.stop_reason) {
+              _stop2 = ev.delta.stop_reason;
+            }
+          }
+        }
+      } catch (e4) {
+        // Stream broke mid-flight. Headers are already sent, so we cannot fall back — be honest.
+        if (_to) clearTimeout(_to);
+        try { res.write('data: ' + JSON.stringify({ error: 'The connection dropped mid-answer. Please try again.' }) + '\n\n'); res.end(); } catch (e5) {}
+        return { __streamed: true };
+      }
+      if (_to) clearTimeout(_to);
+
+      // Fable can DECLINE (stop_reason: refusal, HTTP 200, no text). Say so honestly.
+      if (_stop2 === 'refusal' || !_full.trim()) {
+        var _why = (_stop2 === 'refusal')
+          ? (m + ' declined this request (safety classifier). Ask again, or pick a different model.')
+          : (m + ' returned no text' + (_stop2 ? ' (stop_reason: ' + _stop2 + ')' : '') + '.');
+        try { res.write('data: ' + JSON.stringify({ error: _why }) + '\n\n'); res.end(); } catch (e6) {}
+        return { __streamed: true };
+      }
+
+      var aegisS = null;
+      if (user.role === 'admin') {
+        // `fidelity` (below) is computed on the buffered path only, AFTER this block — reading it
+        // here would be a temporal-dead-zone ReferenceError. Compute it locally instead.
+        var _pS = prompt || '';
+        var _fidS = AEGIS.runInputFidelity(_pS, _pS);
+        aegisS = (b.engine === true)
+          ? AEGIS.assessFull({ fidelity: _fidS, answer: _full, delivered: true, mode: b.mode || 'builder' })
+          : AEGIS.assess({ fidelity: _fidS, answer: _full, delivered: true, mode: b.mode || 'builder' });
+      }
+      var _noteS = _modelFailures.length ? ('Fell back to ' + m + '. Tried first: ' + _modelFailures.join(' | ')) : null;
+      try {
+        res.write('data: ' + JSON.stringify({
+          done: true, model: m, persona: persona, aegis: aegisS,
+          owner: ownerVerified, modelNote: _noteS, websearched: _searchRan, sources: _srcCount
+        }) + '\n\n');
+        res.end();
+      } catch (e7) {}
+      return { __streamed: true };
+    }
     try {
       var _hdrs = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' };
       if (_mcpBeta) _hdrs['anthropic-beta'] = 'mcp-client-2025-11-20';
