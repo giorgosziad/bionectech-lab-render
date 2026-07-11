@@ -990,10 +990,15 @@ async function handleChat(event, user, res) {
       if (typeof res.flushHeaders === 'function') res.flushHeaders();
 
       var _full = '', _stop2 = '', _buf = '';
+      // Production `fetch` yields Uint8Array chunks; a Node Readable yields Buffers. Calling
+      // .toString('utf8') on a Uint8Array does NOT decode UTF-8 — it produces "72,105,32…" and the
+      // SSE parser sees garbage. A TextDecoder handles BOTH correctly, and also stitches multi-byte
+      // characters that land across a chunk boundary.
+      var _td = new TextDecoder('utf-8');
       var _reader = sr.body;
       try {
         for await (var chunk of _reader) {
-          _buf += chunk.toString('utf8');
+          _buf += _td.decode(chunk, { stream: true });
           var lines = _buf.split('\n');
           _buf = lines.pop();
           for (var li = 0; li < lines.length; li++) {
