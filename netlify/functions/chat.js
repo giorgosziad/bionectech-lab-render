@@ -342,6 +342,19 @@ const PREFERENCE = ['claude-fable-5', 'claude-sonnet-4-6', 'claude-opus-4-8', 'c
 
 // Per-model MAX OUTPUT tokens. Opus 4.8 / Fable 5 -> 128k; Sonnet 4.6 / Haiku 4.5 -> 64k.
 // Used so a big file/zip delivery can use a high ceiling without ever exceeding the model's real max.
+
+// An honest timeout message. The old one told the operator to "pick Sonnet" even when they were
+// already ON Sonnet — useless and insulting. Say which model actually ran, and name the setting that
+// is genuinely costing the time, rather than guessing.
+function _timeoutMsg(model, b) {
+  var bits = [];
+  bits.push('Stopped after 85s on ' + (model || 'the model') + '.');
+  if (b && b.web) bits.push('Web search is ON — each search costs 40-60s before a word is written. Turn it off for file jobs.');
+  if (b && b.smart) bits.push('Smartest is ON — that adds deep thinking on top. Turn it off for routine work.');
+  if (/opus|fable|mythos/i.test(String(model))) bits.push('This is a deep-thinking model; Claude Sonnet 4.6 is several times faster for writing files.');
+  bits.push('Or start a new project — a very long thread re-sends its whole history every turn.');
+  return bits.join(' ');
+}
 function maxOutFor(model) {
   var id = String(model || '').toLowerCase();
   if (/fable|mythos|opus-4-(8|7|6)|opus-4\.(8|7|6)/.test(id)) return 128000;
@@ -1052,7 +1065,7 @@ async function handleChat(event, user, res) {
     // the long deadline. A buffered turn must still abort at 88s, inside Render's ~100s proxy cut-off.
     // Out of time for the whole turn? Do not start another model — stop and be honest.
     if (_msLeft() <= 4000) {
-      lastErr = { status: 504, error: 'That took too long and was stopped. Pick Claude Sonnet 4.6 for a much faster reply, or ask for a smaller piece.' };
+      lastErr = { status: 504, error: _timeoutMsg(m, b) };
       break;
     }
     var _deadlineMs = Math.max(5000, _msLeft());   // only ever the time that REMAINS
@@ -1217,7 +1230,7 @@ async function handleChat(event, user, res) {
       // watched a clock climb. One retry without thinking is fair; after that, STOP and say so.
       if (_aborted && !b.bg && apiBody._noThinkRetry) {
         _modelFailures.push(m + ' timed out');
-        lastErr = { status: 504, error: 'That took too long and was stopped. Try a smaller ask, or pick Claude Sonnet 4.6 (much faster) for file jobs.' };
+        lastErr = { status: 504, error: _timeoutMsg(m, b) };
         break;
       }
       if (_aborted && !b.bg && !apiBody._noThinkRetry) {
@@ -1227,7 +1240,7 @@ async function handleChat(event, user, res) {
           // Bind it to whatever is LEFT of the turn budget, and never start it if there is no time.
           if (_msLeft() <= 3000) {
             _modelFailures.push(m + ' timed out');
-            lastErr = { status: 504, error: 'That took too long and was stopped. Pick Claude Sonnet 4.6 for a much faster reply, or ask for a smaller piece.' };
+            lastErr = { status: 504, error: _timeoutMsg(m, b) };
             break;
           }
           var _rac = (typeof AbortController !== 'undefined') ? new AbortController() : null;

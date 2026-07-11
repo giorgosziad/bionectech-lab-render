@@ -199,7 +199,7 @@
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build WEBFILE-1520</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build BGFILE-1545</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -644,10 +644,15 @@ function send(){
      model writes a word, so "search the web AND build me a PDF" cannot finish in time on the sync
      path — it times out every single time. Send it to the background path (18-min budget, polls,
      not bound by the proxy) so it actually completes. */
-  var _wantsFile = /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|word document|deck|slides|zip|download|deliver|file)\b/i.test(prompt);
+  /* ANY FILE REQUEST GOES TO THE BACKGROUND PATH. Building a PDF, deck, spreadsheet or document is
+     inherently heavy work — it should NEVER be squeezed into the 85-second sync window, on any model,
+     with or without web search. The background path returns 202 immediately, polls for the result,
+     and has an 18-minute budget with no proxy limit. This removes the timeout as a failure mode for
+     files entirely, instead of tuning around it. */
+  var _wantsFile = /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|word document|\.zip\b|download|deliver (the |a |me |it)?(pdf|powerpoint|deck|file|doc|slides|spreadsheet)|as a (pdf|deck|spreadsheet|word doc))\b/i.test(prompt);
   var _heavyJob = (files && files.length > 0)
                || (smartOn && prompt.length > 400)
-               || (webOn && _wantsFile);
+               || _wantsFile;
   if(_heavyJob){ runBackground(_payload, prompt); return; }
   /* ── BUFFERED SEND (streaming reverted) ──────────────────────────────────────────
      Streaming was implemented correctly end-to-end — heartbeat, SSE parser, live painting —
