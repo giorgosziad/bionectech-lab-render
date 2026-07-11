@@ -165,7 +165,7 @@
         <div class="lr"><span>Read aloud</span><button id="labRead" type="button">off</button><label><input id="labAuto" type="checkbox" style="width:auto"> auto</label></div>
         <div class="lr"><span>Mode</span><select id="mode"><option value="builder">Builder</option><option value="answer">Plain answer</option><option value="research">Research</option><option value="clinical">Clinical decision support</option><option value="imagine">Imagination</option></select></div>
         <div class="lr"><span>Imagine</span><input id="temp" type="range" min="0" max="1" step="0.05" value="1"><span id="tempV">1.0</span></div>
-        <div class="lr"><span>Assistant</span><button id="personaKaram" type="button">Karam</button><button id="personaNicolle" type="button">Nicolle</button><button id="personaKarim" type="button">Karim</button><button id="personaGiorgos" type="button">Giorgos</button><button id="personaGalen" type="button">Galen</button><button id="personaElias" type="button">Elias</button><button id="personaKostas" type="button">Kostas</button><span class="g" style="font-size:10px;color:var(--soft)">Nicolle = notes, minutes, emails</span></div>
+        <div class="lr"><span>Assistant</span><button id="personaKaram" type="button">Karam</button><button id="personaNicolle" type="button">Nicolle</button><button id="personaKarim" type="button">Karim</button><button id="personaGiorgos" type="button">Giorgos</button><button id="personaGalen" type="button">Galen</button><button id="personaElias" type="button">Elias</button><button id="personaKostas" type="button">Kostas</button><button id="personaElena" type="button">Elena</button><span class="g" style="font-size:10px;color:var(--soft)">Karam = engineering &middot; Nicolle = research &middot; Karim = quality &amp; gate &middot; Giorgos = founder standards &middot; Galen = clinical &middot; Elias = sales &middot; Kostas = capital &middot; Elena = customer success</span></div>
         <div class="lr"><span>Web search</span><button id="webBtn" type="button">off</button><span class="g" style="font-size:10px;color:var(--soft)">every colleague can search the live web</span></div>
         <div class="lr"><span>Connectors</span><button id="mcpBtn" type="button">off</button><span class="g" style="font-size:10px;color:var(--soft)">RxSmart &middot; BagPing &middot; OncoDefy &mdash; governed, audited MCPs</span></div>
         <div class="lr"><span>Fast</span><button id="fastBtn" type="button">off</button><span class="g" style="font-size:10px;color:var(--soft)">quicker replies (Haiku)</span></div>
@@ -202,7 +202,7 @@
         <button class="iconbtn" id="attachBtn" type="button" title="Attach a file">+ Attach</button><button class="iconbtn" id="folderBtn" type="button" title="Attach a whole folder">+ Folder</button>
         <button class="iconbtn" id="linkBtn" type="button" title="Give Karam a link to work on">+ Link</button>
         <input id="fileInput" type="file" multiple style="display:none"><input id="folderInput" type="file" webkitdirectory directory multiple style="display:none">
-        <button class="iconbtn" id="micBtn" type="button" title="Voice input">Voice</button>
+        <button class="iconbtn" id="micBtn" type="button" title="Voice input (one message)">Voice</button><button class="iconbtn" id="talkBtn" type="button" title="Hands-free conversation: speak, they answer aloud, then it listens again">Talk</button>
         <input id="ask" type="text" placeholder="Speak to the field..." autocomplete="off">
         <button class="btn gold" id="send" type="button">Send</button>
       </div>
@@ -401,7 +401,7 @@ function loadData(){ api('data',{method:'GET'}).then(function(r){
 function saveData(){ clearTimeout(saveT); saveT=setTimeout(function(){ api('data',{method:'POST',body:JSON.stringify({data:{projects:projects,notes:notes}})}); },600); }
 function renderProjects(){ projects.sort(function(a,b){return (b.updated||0)-(a.updated||0);}); var s=$('project'); s.innerHTML=''; projects.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name+' ('+(p.turns?p.turns.length:0)+')';if(current&&p.id===current.id)o.selected=true;s.appendChild(o);}); }
 function renderTurns(){ var log=$('log');log.innerHTML='';var t=current&&current.turns||[];if(!t.length){log.innerHTML='<div class="empty">No messages yet. Ask something below.</div>';return;}
-  t.forEach(function(turn){var d=document.createElement('div');d.className='turn '+(turn.role==='you'?'you':'claude');var w=document.createElement('div');w.className='who2';w.textContent=turn.role==='you'?'You':(turn.persona==='nicolle'?'Nicolle':turn.persona==='karim'?'Karim':turn.persona==='giorgos'?'Giorgos':turn.persona==='galen'?'Galen':turn.persona==='elias'?'Elias':turn.persona==='kostas'?'Kostas':'Karam');d.appendChild(w);var b=document.createElement('div');b.className='body';var parts=turn.text.split(/```/);for(var i=0;i<parts.length;i++){if(i%2===1){var pre=document.createElement('pre');pre.textContent=parts[i].replace(/^[a-zA-Z0-9_.-]*\n/,'');d.appendChild(pre);}else if(parts[i]){var sp=document.createElement('span');sp.textContent=parts[i];b.appendChild(sp);}}if(b.childNodes.length)d.appendChild(b);if(turn.role!=='you'&&turn.text&&turn.text!=='…'){var rb=document.createElement('button');rb.className='readbtn';rb.type='button';rb.textContent='Read aloud';rb.addEventListener('click',function(){speak(turn.text,turn.persona||'karam');});d.appendChild(rb);if(turn.model){var mt=document.createElement('span');mt.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--soft);margin-left:8px';mt.textContent=turn.model;d.appendChild(mt);}if(turn.modelNote){var mn=document.createElement('div');mn.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--gold-dim);margin-top:4px;opacity:.9';mn.textContent='\u26A0 '+turn.modelNote;d.appendChild(mn);}if(turn.aegis&&engineOn&&ROLE==='admin'){var ae=turn.aegis;var chip=document.createElement('div');chip.className='aegis '+(ae.status||'').toLowerCase();var act=ae.action+(ae.response_window?(' · '+ae.response_window):'');var tail=ae.built_in?(' · built-in · attest '+esc(ae.attest||'')):'';chip.innerHTML='<span class="dot"></span><b>'+ae.engine+' '+ae.version+'</b> · '+ae.status+' · '+esc(act)+' · input fidelity '+ae.fidelity+tail;d.appendChild(chip);}
+  t.forEach(function(turn){var d=document.createElement('div');d.className='turn '+(turn.role==='you'?'you':'claude');var w=document.createElement('div');w.className='who2';w.textContent=turn.role==='you'?'You':(turn.persona==='nicolle'?'Nicolle':turn.persona==='karim'?'Karim':turn.persona==='giorgos'?'Giorgos':turn.persona==='galen'?'Galen':turn.persona==='elias'?'Elias':turn.persona==='kostas'?'Kostas':turn.persona==='elena'?'Elena':'Karam');d.appendChild(w);var b=document.createElement('div');b.className='body';var parts=turn.text.split(/```/);for(var i=0;i<parts.length;i++){if(i%2===1){var pre=document.createElement('pre');pre.textContent=parts[i].replace(/^[a-zA-Z0-9_.-]*\n/,'');d.appendChild(pre);}else if(parts[i]){var sp=document.createElement('span');sp.textContent=parts[i];b.appendChild(sp);}}if(b.childNodes.length)d.appendChild(b);if(turn.role!=='you'&&turn.text&&turn.text!=='…'){var rb=document.createElement('button');rb.className='readbtn';rb.type='button';rb.textContent='Read aloud';rb.addEventListener('click',function(){speak(turn.text,turn.persona||'karam');});d.appendChild(rb);if(turn.model){var mt=document.createElement('span');mt.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--soft);margin-left:8px';mt.textContent=turn.model;d.appendChild(mt);}if(turn.modelNote){var mn=document.createElement('div');mn.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--gold-dim);margin-top:4px;opacity:.9';mn.textContent='\u26A0 '+turn.modelNote;d.appendChild(mn);}if(turn.aegis&&engineOn&&ROLE==='admin'){var ae=turn.aegis;var chip=document.createElement('div');chip.className='aegis '+(ae.status||'').toLowerCase();var act=ae.action+(ae.response_window?(' · '+ae.response_window):'');var tail=ae.built_in?(' · built-in · attest '+esc(ae.attest||'')):'';chip.innerHTML='<span class="dot"></span><b>'+ae.engine+' '+ae.version+'</b> · '+ae.status+' · '+esc(act)+' · input fidelity '+ae.fidelity+tail;d.appendChild(chip);}
     /* Downloadable files in Karam's reply: a Download button per file, plus Download as ZIP if many. */
     var _files=extractFilesFromText(turn.text);
     if(_files.length){ var fbar=document.createElement('div'); fbar.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center';
@@ -879,16 +879,17 @@ var webOn=false; try{ webOn=sessionStorage.getItem('bnt_web')==='1'; }catch(e){}
 var fastOn=false; try{ fastOn=sessionStorage.getItem('bnt_fast')==='1'; }catch(e){}
 var smartOn=false; try{ smartOn=sessionStorage.getItem('bnt_smart')==='1'; }catch(e){}
 var personaSel='karam'; try{ personaSel=sessionStorage.getItem('bnt_persona')||'karam'; }catch(e){}
-function paintPersona(){ var k=$('personaKaram'), n=$('personaNicolle'); if(k) k.style.opacity=personaSel==='karam'?'1':'0.5'; if(n) n.style.opacity=personaSel==='nicolle'?'1':'0.5'; var m=$('personaKarim'); if(m) m.style.opacity=personaSel==='karim'?'1':'0.5'; var d=$('personaGiorgos'); if(d) d.style.opacity=personaSel==='giorgos'?'1':'0.5'; var g=$('personaGalen'); if(g) g.style.opacity=personaSel==='galen'?'1':'0.5'; var a=$('personaElias'); if(a) a.style.opacity=personaSel==='elias'?'1':'0.5'; var st=$('personaKostas'); if(st) st.style.opacity=personaSel==='kostas'?'1':'0.5'; var nm=$('activeAssistantName'); if(nm) nm.textContent='TALKING TO: '+(personaSel==='nicolle'?'NICOLLE':personaSel==='karim'?'KARIM':personaSel==='giorgos'?'GIORGOS':personaSel==='galen'?'GALEN':personaSel==='elias'?'ELIAS':personaSel==='kostas'?'KOSTAS':'KARAM'); }
+function paintPersona(){ var k=$('personaKaram'), n=$('personaNicolle'); if(k) k.style.opacity=personaSel==='karam'?'1':'0.5'; if(n) n.style.opacity=personaSel==='nicolle'?'1':'0.5'; var m=$('personaKarim'); if(m) m.style.opacity=personaSel==='karim'?'1':'0.5'; var d=$('personaGiorgos'); if(d) d.style.opacity=personaSel==='giorgos'?'1':'0.5'; var g=$('personaGalen'); if(g) g.style.opacity=personaSel==='galen'?'1':'0.5'; var a=$('personaElias'); if(a) a.style.opacity=personaSel==='elias'?'1':'0.5'; var st=$('personaKostas'); if(st) st.style.opacity=personaSel==='kostas'?'1':'0.5'; var el=$('personaElena'); if(el) el.style.opacity=personaSel==='elena'?'1':'0.5'; var nm=$('activeAssistantName'); if(nm) nm.textContent='TALKING TO: '+(personaSel==='nicolle'?'NICOLLE':personaSel==='karim'?'KARIM':personaSel==='giorgos'?'GIORGOS':personaSel==='galen'?'GALEN':personaSel==='elias'?'ELIAS':personaSel==='kostas'?'KOSTAS':personaSel==='elena'?'ELENA':'KARAM'); }
 var _pk=$('personaKaram'); if(_pk) _pk.addEventListener('click',function(){ personaSel='karam'; try{sessionStorage.setItem('bnt_persona','karam');}catch(e){} paintPersona(); toast('Karam is active.'); });
 var _pn=$('personaNicolle'); if(_pn) _pn.addEventListener('click',function(){ if(!nicolleOK()){ toast('Nicolle is controlled by the owner.'); return; } personaSel='nicolle'; try{sessionStorage.setItem('bnt_persona','nicolle');}catch(e){} paintPersona(); toast('Nicolle is active — your assistant for notes, minutes & emails.'); });
 var _pm=$('personaKarim'); if(_pm) _pm.addEventListener('click',function(){ personaSel='karim'; try{sessionStorage.setItem('bnt_persona','karim');}catch(e){} paintPersona(); toast('Karim is active - oversight and quality gate.'); });
 var _pd=$('personaGiorgos'); if(_pd) _pd.addEventListener('click',function(){ personaSel='giorgos'; try{sessionStorage.setItem('bnt_persona','giorgos');}catch(e){} paintPersona(); toast('Giorgos is active - founder standards.'); });
 var _pa=$('personaElias'); if(_pa) _pa.addEventListener('click',function(){ personaSel='elias'; try{sessionStorage.setItem('bnt_persona','elias');}catch(e){} paintPersona(); toast('Elias is active - sales & marketing.'); });
 var _pst=$('personaKostas'); if(_pst) _pst.addEventListener('click',function(){ personaSel='kostas'; try{sessionStorage.setItem('bnt_persona','kostas');}catch(e){} paintPersona(); toast('Kostas is active - capital & finance.'); });
+var _pel=$('personaElena'); if(_pel) _pel.addEventListener('click',function(){ personaSel='elena'; try{sessionStorage.setItem('bnt_persona','elena');}catch(e){} paintPersona(); toast('Elena is active - customer success, adoption & retention.'); });
 var _pg=$('personaGalen'); if(_pg) _pg.addEventListener('click',function(){ personaSel='galen'; try{sessionStorage.setItem('bnt_persona','galen');}catch(e){} paintPersona(); toast('Galen is active - clinical colleague.'); });
 paintPersona();
-var _asw=$('assistantSwitch'); if(_asw) _asw.addEventListener('click',function(){ personaSel=(personaSel==='karam'?'nicolle':personaSel==='nicolle'?'karim':personaSel==='karim'?'giorgos':personaSel==='giorgos'?'galen':personaSel==='galen'?'elias':personaSel==='elias'?'kostas':'karam'); if(personaSel==='nicolle'&&typeof nicolleOK==='function'&&!nicolleOK()){ personaSel='karim'; } try{sessionStorage.setItem('bnt_persona',personaSel);}catch(e){} paintPersona(); toast(personaSel==='nicolle'?'Nicolle is active.':personaSel==='karim'?'Karim is active - oversight and quality gate.':personaSel==='giorgos'?'Giorgos is active - founder standards.':personaSel==='galen'?'Galen is active - clinical colleague.':personaSel==='elias'?'Elias is active - sales & marketing.':personaSel==='kostas'?'Kostas is active - capital & finance.':'Karam is active.'); });
+var _asw=$('assistantSwitch'); if(_asw) _asw.addEventListener('click',function(){ personaSel=(personaSel==='karam'?'nicolle':personaSel==='nicolle'?'karim':personaSel==='karim'?'giorgos':personaSel==='giorgos'?'galen':personaSel==='galen'?'elias':personaSel==='elias'?'kostas':personaSel==='kostas'?'elena':'karam'); if(personaSel==='nicolle'&&typeof nicolleOK==='function'&&!nicolleOK()){ personaSel='karim'; } try{sessionStorage.setItem('bnt_persona',personaSel);}catch(e){} paintPersona(); toast(personaSel==='nicolle'?'Nicolle is active.':personaSel==='karim'?'Karim is active - oversight and quality gate.':personaSel==='giorgos'?'Giorgos is active - founder standards.':personaSel==='galen'?'Galen is active - clinical colleague.':personaSel==='elias'?'Elias is active - sales & marketing.':personaSel==='kostas'?'Kostas is active - capital & finance.':'Karam is active.'); });
 function paintWeb(){ var b=$('webBtn'); if(b) b.textContent=webOn?'on':'off'; }
 var mcpOn=false; try{ mcpOn=sessionStorage.getItem('bnt_mcp')==='1'; }catch(e){}
 function paintMcp(){ var b=$('mcpBtn'); if(b) b.textContent=mcpOn?'on':'off'; }
@@ -1204,14 +1205,84 @@ _drop.addEventListener('drop',function(e){e.preventDefault();e.stopPropagation()
 
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition, rec=null, listening=false;
 $('micBtn').addEventListener('click',function(){ if(!SR){ toast('Voice not supported in this browser.'); return; } var btn=this; if(!rec){ rec=new SR(); rec.lang='en-US'; rec.interimResults=true; rec.continuous=false; rec.onresult=function(ev){ var t=''; for(var i=ev.resultIndex;i<ev.results.length;i++) t+=ev.results[i][0].transcript; $('ask').value=t; }; rec.onend=function(){ listening=false; btn.classList.remove('rec'); btn.textContent='Voice'; }; rec.onerror=function(){ listening=false; btn.classList.remove('rec'); btn.textContent='Voice'; }; } if(listening){ try{rec.stop();}catch(e){} } else { try{ rec.start(); listening=true; btn.classList.add('rec'); btn.textContent='Rec...'; }catch(e){} } });
+/* ── HANDS-FREE CONVERSATION ────────────────────────────────────────────────────
+   Press Talk once: it listens, sends what you said, the colleague answers ALOUD in their
+   own voice, and then it listens again — a real spoken conversation, no keyboard.
+   Press Talk again (or Esc) to stop. Speech recognition and the reply are chained through
+   speak()'s onend, so it never talks over itself. */
+var handsFree=false, hfRec=null;
+function handsFreeStop(){ handsFree=false; try{ if(hfRec) hfRec.abort(); }catch(e){} try{ speechSynthesis.cancel(); }catch(e){} var b=$('talkBtn'); if(b){ b.classList.remove('rec'); b.textContent='Talk'; } }
+function handsFreeListen(){
+  if(!handsFree) return;
+  if(!SR){ toast('Voice input is not supported in this browser.'); handsFreeStop(); return; }
+  try{ hfRec = new SR(); }catch(e){ handsFreeStop(); return; }
+  hfRec.lang='en-US'; hfRec.interimResults=true; hfRec.continuous=false;
+  var said='';
+  hfRec.onresult=function(ev){ var t=''; for(var i=ev.resultIndex;i<ev.results.length;i++) t+=ev.results[i][0].transcript; said=t; $('ask').value=t; };
+  hfRec.onerror=function(){ /* a pause or no-speech: just keep listening */ if(handsFree) setTimeout(handsFreeListen, 600); };
+  hfRec.onend=function(){
+    if(!handsFree) return;
+    var q=(said||'').trim();
+    if(!q){ setTimeout(handsFreeListen, 500); return; }   /* silence — listen again */
+    var b=$('talkBtn'); if(b) b.textContent='…thinking';
+    send();                                                /* the reply is spoken by speak() below */
+  };
+  var b=$('talkBtn'); if(b){ b.classList.add('rec'); b.textContent='Listening…'; }
+  try{ hfRec.start(); }catch(e){ setTimeout(handsFreeListen, 800); }
+}
+/* called by speak()'s onend — the colleague finished talking, so listen again */
+function handsFreeOnSpoken(){ if(handsFree) setTimeout(handsFreeListen, 350); }
+var _tb=$('talkBtn'); if(_tb) _tb.addEventListener('click',function(){
+  if(handsFree){ handsFreeStop(); toast('Hands-free off.'); return; }
+  if(!SR){ toast('Voice input is not supported in this browser. Try Chrome or Edge.'); return; }
+  handsFree=true; autoRead=true;                            /* replies must be spoken for the loop to work */
+  var a=$('labAuto'); if(a) a.checked=true;
+  toast('Hands-free on — just speak. Press Talk again to stop.');
+  handsFreeListen();
+});
+document.addEventListener('keydown',function(e){ if(e.key==='Escape' && handsFree) handsFreeStop(); });
 var autoRead=false, readOn=false;
 var _voices=[]; function _loadVoices(){ try{ _voices=speechSynthesis.getVoices()||[]; }catch(e){ _voices=[]; } }
 _loadVoices(); if('speechSynthesis' in window){ try{ speechSynthesis.onvoiceschanged=_loadVoices; }catch(e){} }
 function _femaleVoices(){ if(!_voices.length) _loadVoices(); var en=_voices.filter(function(v){ return /^en/i.test(v.lang||''); }); var pool=en.length?en:_voices; var femaleNames=/(female|woman|samantha|victoria|karen|moira|tessa|fiona|serena|allison|ava|susan|zira|hazel|joanna|salli|kendra|kimberly|amy|emma|nicole|google us english|catherine|linda|heather|aria|jenny|michelle)/i; var maleNames=/(\bmale\b|\bman\b|daniel|alex|fred|david|mark|george|james|aaron|arthur|oliver|rishi|guy|tom|eric|brian)/i; var fem=pool.filter(function(v){ return femaleNames.test(v.name||''); }); if(!fem.length) fem=pool.filter(function(v){ return !maleNames.test(v.name||''); }); if(!fem.length) fem=pool; return fem; }
 function _maleVoices(){ if(!_voices.length) _loadVoices(); var en=_voices.filter(function(v){ return /^en/i.test(v.lang||''); }); var pool=en.length?en:_voices; var maleNames=/(\bmale\b|\bman\b|daniel|alex|fred|david|mark|george|james|aaron|arthur|oliver|rishi|guy|tom|eric|brian|google uk english male)/i; var male=pool.filter(function(v){ return maleNames.test(v.name||''); }); if(!male.length) male=pool; return male; }
 // persona: Nicolle = female voice, Karam = male voice.
-function pickPersonaVoice(persona){ if(persona==='nicolle'){ var fem=_femaleVoices(); return fem.length?fem[0]:null; } var male=_maleVoices(); return male.length?male[0]:null; }
-function speak(text, persona){ if(!('speechSynthesis' in window)){ toast('Read-aloud not supported.'); return; } try{ speechSynthesis.cancel(); var u=new SpeechSynthesisUtterance(String(text).replace(/```[\s\S]*?```/g,' (code block) ')); var p=(persona==='nicolle')?'nicolle':'karam'; var v=pickPersonaVoice(p); if(v){ u.voice=v; u.lang=v.lang||'en-US'; } var isNicolle=(p==='nicolle'); u.rate=isNicolle?1.02:0.96; u.pitch=isNicolle?1.18:0.85; speechSynthesis.speak(u); }catch(e){} }
+/* ── PER-PERSONA VOICES ──────────────────────────────────────────────────────────
+   Was binary: Nicolle = female, EVERYONE else = the same male voice — so Elena spoke
+   with a man's voice and six colleagues sounded identical. Each persona now has its own
+   voice profile: a gender pool, a distinct voice from within that pool, and its own
+   rate/pitch signature, so they remain distinguishable even when the browser offers few voices. */
+var VOICE_PROFILE = {
+  karam:   { sex:'m', idx:0, rate:0.98, pitch:0.90 },  /* engineer — steady, measured   */
+  karim:   { sex:'m', idx:1, rate:0.94, pitch:0.78 },  /* the gate — lower, deliberate  */
+  giorgos: { sex:'m', idx:2, rate:0.96, pitch:0.85 },  /* founder — authoritative       */
+  galen:   { sex:'m', idx:3, rate:0.90, pitch:0.95 },  /* clinical — warm, unhurried    */
+  elias:   { sex:'m', idx:4, rate:1.06, pitch:1.00 },  /* sales — warmer, brighter      */
+  kostas:  { sex:'m', idx:5, rate:0.93, pitch:0.82 },  /* finance — precise, measured   */
+  nicolle: { sex:'f', idx:0, rate:1.02, pitch:1.18 },  /* research — bright, clear      */
+  elena:   { sex:'f', idx:1, rate:1.00, pitch:1.08 }   /* customer success — warm        */
+};
+function pickPersonaVoice(persona){
+  var prof = VOICE_PROFILE[persona] || VOICE_PROFILE.karam;
+  var pool = (prof.sex === 'f') ? _femaleVoices() : _maleVoices();
+  if(!pool.length) return null;
+  return pool[prof.idx % pool.length];   /* distinct voice per persona where the browser has them */
+}
+function speak(text, persona){
+  if(!('speechSynthesis' in window)){ toast('Read-aloud not supported in this browser.'); return; }
+  try{
+    speechSynthesis.cancel();
+    var clean = String(text).replace(/```[\s\S]*?```/g,' (code block) ');
+    var u = new SpeechSynthesisUtterance(clean);
+    var key  = VOICE_PROFILE[persona] ? persona : 'karam';
+    var prof = VOICE_PROFILE[key];
+    var v = pickPersonaVoice(key);
+    if(v){ u.voice = v; u.lang = v.lang || 'en-US'; }
+    u.rate = prof.rate; u.pitch = prof.pitch;
+    u.onend = function(){ if(typeof handsFreeOnSpoken==='function') handsFreeOnSpoken(); };
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
 $('labRead').addEventListener('click',function(){ readOn=!readOn; this.textContent=readOn?'on':'off'; if(readOn&&current&&current.turns){ for(var i=current.turns.length-1;i>=0;i--){ if(current.turns[i].role!=='you'){ speak(current.turns[i].text,current.turns[i].persona); break; } } } else { try{speechSynthesis.cancel();}catch(e){} } });
 $('labAuto').addEventListener('change',function(){ autoRead=this.checked; });
 $('labBtn').addEventListener('click',function(e){ e.stopPropagation(); $('labPanel').classList.toggle('show'); });
