@@ -569,7 +569,9 @@ function send(){
   // model (Fable now, auto-upgrading as new models ship) with deep 32k thinking. Files use builder
   // mode so the whole file is output. (Big file fixes are slow and need the background function;
   // that's the accepted tradeoff for maximum depth.)
-  var _payload={prompt:prompt,history:history,files:files,model:$('model').value,mode:(_hasFile?'builder':mode),temperature:temp,engine:engineOn,ownerCode:ownerCode,web:webOn,fast:false,smart:true,persona:personaSel};
+  // SPEED: honour the Fast / Smartest toggles instead of forcing the deepest brain on every turn.
+  // Smartest OFF = normal full-model reply, fast. Smartest ON = extended thinking when you want depth.
+  var _payload={prompt:prompt,history:history,files:files,model:$('model').value,mode:(_hasFile?'builder':mode),temperature:temp,engine:engineOn,ownerCode:ownerCode,web:webOn,fast:fastOn,smart:(smartOn || _hasFile),persona:personaSel};
   // With deepest thinking on, file fixes need the 15-min background window. Route files to background;
   // if it isn't deployed, runBackground automatically falls back to a capped sync path.
   // ROUTING: the synchronous 'chat' function is always mounted and reliable. The background
