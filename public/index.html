@@ -199,7 +199,7 @@
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build MODEL-1900</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build REAL-2010</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -526,19 +526,46 @@ function runBackground(payload, prompt){
   addTurn('claude','\u2026 '+(personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':'Karam')+' is working \u2014 0s \u2026');
   var _bgIdx = current.turns.length - 1;
   var _bgT0 = Date.now();
+  window.__bgProgress = null;   /* fresh job, fresh truth */
   var _bgEl = null;
   try { var _bt=$('log').querySelectorAll('.turn'); var _bl=_bt[_bt.length-1]; _bgEl = _bl ? _bl.querySelector('.body') : null; } catch(e){}
   /* A REAL HEARTBEAT. The old code only refreshed this label every 15 polls — i.e. every 30 SECONDS —
      so the operator stared at a frozen "one moment" for half a minute and reasonably concluded it had
      died. A 1-second clock, independent of the poll, so you can always see it is alive. */
+  /* STAGED PROGRESS — it must know WHAT WAS ASKED, not just how long it has been.
+     Bug caught before shipping: with no file attached, this used to say "writing the file" after
+     60 seconds — for a plain QUESTION. That is a lie, and this Lab does not lie about its own state.
+     Three genuinely different jobs, three honest progressions:
+       files attached  -> reading  -> working  -> WRITING the file (the slow part)
+       a file REQUESTED -> thinking -> building your file
+       a plain question -> thinking -> still thinking (never any file language)
+     On this path the model sends nothing until it finishes, so the phase is a TIME-BASED ESTIMATE,
+     not a claim of knowledge. But the stages are real and they happen in that order. */
   var _bgTick = setInterval(function(){
     var secs = Math.round((Date.now() - _bgT0)/1000);
-    var lbl = '\u2026 ' + (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':'Karam') + ' is working \u2014 ' + secs + 's \u2026'
-            + (secs > 20 ? ((payload && payload.files && payload.files.length) ? (' (reading your ' + payload.files.length + ' file' + (payload.files.length>1?'s':'') + ' \u2014 this is real work)')
-                          : (webOn ? ' (searching the web \u2014 each search takes a moment)'
-                          : ' (thinking it through)')) : '');
+    var who  = (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':'Karam');
+    var nf   = (payload && payload.files && payload.files.length) || 0;
+    var askedFile = /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|deck|slides|zip|deliver|download)\b/i.test(String(prompt||''));
+    var rebuild   = nf > 0 && /\b(rebuild|rewrite|complete|full|whole|deliver)\b/i.test(String(prompt||''));
+    var stage;
+    /* PREFER THE TRUTH. The server streams from Anthropic and reports what is ACTUALLY happening —
+       the model it called, and the real token count as it writes. Use that when we have it. Only fall
+       back to the time-based estimate in the first second, before the first progress report lands. */
+    var pr = window.__bgProgress;
+    if(pr && pr.stage){
+      if(pr.stage === 'searching')      stage = 'searching the web';
+      else if(pr.stage === 'thinking')  stage = pr.model + ' is thinking';
+      else if(pr.stage === 'writing')   stage = 'writing \u2014 ' + pr.tokens.toLocaleString() + ' tokens so far';
+      else if(pr.stage === 'calling')   stage = 'calling ' + pr.model;
+      else if(pr.stage === 'done')      stage = 'finishing up \u2014 ' + pr.tokens.toLocaleString() + ' tokens';
+      else                              stage = pr.stage;
+    } else if(nf && secs < 20)          stage = 'reading your ' + nf + ' file' + (nf>1?'s':'');
+    else                                stage = 'starting';
+    var mins = Math.floor(secs/60), rem = secs % 60;
+    var t = mins ? (mins + 'm ' + rem + 's') : (secs + 's');
+    var lbl = '\u2026 ' + who + ' \u2014 ' + t + ' \u2014 ' + stage + ' \u2026';
     if(_bgEl){ _bgEl.textContent = lbl; }
-    else { var t=current.turns[_bgIdx]; if(t){ t.text = lbl; renderTurns(); } }
+    else { var tt=current.turns[_bgIdx]; if(tt){ tt.text = lbl; renderTurns(); } }
   }, 1000);
   function _bgStop(){ try{ clearInterval(_bgTick); }catch(e){} }
   // Kick off the background job (returns 202 immediately).
@@ -550,6 +577,8 @@ function runBackground(payload, prompt){
       api('chat-result',{method:'POST',body:JSON.stringify({jobId:jobId})}).then(function(r){
         if(!(r.ok && r.data)) return;
         var st = r.data.status;
+        /* REAL PROGRESS from the server — which model, and how many tokens ACTUALLY written. */
+        if(r.data.progress){ window.__bgProgress = r.data.progress; }
         if(st==='done'){
           clearInterval(poll); _bgStop();
           var d = (r.data.result)||{};

@@ -112,8 +112,23 @@ app.all('/.netlify/functions/chat-background', async function (req, res) {
   const key = 'job:' + jobId;
   console.log('[bg] job ' + jobId + ' START');
   try { await writeJSON(null, key, { status: 'running', startedAt: Date.now() }); } catch (e) { console.log('[bg] could not write running state: ' + e.message); }
+  // REAL PROGRESS: handleChat streams from Anthropic internally and tells us the truth — which model
+  // it called, and how many tokens it has ACTUALLY written. We put that straight into the job record.
+  // The browser polls it. No guessing.
+  let _lastWrite = 0;
+  const onProgress = function (p) {
+    const now = Date.now();
+    if (p.stage !== 'done' && now - _lastWrite < 900) return;   // at most once a second
+    _lastWrite = now;
+    writeJSON(null, key, {
+      status: 'running',
+      startedAt: Date.now(),
+      progress: { stage: p.stage, model: p.model, chars: p.chars || 0, tokens: p.tokens || 0 }
+    }).catch(function () {});
+  };
+
   try {
-    const out = await handleChat(event, user);
+    const out = await handleChat(event, user, null, onProgress);
     let payload = null;
     try { payload = JSON.parse(out.body || '{}'); } catch (e) { payload = { error: 'Bad result.' }; }
     const ok = out.statusCode >= 200 && out.statusCode < 300;

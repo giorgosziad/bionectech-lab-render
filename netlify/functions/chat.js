@@ -463,7 +463,12 @@ exports.handler = async function (event, res) {
   }
 };
 
-async function handleChat(event, user, res) {
+// onProgress(stage) — OPTIONAL. When supplied (background jobs), handleChat streams from Anthropic
+// INTERNALLY and reports REAL progress — the model it called, and how many tokens have actually been
+// written so far. The browser polls that. This is genuine knowledge of what is happening, not a
+// time-based guess. (We cannot stream to the BROWSER — the proxy buffers SSE — but we can absolutely
+// stream FROM Anthropic and report the truth.)
+async function handleChat(event, user, res, onProgress) {
   const key = process.env.ANTHROPIC_API_KEY || '';
   if (!key) return json(500, { error: 'Server is missing ANTHROPIC_API_KEY.' });
 
@@ -1236,6 +1241,80 @@ async function handleChat(event, user, res) {
         res.end();
       } catch (e7) {}
       return { __streamed: true };
+    }
+    // ── REAL PROGRESS ───────────────────────────────────────────────────────────────────────
+    // Stream from Anthropic internally and count the tokens as they land. Report the truth to the
+    // job record every second. The operator sees what is ACTUALLY happening, not a clock guess.
+    if (onProgress) {
+      try { onProgress({ stage: 'calling', model: m }); } catch (e) {}
+      var _pHdrs = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' };
+      if (_mcpBeta) _pHdrs['anthropic-beta'] = 'mcp-client-2025-11-20';
+      var _pRes = null;
+      try {
+        _pRes = await fetch(ANTHROPIC_URL, {
+          method: 'POST', headers: _pHdrs,
+          body: JSON.stringify(Object.assign({}, apiBody, { stream: true })),
+          signal: _ac ? _ac.signal : undefined
+        });
+      } catch (e) { _pRes = null; }
+
+      if (_pRes && _pRes.ok && _pRes.body) {
+        var _pTxt = '', _pStop = '', _pBuf = '', _pLast = 0, _pTd = new TextDecoder('utf-8');
+        var _pSearching = false;
+        try {
+          var _pr = (typeof _pRes.body.getReader === 'function') ? _pRes.body.getReader() : null;
+          while (true) {
+            var _step;
+            if (_pr) { _step = await _pr.read(); if (_step.done) break; }
+            else break;
+            _pBuf += _pTd.decode(_step.value, { stream: true });
+            var _lines = _pBuf.split('\n'); _pBuf = _lines.pop();
+            for (var _li = 0; _li < _lines.length; _li++) {
+              var _l = _lines[_li].trim();
+              if (_l.indexOf('data:') !== 0) continue;
+              var _pl = _l.slice(5).trim();
+              if (!_pl || _pl === '[DONE]') continue;
+              var _ev = null; try { _ev = JSON.parse(_pl); } catch (e) { continue; }
+              if (_ev.type === 'content_block_start' && _ev.content_block && _ev.content_block.type === 'server_tool_use') { _pSearching = true; }
+              if (_ev.type === 'content_block_delta' && _ev.delta) {
+                if (_ev.delta.type === 'text_delta' && _ev.delta.text) { _pTxt += _ev.delta.text; }
+                else if (_ev.delta.type === 'thinking_delta') { /* thinking, no text yet */ }
+              }
+              if (_ev.type === 'message_delta' && _ev.delta && _ev.delta.stop_reason) { _pStop = _ev.delta.stop_reason; }
+            }
+            // report the REAL state, at most once a second
+            var _now = Date.now();
+            if (_now - _pLast > 900) {
+              _pLast = _now;
+              var _chars = _pTxt.length;
+              try {
+                onProgress({
+                  stage: _pSearching && !_chars ? 'searching' : (_chars ? 'writing' : 'thinking'),
+                  model: m,
+                  chars: _chars,
+                  tokens: Math.round(_chars / 4)
+                });
+              } catch (e) {}
+            }
+          }
+        } catch (e) { /* stream broke — fall through to the buffered call below */ }
+
+        if (_pTxt && _pTxt.trim().length > 1) {
+          if (_to) clearTimeout(_to);
+          if (_pStop === 'max_tokens') _truncated = true;
+          text = _pTxt; usedModel = m;
+          try { onProgress({ stage: 'done', model: m, chars: _pTxt.length, tokens: Math.round(_pTxt.length / 4) }); } catch (e) {}
+          break;   // we have the answer — no buffered call needed
+        }
+        if (_pStop === 'refusal') {
+          if (_to) clearTimeout(_to);
+          _modelFailures.push(m + ' DECLINED this request (safety classifier)');
+          try { _blocked[m] = Date.now() + 600000; writeJSON(null, 'model:blocked', _blocked).catch(function () {}); } catch (e) {}
+          lastErr = { status: 200, error: 'Model declined this request; fell back to the next model.', triedModel: m };
+          text = null; continue;
+        }
+      }
+      // internal stream did not work — fall through to the normal buffered call
     }
     try {
       var _hdrs = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' };
