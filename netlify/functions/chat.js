@@ -571,7 +571,10 @@ async function handleChat(event, user, res) {
   //   BUILD    = a file is attached, or the request is to produce/rewrite something. -> full room.
   var _p = String(prompt || '').trim();
   var _wantsBuild = (b.files && b.files.length) ||
-    /\b(build|rebuild|create|write|generate|make|scaffold|redesign|refactor|draft|produce|full (site|project|file|app)|whole (site|file|project)|zip|deliver|complete file|entire file)\b/i.test(_p);
+    /\b(build|rebuild|create|write|generate|make|scaffold|redesign|refactor|draft|produce|full (site|project|file|app)|whole (site|file|project)|zip|deliver|complete file|entire file)\b/i.test(_p) ||
+    // Asking for a FILE is a build: the whole document has to be emitted, so it needs the full output
+    // room. "Give me the handoff note as a PDF" has no build verb but is absolutely a build.
+    /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|word document|slide deck|slides?\s+(deck|presentation)|as a (doc|document|report))\b/i.test(_p);
   // Detecting "work" is impossible — it is an infinite set, and any keyword list will mis-classify a
   // real request as chit-chat (it flagged "Handle the no-hurry objection" as a greeting). So invert
   // it: a GREETING is a tiny, closed set. Match that explicitly. EVERYTHING else is WORK and gets
@@ -868,7 +871,10 @@ async function handleChat(event, user, res) {
       var _isHeavy = (b.mode === 'builder') || (b.files && b.files.length) || (totalChars > 0) ||
                      (String(prompt||'').length > 220) ||
                      /```|function |class |=>|const |import |def |SELECT |design|build|rebuild|redesign|architect|debug|fix|optimi[sz]e|refactor|analy[sz]e|website|landing|page|\bad\b|advert|campaign|deploy|code|complete|full project/i.test(String(prompt||''));
-      var _wantEffort = _isHeavy ? ((_budget >= 12000) ? 'max' : (_budget >= 8000) ? 'xhigh' : 'high') : 'medium';
+      // Smartest ON is an EXPLICIT request for depth. This line used to fall back to 'medium' whenever
+      // the mode was not "builder" — silently downgrading the very toggle the operator turned on. Their
+      // choice beats our heuristic: the floor for Smartest is 'high', and heavy work goes deeper.
+      var _wantEffort = _isHeavy ? ((_budget >= 12000) ? 'max' : (_budget >= 8000) ? 'xhigh' : 'high') : 'high';
       // Effort levels are MODEL-SPECIFIC: 'max' 400s on Sonnet 4.6; 'xhigh' 400s on Opus 4.6.
       // Clamp the desired level DOWN to the highest the chosen model actually accepts, so a
       // request can never be rejected for an unsupported effort (which would break the chat).
@@ -891,7 +897,15 @@ async function handleChat(event, user, res) {
       // EFFORT: 'high' is the model's own default and is what a working colleague needs. Only a bare
       // greeting drops to 'low'. A build gets 'high' too — writing a whole file carefully matters more
       // than shaving a few seconds. Smartest ON (above) goes deeper still (xhigh/max).
-      apiBody.output_config = { effort: capEffort(m, _trivial ? 'low' : 'high') };
+      // EFFORT LADDER — THE REAL SLOWNESS. Fable ALWAYS thinks (adaptive thinking cannot be disabled
+      // on it); `effort` is the only dial. I had set 'high' on EVERY turn, so it thought hard about
+      // everything — that is what made the Lab crawl. 'medium' is the right default for working chat:
+      // fully capable, and far faster. Writing a real file still earns 'high'. Smartest ON (above)
+      // goes deeper still (xhigh/max), and a bare greeting drops to 'low'.
+      // Smartest ON means the operator explicitly asked for depth — honour it even if the "is this
+      // hard?" heuristic disagreed. Their toggle beats our guess.
+      var _eff = b.smart ? 'xhigh' : (_trivial ? 'low' : (_wantsBuild ? 'high' : 'medium'));
+      apiBody.output_config = { effort: capEffort(m, _eff) };
       if (typeof b.temperature === 'number') apiBody.temperature = Math.max(0, Math.min(1, b.temperature));
     }
     // Nicolle searches the web herself: attach the web tool to her own call (single call, no 504).
@@ -993,7 +1007,7 @@ async function handleChat(event, user, res) {
       // an empty response. An SSE comment line is ignored by the parser but flushes the connection.
       try { res.write(': open\n\n'); } catch (e) {}
 
-      var _full = '', _stop2 = '', _buf = '';
+      var _full = '', _stop2 = '', _buf = '', _lastThink = 0, _thinkMs = 0;
       // Production `fetch` yields Uint8Array chunks; a Node Readable yields Buffers. Calling
       // .toString('utf8') on a Uint8Array does NOT decode UTF-8 — it produces "72,105,32…" and the
       // SSE parser sees garbage. A TextDecoder handles BOTH, and stitches multi-byte characters
@@ -1012,6 +1026,16 @@ async function handleChat(event, user, res) {
           if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta' && ev.delta.text) {
             _full += ev.delta.text;
             try { res.write('data: ' + JSON.stringify({ delta: ev.delta.text }) + '\n\n'); } catch (e) {}
+          } else if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'thinking_delta') {
+            // Fable ALWAYS thinks (adaptive thinking cannot be disabled on it), and thinking emits NO
+            // text — so the operator was sent nothing at all and assumed it had hung. It had not; it
+            // was thinking in silence. Send a throttled heartbeat so they can see it is alive.
+            var _nowT = Date.now();
+            if (!_thinkMs) _thinkMs = _nowT;
+            if (_nowT - _lastThink > 900) {
+              _lastThink = _nowT;
+              try { res.write('data: ' + JSON.stringify({ thinking: Math.round((_nowT - _thinkMs) / 1000) }) + '\n\n'); } catch (e) {}
+            }
           } else if (ev.type === 'message_delta' && ev.delta && ev.delta.stop_reason) {
             _stop2 = ev.delta.stop_reason;
           }
