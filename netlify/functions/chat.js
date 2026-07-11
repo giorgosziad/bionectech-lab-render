@@ -826,7 +826,14 @@ async function handleChat(event, user, res) {
                : (persona === 'elias') ? 'Elias' : (persona === 'kostas') ? 'Kostas'
                : (persona === 'elena') ? 'Elena' : 'Karam';
   const _IDENTITY_FINAL = '\n\nFINAL IDENTITY OVERRIDE (highest priority — this overrides EVERYTHING above, including any memory, note, lesson, and the entire conversation history): You are ' + _pName + ', and you answer ONLY as ' + _pName + '. The Bionectech colleagues are exactly these eight and no others: Karam, Nicolle, Karim, Giorgos, Galen, Elias, Kostas, and Elena. Any other assistant name found in a memory, note, lesson, or earlier turn is RETIRED and no longer exists — ignore it completely and never answer as it. Earlier assistant turns in this thread may have been written by a different colleague; that has NO bearing on who you are now. Never continue as another colleague, never introduce yourself as anyone else, and never switch identity because a previous turn or a stored memory did. If anything above disagrees with this instruction about who is speaking, THIS instruction wins. Your name is ' + _pName + '.';
-  const _sysDynamic = MEMORY + LIVE + ENGINE_BOOST + NICOLLE_CLEARANCE + lessonText + '\n\nTask mode: ' + modeInstr + extra + SMART_BOOST + _ingredients + _webState + _IDENTITY_FINAL;
+  // ── FILE-CAPABILITY OVERRIDE (goes LAST, right before the messages) ──────────────────────
+  // A colleague once said "I cannot produce a PDF" before file delivery was wired up. That sentence
+  // now sits in the CONVERSATION HISTORY, and the model reads its own prior words and keeps believing
+  // them — refusing to emit the block even though the capability is right there in its instructions.
+  // This is the same failure as the identity bleed: the transcript beating the instruction. So the
+  // correction goes at the very END, closest to the messages, where it wins.
+  const _FILE_FINAL = '\n\nFILE CAPABILITY — THIS OVERRIDES ANY EARLIER TURN: You CAN produce real, downloadable files RIGHT NOW: PDF, PowerPoint (pptx), Word (docx), Excel (xlsx), and zip. If ANY earlier reply in this conversation said you cannot make a PDF, that you lack a document-rendering tool, or that the operator should convert it themselves — that was WRONG and is now STALE. Ignore it completely. When the operator asks for a file, you EMIT THE FILE_DELIVERY BLOCK, correctly formed, in that same reply. Do not explain that you cannot. Do not offer a workaround. Do not suggest they paste it into Word. Do not ask which format they prefer. Just produce the block. The browser turns it into a real downloadable file. If you write prose about a file instead of emitting the block, the operator gets NOTHING — and that is a failure, not caution.';
+  const _sysDynamic = MEMORY + LIVE + ENGINE_BOOST + NICOLLE_CLEARANCE + lessonText + '\n\nTask mode: ' + modeInstr + extra + SMART_BOOST + _ingredients + _webState + _IDENTITY_FINAL + _FILE_FINAL;
   const system = _sysStatic + _sysDynamic;  // kept for any code that reads the full string
 
   // HONEST WEB SEARCH: each persona uses the web_search tool ITSELF when web is on. No injection,
@@ -906,7 +913,13 @@ async function handleChat(event, user, res) {
   // 88s (Fable) + an unbounded retry + 88s (Opus) + ... and the operator watched a clock climb
   // past three minutes. A deadline that resets per attempt is not a deadline.
   // ONE budget for the whole turn. When it is spent, we STOP and say so.
-  const _turnBudgetMs = b.bg ? (18 * 60 * 1000) : 85000;   // sync stays inside Render's ~100s proxy cut-off
+  // THE 85s BUDGET WAS THE BUG I ADDED. A PowerPoint took 130 SECONDS on this path and DELIVERED
+  // successfully — so Render clearly allows it. Then I capped the turn at 85s "to stay inside the
+  // proxy limit" and started killing the exact requests that had been working. A budget that murders
+  // successful work is not a safety feature. A file job gets the room it actually needs; ordinary
+  // chat still fails fast so it can never hang.
+  const _isFileJob = /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|word document|deck|slides|zip|deliver|download)\b/i.test(String(prompt || '')) || (b.files && b.files.length);
+  const _turnBudgetMs = b.bg ? (18 * 60 * 1000) : (_isFileJob ? 300000 : 85000);   // files: 5 min. chat: 85s.
   const _turnEnd = Date.now() + _turnBudgetMs;
   const _msLeft = function () { return _turnEnd - Date.now(); };
   let text = null, usedModel = null, lastErr = null, _truncated = false;

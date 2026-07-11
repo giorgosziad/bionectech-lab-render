@@ -199,7 +199,7 @@
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build BGFIX-1600</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build RESTORE-1650</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -523,26 +523,40 @@ function maybeFoldSummary(){
 function runBackground(payload, prompt){
   var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
   payload.jobId = jobId; payload.bg = true;
-  addTurn('claude','\u2026 '+(personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':'Karam')+' is working on this \u2014 one moment \u2026');
+  addTurn('claude','\u2026 '+(personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':'Karam')+' is working \u2014 0s \u2026');
+  var _bgIdx = current.turns.length - 1;
+  var _bgT0 = Date.now();
+  var _bgEl = null;
+  try { var _bt=$('log').querySelectorAll('.turn'); var _bl=_bt[_bt.length-1]; _bgEl = _bl ? _bl.querySelector('.body') : null; } catch(e){}
+  /* A REAL HEARTBEAT. The old code only refreshed this label every 15 polls — i.e. every 30 SECONDS —
+     so the operator stared at a frozen "one moment" for half a minute and reasonably concluded it had
+     died. A 1-second clock, independent of the poll, so you can always see it is alive. */
+  var _bgTick = setInterval(function(){
+    var secs = Math.round((Date.now() - _bgT0)/1000);
+    var lbl = '\u2026 ' + (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':'Karam') + ' is working \u2014 ' + secs + 's \u2026'
+            + (secs > 20 ? ' (building a file takes a little longer)' : '');
+    if(_bgEl){ _bgEl.textContent = lbl; }
+    else { var t=current.turns[_bgIdx]; if(t){ t.text = lbl; renderTurns(); } }
+  }, 1000);
+  function _bgStop(){ try{ clearInterval(_bgTick); }catch(e){} }
   // Kick off the background job (returns 202 immediately).
   api('chat-background',{method:'POST',body:JSON.stringify(payload)}).then(function(){
     var tries = 0, maxTries = 360; // ~12 min at 2s intervals
     var poll = setInterval(function(){
       tries++;
       // Gentle progress reassurance so a long job never feels stuck (updates the placeholder text).
-      if(tries % 15 === 0 && current.turns.length){ var _lt=current.turns[current.turns.length-1]; if(_lt && _lt.role==='claude' && / is working on this/.test(_lt.text||'')){ var _secs=tries*2; _lt.text='… '+(personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':'Karam')+' is working through it — '+_secs+'s in. Big files take a little longer; I\'ll have it shortly …'; renderTurns(); } }
       api('chat-result',{method:'POST',body:JSON.stringify({jobId:jobId})}).then(function(r){
         if(!(r.ok && r.data)) return;
         var st = r.data.status;
         if(st==='done'){
-          clearInterval(poll);
+          clearInterval(poll); _bgStop();
           var d = (r.data.result)||{};
           current.turns.pop();
           if(d.text){ addTurnA('claude',d.text,d.aegis,d.model,d.persona,d.websearched,d.modelNote); if(autoRead) speak(d.text,d.persona||personaSel); pushLive(personaSel, prompt, d.text); }
           else { addTurn('claude','That did not come through ('+((d.error)||'no text')+'). Mind trying once more? (info@bionectech.com)'); if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); } }
           $('send').disabled=(!unlimited&&remaining<=0);
         } else if(st==='error'){
-          clearInterval(poll);
+          clearInterval(poll); _bgStop();
           current.turns.pop();
           var em=((r.data.result&&r.data.result.error))||'error';
           addTurn('claude','That did not come through ('+em+'). Mind trying once more? (info@bionectech.com)');
@@ -552,7 +566,7 @@ function runBackground(payload, prompt){
           // job never registered — the background function isn't deployed on this site yet. Fall back
           // to SYNC, but cap it hard (no deep thinking, modest output) so it finishes within the 26s
           // limit instead of 504-ing. Tell the user the file may be trimmed and to deploy background.
-          clearInterval(poll);
+          clearInterval(poll); _bgStop();
           current.turns.pop();
           delete payload.bg; delete payload.jobId;
           // DO NOT cap the output here. This used to force maxTokens=8000, so if the background
@@ -567,10 +581,11 @@ function runBackground(payload, prompt){
             $('send').disabled=(!unlimited&&remaining<=0);
           }).catch(function(){ current.turns.pop(); addTurn('claude','I can\'t reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)'); $('send').disabled=false; });
         }
-        if(tries>=maxTries){ clearInterval(poll); current.turns.pop(); addTurn('claude','This one is taking longer than expected. It may still finish — try asking again, or send a smaller file. (info@bionectech.com)'); $('send').disabled=false; }
+        if(tries>=maxTries){ clearInterval(poll); _bgStop(); current.turns.pop(); addTurn('claude','This one is taking longer than expected. It may still finish — try asking again, or send a smaller file. (info@bionectech.com)'); $('send').disabled=false; }
       }).catch(function(){ /* transient poll error — keep polling */ });
     }, 2000);
   }).catch(function(){
+    _bgStop();
     current.turns.pop();
     addTurn('claude','I can\'t reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)');
     $('send').disabled=false;
@@ -616,6 +631,7 @@ function send(){
     toast('That file is too large to send whole (' + Math.round(_bigText.length/1024) + 'KB) — reading it in sections.');
     $('ask').value=''; bigFileFlow(prompt, _bigText, _otherFiles, mode, temp); return;
   }
+  window.__lastPrompt = prompt;   /* so the file diagnostic knows what you actually asked for */
   addTurn('you', prompt); $('ask').value=''; $('send').disabled=true;
   var _hasFile = (files && files.length>0);
   // DEEPEST THINKING ALWAYS: Karam runs in smart mode on every turn — the best available flagship
@@ -643,19 +659,12 @@ function send(){
   // work (a file to rewrite, or Smartest deep-thinking on a long prompt) can legitimately run longer
   // than 100s, so it goes to the BACKGROUND path, which returns 202 immediately and polls - and is
   // therefore not bound by the proxy limit at all.
-  /* HEAVY = needs more than the 85s sync window. Web search costs 40-60s in round-trips BEFORE the
-     model writes a word, so "search the web AND build me a PDF" cannot finish in time on the sync
-     path — it times out every single time. Send it to the background path (18-min budget, polls,
-     not bound by the proxy) so it actually completes. */
-  /* ANY FILE REQUEST GOES TO THE BACKGROUND PATH. Building a PDF, deck, spreadsheet or document is
-     inherently heavy work — it should NEVER be squeezed into the 85-second sync window, on any model,
-     with or without web search. The background path returns 202 immediately, polls for the result,
-     and has an 18-minute budget with no proxy limit. This removes the timeout as a failure mode for
-     files entirely, instead of tuning around it. */
-  var _wantsFile = /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|word document|\.zip\b|download|deliver (the |a |me |it)?(pdf|powerpoint|deck|file|doc|slides|spreadsheet)|as a (pdf|deck|spreadsheet|word doc))\b/i.test(prompt);
-  var _heavyJob = (files && files.length > 0)
-               || (smartOn && prompt.length > 400)
-               || _wantsFile;
+  /* FILES GO ON THE SYNC PATH — because it WAS WORKING. The PDF delivered. The PowerPoint delivered
+     (at 130s, slow but real). Routing them to the background path broke delivery entirely, and an
+     85-second turn budget then killed the very requests that had been succeeding at 130 seconds.
+     Both were my "fixes" for a timeout that was never the actual problem. Reverted. Only genuinely
+     huge jobs (an attached file, or Smartest on a long prompt) go to the background path. */
+  var _heavyJob = (files && files.length > 0) || (smartOn && prompt.length > 400);
   if(_heavyJob){ runBackground(_payload, prompt); return; }
   /* ── BUFFERED SEND (streaming reverted) ──────────────────────────────────────────
      Streaming was implemented correctly end-to-end — heartbeat, SSE parser, live painting —
@@ -1413,6 +1422,22 @@ $('clearBtn').addEventListener('click',function(){ if(!current) return; if(!wind
    streaming and the buffered path. */
 function deliverFiles(turn){
   if(!turn || typeof turn.text !== 'string') return;
+  if(turn.text.indexOf('FILE_DELIVERY') < 0){
+    /* ── DIAGNOSTIC ─────────────────────────────────────────────────────────────────
+       A file was asked for and none arrived. There are only three possible reasons and
+       the operator was being told NONE of them. Say exactly which, every time. */
+    var _askedFile = /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|deck|slides|deliver|download)\b/i.test(String(window.__lastPrompt||''));
+    var _codeFile = /```[^\n]*\.[A-Za-z0-9]{1,8}\s*\n/.test(turn.text);
+    if(_askedFile && !_codeFile){
+      turn.text += '\n\n\u2014\u2014\u2014\n[NO FILE PRODUCED] You asked for a file and the reply contained no delivery block.'
+                 + '\n\u2022 reply length: ' + turn.text.length + ' characters'
+                 + '\n\u2022 model: ' + (turn.model || 'unknown')
+                 + '\n\u2022 the colleague wrote prose but never emitted the FILE_DELIVERY block.'
+                 + '\n\nTry replying exactly: "Emit the FILE_DELIVERY block now. Nothing else." \u2014 that forces it.';
+      renderTurns(); saveData();
+      return;
+    }
+  }
   if(turn.text.indexOf('FILE_DELIVERY') < 0){
     /* PHANTOM-FILE DETECTOR: a colleague can CLAIM a file ("here is the PowerPoint", "the download
        button should appear") and simply not attach one. That used to pass in total silence — no
