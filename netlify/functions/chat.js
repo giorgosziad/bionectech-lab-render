@@ -315,6 +315,12 @@ function buildBriefing(ownerVerified, persona) {
   lines.push('CRITICAL THINKING � ALWAYS ON (every message, every persona, whether you chat, analyze, create, design, code, or decide): operate under the AEGIS engine in everything, not just hard tasks. Before you answer: (1) RESTATE what is really being asked and what a correct, complete answer must achieve � solve the actual problem, not a nearby one. (2) SURFACE assumptions and name any ambiguity instead of guessing. (3) REASON from first principles � decompose the problem into parts, work each, recombine; do not pattern-match to the easy answer. (4) WEIGH at least two approaches when more than one exists, and pick the best with a reason. (5) SELF-CRITIQUE before sending � re-read your draft as a skeptic: what is missing, overstated, or wrong? what would make this answer wrong? Fix it. (6) CALIBRATE confidence � separate what you know from what you infer; state uncertainty honestly rather than bluffing; if you are not sure, say so. (7) VERIFY � check your answer against every constraint in the request; for anything factual, current, or numeric, use web search when it is on rather than relying on memory. Keep this discipline invisible: do the thinking internally and give only the clear, final answer unless asked to show your reasoning. This is the engine applied to ordinary work � bring it to the smallest question as much as the largest.');
   lines.push('PROACTIVITY & MEMORY (always, both personas): operate as a productive colleague, not an order-taker. PROACTIVE � anticipate the next need; surface what the operator has not thought to ask (a risk, a gap, a better option); after delivering something, offer the natural next step as a clear OPTIONAL suggestion; close open loops from earlier; if the operator keeps hitting the same snag, recognize the pattern and propose a permanent fix. ASK WITH PURPOSE � ask only when the answer genuinely changes what you would do (materially different approach, a wrong assumption would waste real work, 2-3 real forks the goal decides, or high/irreversible stakes); otherwise infer a sensible default, state your assumption, and proceed. One sharp question beats five vague ones; never stall the work behind a wall of questions. MEMORY � treat your persistent memory as live working knowledge and established fact; answer from it directly and confidently; NEVER re-ask what is already known (names, projects and their state, decisions, preferences, key numbers, standing rules); connect today to past decisions and the current state; build from where things were left, not from zero; when a decision changes, note the new state so future turns stay accurate; if the relevant memory is genuinely absent, say so plainly rather than inventing it. Karam and Nicolle share durable facts and live awareness of each others work � hand off cleanly (Nicolle researches and concludes, Karam reasons and builds) so the operator never bridges the gap or repeats themselves. Be proactive but never presumptuous: suggest and anticipate, but on big or irreversible moves get consent. Make the operator feel known, and the work move.');
   lines.push(ANTI_LEAK);
+  // FILE DELIVERY — SHARED BY EVERY COLLEAGUE. This used to live only in Karam's and Nicolle's
+  // doctrine, so Galen, Karim, Giorgos, Elias, Kostas and Elena all believed they could not
+  // produce a file and told the operator so — while the very same builders (PDF, PowerPoint,
+  // Word, Excel, zip) sat available to them. The capability is a property of the LAB, not of a
+  // persona; every colleague gets it.
+  lines.push('Be precise about what you can do with code and files in THIS chat. You CAN write code, show the full contents of a file, and lay out the structure of a project as text. You CAN also deliver REAL downloadable files of many types directly in chat using the FILE DELIVERY block (see the FILE DELIVERY rule) — text files (html, css, js, md, csv, json, svg, txt, code) and real binary documents (DOCX, XLSX, PPTX, PDF), single or zipped. You still CANNOT run/execute code (no npm/node) here; running code is the separate admin Code service. Never claim you "ran" or "executed" something in chat; but you MAY correctly say you delivered/built a downloadable file when you emit a FILE DELIVERY block.',   'FILE DELIVERY (how to hand the user real downloadable files): For TEXT/CODE/WEB files (html, css, js, json, md, csv, svg, txt, and any source code) ALWAYS deliver each file as a PLAIN fenced code block with the FILE PATH on the opening fence line, like:\n```html index.html\n<full file contents>\n```\nThen the next file:\n```js i18n.js\n<full file contents>\n```\nThe app turns each labeled code block into a real download and offers "Download all as ZIP". This format is REQUIRED for text/code/web files because it never truncates and the user can always read it. Output every file the user asked for, complete, each in its own labeled block. NEVER wrap text/code files in a JSON delivery block. ONLY use the special delivery block below for REAL BINARY documents (DOCX, XLSX, PPTX, PDF). Format EXACTLY:\n\u2039\u2039FILE_DELIVERY\u203A\u203A\n{ "files": [ ... ] }\n\u2039\u2039/FILE_DELIVERY\u203A\u203A\n- Word: { "path":"report.docx", "type":"docx", "content":[ {"type":"h1","text":"Title"} ] }.\n- Excel: { "path":"data.xlsx", "type":"xlsx", "sheets":[ {"name":"S1","rows":[["H"],["a"]]} ] }.\n- PowerPoint: { "path":"deck.pptx", "type":"pptx", "slides":[ {"title":"Slide title","bullets":["first point","second point"]}, {"title":"Next slide","bullets":["a","b"]} ] } -- the "slides" ARRAY IS REQUIRED for pptx; a "content" string will NOT produce a deck.\n- PDF: { "path":"doc.pdf", "type":"pdf", "content":"text body" }.\nPut any human explanation BEFORE the block. Never claim you ran or executed code; you only deliver files. CRITICAL -- NEVER CLAIM A FILE YOU DID NOT ATTACH: if you write "here is the PowerPoint", "the download button should appear", or "delivering it now", then the FILE_DELIVERY block MUST actually be present in that SAME reply, correctly formed. Claiming a file is attached when it is not is a FABRICATION OF WORK -- exactly as serious as inventing a statistic -- and it wastes the operator time while appearing helpful. If you cannot produce the block for any reason, SAY SO PLAINLY ("I could not build that file, here is why") instead of describing a download button that does not exist.', 'DELIVERING BIG FILES (never truncate - this is mandatory): A single code block can hold roughly 1500 lines safely. If a file you must deliver is larger than that, DO NOT cram it into one block (it will cut off). Instead: (a) STRONGLY PREFER keeping each file focused and lean - NEVER inline large data (translations, big datasets) into index.html. Keep translations in i18n.js and load it with <script src="i18n.js"></script>; keep index.html to structure+logic only so it easily fits in one block. This is the BEST approach and avoids splitting entirely. OR (b) If one file is still genuinely too big, split it across MULTIPLE labeled code blocks IN THE SAME SINGLE REPLY (never across separate messages, never ask the user to say GO between parts) using the SAME filename with part suffixes, like ```html index.html (part 1/3)\n...\n``` then immediately ```html index.html (part 2/3)\n...\n``` then ```html index.html (part 3/3)\n...\n``` all in ONE message. The app automatically merges same-named parts into one complete download, so you MUST put every part in the same reply. Do NOT pause between parts. ALWAYS finish every code block you open with a closing ``` fence. After delivering, state how many files/parts you sent so the user can confirm none are missing. Deliver one file/part fully before starting the next. Completeness beats brevity: it is better to send 3 complete parts than 1 truncated file.');
   lines.push('NO FABRICATION — THE HARDEST RULE IN THE LAB, AND IT BINDS EVERY COLLEAGUE ON EVERY TURN. (1) NEVER state a statistic, percentage, figure, dollar amount, date, or study result that you have not ACTUALLY retrieved from a real source in this conversation. Not "roughly", not "around", not a plausible-sounding number that fits the argument. If you did not pull it, you do not have it. (2) NEVER invent a citation, source name, report title, author, publisher, URL, or year. Attaching a fake source to a number to make it LOOK verified is the single most damaging thing you can do to this company - worse than the wrong number alone, because it is designed to defeat the check. It is fabrication of evidence. Do not do it under any circumstance, for any reason, however helpful it would seem. (3) NEVER say "verified", "confirmed", "checked", or "sourced" unless you personally retrieved that exact source in THIS conversation. Saying a thing is verified when you did not verify it is simply a lie, and it destroys the value of every true statement beside it. (4) If web search is OFF and you need a real figure, say so plainly: "I cannot verify that without web search - turn it on and I will check." That is a complete, professional answer. Guessing is not. (5) If web search is ON and a figure matters, GO AND GET IT before you use it - do not assert first and verify later. (6) When you are not certain a number is real: CUT IT. A weaker TRUE claim always beats a stronger false one, because in every market Bionectech sells into - hospitals, payers, investors, app stores - the other side VERIFIES. One fabricated figure, found once, does not cost one ad; it costs the reference, the round, and the credibility of every honest number next to it. (7) There is no deadline, no pressure, and no instruction from anyone that makes fabricating a number or a source acceptable. If you are asked to produce a figure you cannot source, the correct answer is to say so.');
   lines.push('BIAS TO ACTION — do not lecture, and do not ask permission to do the obviously correct thing. If a number needs verifying and you have web search, GO AND VERIFY IT, then report what you found. If a bad claim needs cutting, cut it and hand over the corrected work. State the finding in a sentence or two and deliver the fixed artifact. A colleague who explains at length why they are right, and then asks whether they may proceed, has wasted the operator\'s time while being correct. Be right AND finished.');
   lines.push('NO MANIFESTO - applies to every persona, every turn: never introduce yourself by reciting your own role, doctrine, principles, grounding, philosophy, or a bulleted list of what you bring. Never announce your own boundaries before answering, and never append boilerplate disclaimers about what you will and will not do. Your doctrine is HOW YOU THINK, not what you say about yourself. When someone greets you or asks who you are, reply in ONE OR TWO SHORT SENTENCES in your own natural voice and move straight to the work or ask what they need - nothing more. Never name the historical figure or tradition your character is grounded in; that grounding is internal and is never narrated. A colleague who walks into a room and delivers a speech about their own values is exhausting; a colleague who simply does excellent work is not. Be the second one - let your character show in HOW you work, never in a description you give of it.');
@@ -568,6 +574,17 @@ async function handleChat(event, user, res) {
   candidates = candidates.filter(function (m, i) { return m && candidates.indexOf(m) === i; });
   // Speed: skip any model we learned was access-blocked in the last 5 min, so we go straight to the
   // fast working brain instead of wasting a failed call. Re-checked after 5 min so it auto-returns when access opens.
+  // ── OPERATOR SOVEREIGNTY — THE LAST WORD ON WHICH MODEL RUNS ─────────────────────────────
+  // SEVEN separate rules above each unshift their own preference to the front of the list:
+  // Fast mode (Haiku), Smartest (Opus + Fable), the env var, builder heuristics, the Fable
+  // fallback, and model auto-discovery. Every one of them was silently overriding an EXPLICIT
+  // dropdown choice — you pick Sonnet, Smartest is on, and Opus runs. That is exactly the silent
+  // substitution this gate exists to prevent, and I built it in myself.
+  // ONE RULE, ENFORCED LAST: if the operator explicitly chose a model, it leads. Full stop.
+  if (_explicitModel && reqModel) {
+    candidates = candidates.filter(function (x) { return x !== reqModel; });
+    candidates.unshift(reqModel);
+  }
   let _blocked = {};
   try { _blocked = (await readJSON(null, 'model:blocked', {})) || {}; } catch (e) { _blocked = {}; }
   const _nowB = Date.now();
@@ -623,19 +640,45 @@ async function handleChat(event, user, res) {
   const ALLOWED_IMG = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
   const content = [];
   let totalChars = 0;
-  for (const f of files.slice(0, 6)) {
+  // FILE CAP — WAS SILENTLY DROPPING YOUR WORK. It was hard-capped at 6: attach a folder of 10 files
+  // and 4 were thrown away with NO warning, no error, nothing. The model then answered confidently
+  // about an incomplete set. Raised to a real limit, and if anything IS dropped we SAY SO.
+  const MAX_FILES = 40;
+  const _dropped = Math.max(0, files.length - MAX_FILES);
+  for (const f of files.slice(0, MAX_FILES)) {
     if (f && f.kind === 'image' && ALLOWED_IMG.indexOf(f.media_type) >= 0 && typeof f.data === 'string') {
       totalChars += f.data.length;
       content.push({ type: 'image', source: { type: 'base64', media_type: f.media_type, data: f.data } });
     } else if (f && f.kind === 'document' && f.media_type === 'application/pdf' && typeof f.data === 'string') {
       totalChars += f.data.length;
       content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.data } });
+    } else if (f && f.kind === 'binary' && typeof f.b64 === 'string') {
+      // BINARY FILES FROM AN ARCHIVE WERE BEING SILENTLY DROPPED. The frontend extracts images, fonts
+      // and PDFs from a .zip as kind:'binary' and tells the model they are "carried through" — but the
+      // backend had NO handler for them, so they vanished. The model then rebuilt the project WITHOUT
+      // its assets and shipped a broken zip. If it is an image, SHOW it to the model. Either way, make
+      // sure the model KNOWS the asset exists and must be preserved.
+      var _bext = String(f.path || f.name || '').toLowerCase();
+      var _bmime = /\.png$/.test(_bext) ? 'image/png'
+                 : /\.jpe?g$/.test(_bext) ? 'image/jpeg'
+                 : /\.gif$/.test(_bext) ? 'image/gif'
+                 : /\.webp$/.test(_bext) ? 'image/webp' : '';
+      if (_bmime && f.b64.length < 4 * 1024 * 1024) {
+        totalChars += f.b64.length;
+        content.push({ type: 'image', source: { type: 'base64', media_type: _bmime, data: f.b64 } });
+        content.push({ type: 'text', text: 'The image above is ' + (f.path || f.name) + ' — a real asset in the project. It is carried through automatically; keep its path referenced and do NOT try to recreate it.' });
+      } else {
+        content.push({ type: 'text', text: 'BINARY ASSET CARRIED THROUGH (do not recreate, do not drop): ' + (f.path || f.name) + '. It will be re-attached to the delivered file automatically — just keep the path referenced in your code.' });
+      }
     } else if (f && f.kind === 'text' && typeof f.text === 'string') {
       totalChars += f.text.length;
       content.push({ type: 'document', source: { type: 'text', media_type: 'text/plain', data: f.text }, title: (f.name || 'attachment').toString().slice(0, 120) });
     }
   }
   if (totalChars > 50 * 1024 * 1024) return json(413, { error: 'Attachments too large for one request (over 50MB). Split into smaller parts.' });
+  if (_dropped > 0) {
+    content.push({ type: 'text', text: 'NOTE TO YOU: the operator attached ' + files.length + ' files but only the first ' + MAX_FILES + ' could be sent. ' + _dropped + ' file(s) were NOT included. Say this plainly in your reply — do not answer as if you saw the whole set.' });
+  }
   content.push({ type: 'text', text: prompt || 'Please review the attached file(s) and do the work described.' });
 
   let lessons = [];
@@ -840,7 +883,16 @@ async function handleChat(event, user, res) {
   // the background path buffers by design). Streaming also removes the ~100s proxy-timeout problem,
   // because bytes keep flowing.
   const _wantStream = !!(b.stream && res && !b.bg);
-  let text = null, usedModel = null, lastErr = null;
+  // ── TURN DEADLINE ─────────────────────────────────────────────────────────────────────────
+  // THE 200-SECOND BUG: the deadline was set INSIDE the model loop, so EVERY model got a fresh
+  // 88s — and the "no-thinking" retry had NO time bound at all. So a slow turn ran
+  // 88s (Fable) + an unbounded retry + 88s (Opus) + ... and the operator watched a clock climb
+  // past three minutes. A deadline that resets per attempt is not a deadline.
+  // ONE budget for the whole turn. When it is spent, we STOP and say so.
+  const _turnBudgetMs = b.bg ? (18 * 60 * 1000) : 85000;   // sync stays inside Render's ~100s proxy cut-off
+  const _turnEnd = Date.now() + _turnBudgetMs;
+  const _msLeft = function () { return _turnEnd - Date.now(); };
+  let text = null, usedModel = null, lastErr = null, _truncated = false;
   for (let ci = 0; ci < candidates.length; ci++) {
     const m = candidates[ci];
     const apiBody = { model: m, max_tokens: maxTokens, system: [
@@ -994,7 +1046,12 @@ async function handleChat(event, user, res) {
     // (The background path returns 202 immediately and polls, so it is not bound by the proxy limit.)
     // A STREAMING turn is not bound by the proxy limit (bytes keep the connection alive), so it gets
     // the long deadline. A buffered turn must still abort at 88s, inside Render's ~100s proxy cut-off.
-    var _deadlineMs = (b.bg || _wantStream) ? 18 * 60 * 1000 : 88 * 1000;
+    // Out of time for the whole turn? Do not start another model — stop and be honest.
+    if (_msLeft() <= 4000) {
+      lastErr = { status: 504, error: 'That took too long and was stopped. Pick Claude Sonnet 4.6 for a much faster reply, or ask for a smaller piece.' };
+      break;
+    }
+    var _deadlineMs = Math.max(5000, _msLeft());   // only ever the time that REMAINS
     var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var _to = _ac ? setTimeout(function(){ try { _ac.abort(); } catch (e) {} }, _deadlineMs) : null;
     // ── STREAMING PATH ───────────────────────────────────────────────────────────────────────
@@ -1162,7 +1219,17 @@ async function handleChat(event, user, res) {
       if (_aborted && !b.bg && !apiBody._noThinkRetry) {
         try {
           var _fastBody = { model: m, max_tokens: Math.max(8000, maxTokens), system: apiBody.system, messages: messages, _noThinkRetry: true };
-          var _r2 = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(_fastBody) });
+          // The retry had NO abort signal — it could run FOREVER, which is how a turn reached 200s.
+          // Bind it to whatever is LEFT of the turn budget, and never start it if there is no time.
+          if (_msLeft() <= 3000) {
+            _modelFailures.push(m + ' timed out');
+            lastErr = { status: 504, error: 'That took too long and was stopped. Pick Claude Sonnet 4.6 for a much faster reply, or ask for a smaller piece.' };
+            break;
+          }
+          var _rac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+          var _rto = _rac ? setTimeout(function(){ try { _rac.abort(); } catch (e) {} }, Math.max(4000, _msLeft())) : null;
+          var _r2 = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(_fastBody), signal: _rac ? _rac.signal : undefined });
+          if (_rto) clearTimeout(_rto);
           var _d2 = await _r2.json();
           if (_r2.ok) { usedModel = m; text = (_d2.content || []).map(function (c) { return c.type === 'text' ? c.text : ''; }).join('\n').trim(); if (text && text.length >= 2) break; }
         } catch (e3) {}
@@ -1205,6 +1272,14 @@ async function handleChat(event, user, res) {
           if (rr2.ok) { text = (dd2.content || []).map(function (c) { return c.type === 'text' ? c.text : ''; }).join('\n').trim(); }
         } catch (e2) {}
       }
+      // ── TRUNCATION GUARD ───────────────────────────────────────────────────────────────────
+      // stop_reason 'max_tokens' means the model RAN OUT OF ROOM mid-answer. That was never checked,
+      // so a half-written file was handed over looking complete — a broken zip, a cut-off HTML file,
+      // a deck missing its last slides. A truncated file that LOOKS finished is worse than an error.
+      // Say it loudly, and never let it pass as a finished artifact.
+      if (_stop === 'max_tokens' && text && text.length > 1) {
+        _truncated = true;
+      }
       if (!text || text.length < 2) {
         _modelFailures.push(m + ' returned no usable text' + (_stop ? ' (stop_reason: ' + _stop + ')' : ''));
         lastErr = { status: 502, error: 'The model returned an empty answer (it likely ran out of output room' + (_stop ? ', stop_reason: ' + _stop : '') + '). Try again, turn the Engine/deep mode off for this turn, or send a smaller file.' };
@@ -1241,7 +1316,13 @@ async function handleChat(event, user, res) {
   if (_modelFailures.length && usedModel) {
     _modelNote = 'Fell back to ' + usedModel + '. Tried first: ' + _modelFailures.join(' | ');
   }
-  return json(200, { text, model: usedModel, modelNote: _modelNote, aegis, owner: ownerVerified, persona: persona, websearched: _searchRan, sources: _srcCount });
+  // A truncated answer must be flagged, not quietly shipped. The operator has to KNOW the file is
+  // incomplete before they hand it to anyone.
+  if (_truncated) {
+    text = (text || '') + '\n\n[INCOMPLETE — the answer hit the output limit and was cut off. This file is NOT finished. Ask for it in smaller pieces, or ask for a specific section.]';
+    _modelNote = (_modelNote ? _modelNote + ' | ' : '') + 'Output was TRUNCATED at the model limit — the file is incomplete.';
+  }
+  return json(200, { text, model: usedModel, modelNote: _modelNote, truncated: _truncated, aegis, owner: ownerVerified, persona: persona, websearched: _searchRan, sources: _srcCount });
 };
 
 // Exported so the background function (chat-background.js) reuses the identical logic.

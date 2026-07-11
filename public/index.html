@@ -199,7 +199,7 @@
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build PPTXFIX-1200</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build FILES-OK-1500</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -396,13 +396,50 @@ function loadModels(){ api('models',{method:'GET'}).then(function(r){ var sel=$(
   sel.innerHTML=''; var o0=document.createElement('option'); o0.value='auto'; o0.textContent='Latest (auto)'; sel.appendChild(o0);
   list.forEach(function(m){ var o=document.createElement('option'); o.value=m.id; o.textContent=m.name; sel.appendChild(o); });
   sel.value=prev||'auto'; if(!sel.value) sel.value='auto'; }); }
+/* ── DATA-LOSS GUARD ───────────────────────────────────────────────────────────────
+   THE TRAP: loadData() had no error branch. A FAILED read (expired session, Redis
+   down, a network blip) produced the SAME result as "brand new user with no work":
+   r.data was null -> projects=[] -> it INVENTED an empty "Project 1" -> and the very
+   next saveData() POSTed that empty shell straight over every real conversation.
+   One keystroke from total, unrecoverable loss.
+   THE RULE: a failed READ may never cause a destructive WRITE. Saving stays LOCKED
+   until a load has genuinely succeeded. */
+var _dataLoaded = false;   /* saves are FORBIDDEN until this is true */
+
+function _dataFailed(msg){
+  _dataLoaded = false;                    /* <- this is what makes saveData() refuse */
+  projects = []; notes = []; current = null;
+  try{
+    var lg=$('log'); if(lg) lg.innerHTML = '<div class="empty" style="color:var(--err);line-height:1.6">'
+      + esc(msg) + '<br><br>Your work is safe on the server \u2014 saving is disabled so nothing can overwrite it.</div>';
+    var pr=$('project'); if(pr) pr.innerHTML='';
+    var sd=$('send'); if(sd) sd.disabled = true;
+  }catch(e){}
+  toast(msg);
+}
+
 function loadData(){ api('data',{method:'GET'}).then(function(r){
+  if(!r.ok || !r.data){
+    _dataFailed(r.status===401
+      ? 'Session expired \u2014 sign out and sign in again to load your work.'
+      : 'Could not load your work (HTTP '+r.status+'). Refresh to retry.');
+    return;
+  }
   var d=(r.data&&r.data.data)||{projects:[],notes:[]};
   projects=Array.isArray(d.projects)?d.projects:[]; notes=Array.isArray(d.notes)?d.notes:[];
   if(projects.length===0) projects=[{id:newId(),name:'Project 1',turns:[],updated:Date.now()}];
-  current=projects[0]; renderProjects(); renderTurns(); renderNotes();
+  current=projects[0];
+  _dataLoaded = true;                     /* the read genuinely succeeded — saving is now safe */
+  var sd=$('send'); if(sd) sd.disabled=false;
+  renderProjects(); renderTurns(); renderNotes();
+}).catch(function(){
+  _dataFailed("Can't reach the Lab right now. Refresh to retry.");
 }); }
-function saveData(){ clearTimeout(saveT); saveT=setTimeout(function(){ api('data',{method:'POST',body:JSON.stringify({data:{projects:projects,notes:notes}})}); },600); }
+function saveData(){
+  /* HARD STOP: never write when the load failed. This single line is what stands between an
+     expired session and losing every conversation in the Lab. */
+  if(!_dataLoaded) return;
+  clearTimeout(saveT); saveT=setTimeout(function(){ api('data',{method:'POST',body:JSON.stringify({data:{projects:projects,notes:notes}})}); },600); }
 function renderProjects(){ projects.sort(function(a,b){return (b.updated||0)-(a.updated||0);}); var s=$('project'); s.innerHTML=''; projects.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name+' ('+(p.turns?p.turns.length:0)+')';if(current&&p.id===current.id)o.selected=true;s.appendChild(o);}); }
 function renderTurns(){ var log=$('log');log.innerHTML='';var t=current&&current.turns||[];if(!t.length){log.innerHTML='<div class="empty">No messages yet. Ask something below.</div>';return;}
   t.forEach(function(turn){var d=document.createElement('div');d.className='turn '+(turn.role==='you'?'you':'claude');var w=document.createElement('div');w.className='who2';w.textContent=turn.role==='you'?'You':(turn.persona==='nicolle'?'Nicolle':turn.persona==='karim'?'Karim':turn.persona==='giorgos'?'Giorgos':turn.persona==='galen'?'Galen':turn.persona==='elias'?'Elias':turn.persona==='kostas'?'Kostas':turn.persona==='elena'?'Elena':'Karam');d.appendChild(w);var b=document.createElement('div');b.className='body';var parts=turn.text.split(/```/);for(var i=0;i<parts.length;i++){if(i%2===1){var pre=document.createElement('pre');pre.textContent=parts[i].replace(/^[a-zA-Z0-9_.-]*\n/,'');d.appendChild(pre);}else if(parts[i]){var sp=document.createElement('span');sp.textContent=parts[i];b.appendChild(sp);}}if(b.childNodes.length)d.appendChild(b);if(turn.role!=='you'&&turn.text&&turn.text!=='…'){var rb=document.createElement('button');rb.className='readbtn';rb.type='button';rb.textContent='Read aloud';rb.addEventListener('click',function(){speak(turn.text,turn.persona||'karam');});d.appendChild(rb);if(turn.model){var mt=document.createElement('span');mt.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--soft);margin-left:8px';mt.textContent=turn.model;d.appendChild(mt);}if(turn.modelNote){var mn=document.createElement('div');mn.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--gold-dim);margin-top:4px;opacity:.9';mn.textContent='\u26A0 '+turn.modelNote;d.appendChild(mn);}if(turn.aegis&&engineOn&&ROLE==='admin'){var ae=turn.aegis;var chip=document.createElement('div');chip.className='aegis '+(ae.status||'').toLowerCase();var act=ae.action+(ae.response_window?(' · '+ae.response_window):'');var tail=ae.built_in?(' · built-in · attest '+esc(ae.attest||'')):'';chip.innerHTML='<span class="dot"></span><b>'+ae.engine+' '+ae.version+'</b> · '+ae.status+' · '+esc(act)+' · input fidelity '+ae.fidelity+tail;d.appendChild(chip);}
@@ -567,7 +604,15 @@ function send(){
   var _textFiles=files.filter(function(f){return f.kind==='text';});
   var _bigText=_textFiles.map(function(f){return '### '+(f.name||'file')+'\n'+(f.text||'');}).join('\n\n');
   var _otherFiles=files.filter(function(f){return f.kind!=='text';});
-  if(_bigText && Math.ceil((prompt.length+_bigText.length)/4) > 150000){ $('ask').value=''; bigFileFlow(prompt, _bigText, _otherFiles, mode, temp); return; }
+  /* NO CHUNKING unless it is physically impossible. bigFileFlow() reads a file in pieces and builds a
+     SUMMARY — the model then never sees the real bytes, which is useless for rewriting a file and is
+     how a "complete" file comes back wrong. Modern context is ~200k tokens (about 800,000 characters),
+     so send the WHOLE file. Only chunk when it genuinely cannot fit, and say so plainly when we do. */
+  var _estTok = Math.ceil((prompt.length + _bigText.length) / 4);
+  if(_bigText && _estTok > 185000){
+    toast('That file is too large to send whole (' + Math.round(_bigText.length/1024) + 'KB) — reading it in sections.');
+    $('ask').value=''; bigFileFlow(prompt, _bigText, _otherFiles, mode, temp); return;
+  }
   addTurn('you', prompt); $('ask').value=''; $('send').disabled=true;
   var _hasFile = (files && files.length>0);
   // DEEPEST THINKING ALWAYS: Karam runs in smart mode on every turn — the best available flagship
