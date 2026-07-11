@@ -90,11 +90,11 @@
   .labwrap{position:relative}
   .labpanel{position:absolute;right:0;top:34px;z-index:30;width:300px;background:linear-gradient(180deg,#11243f,#0d1c33);border:1px solid var(--line2);border-radius:12px;padding:12px;display:none;box-shadow:0 16px 40px rgba(0,0,0,.5)}
   .labpanel.show{display:block}
-  .lr{display:flex;align-items:center;gap:8px;margin:8px 0;font-family:var(--mono);font-size:11px;color:var(--mute)}
+  .lr{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0;font-family:var(--mono);font-size:11px;color:var(--mute)}
   .lr label{font-size:11px;color:var(--soft)}
   .lr select{flex:1}
   .lr input[type=range]{flex:1}
-  .lr button{background:transparent;border:1px solid var(--line2);border-radius:6px;color:var(--light-sky);font-family:var(--mono);font-size:11px;padding:5px 9px;cursor:pointer}
+  .lr button{background:transparent;border:1px solid var(--line2);border-radius:6px;color:var(--light-sky);font-family:var(--mono);font-size:11px;padding:5px 9px;cursor:pointer;flex:0 0 auto;white-space:nowrap}
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
   .chip{font-family:var(--mono);font-size:11px;color:var(--gold-dim);border:1px solid var(--line2);border-radius:16px;padding:3px 10px;display:flex;align-items:center;gap:6px}
   .chip b{cursor:pointer;color:var(--err)}
