@@ -633,7 +633,11 @@ async function handleChat(event, user, res) {
   } else {
     maxTokens = Math.min(Math.max(maxTokens, 24000), 32000); // REAL WORK — room for a substantial answer
   }
-  if (b.web) maxTokens = Math.min(maxTokens, 4000); // web turns: small generation so search + answer fit timeout
+  // WEB + A FILE = THE BROKEN COMBINATION. This capped EVERY web turn at 4,000 output tokens so the
+  // search plus the answer would fit the timeout. But a PDF, deck or spreadsheet needs far more than
+  // 4k — so asking for a file with web search on produced a CUT-OFF file, or ran out of time trying.
+  // A file request keeps its full output room, always. Only a plain web ANSWER gets the small ceiling.
+  if (b.web && !_wantsBuild) maxTokens = Math.min(maxTokens, 4000);
   if (typeof b.maxTokens === 'number' && b.maxTokens >= 256 && b.maxTokens <= 8192 && b.mode !== 'builder' && !(b.files && b.files.length)) maxTokens = b.maxTokens;
   if (!prompt && files.length === 0) return json(400, { error: 'Send a prompt or a file.' });
 
