@@ -359,6 +359,28 @@ function _timeoutMsg(model, b, budgetMs, elapsedMs) {
   bits.push('Or start a new project — a very long thread re-sends its whole history every turn.');
   return bits.join(' ');
 }
+
+// ── IS THE FILE ACTUALLY FINISHED? ────────────────────────────────────────────────────────────
+// The auto-continue used to fire only when the model SAID it ran out of room (stop_reason:
+// max_tokens). Opus instead stopped on its own, claiming it was done, while the file was cut off
+// mid-string — no </script>, no </body>, no </html>. So we trusted the model's word instead of
+// checking the artifact. That is the exact failure this gate exists to prevent.
+// Now: look at the FILE. If it does not close, it is not finished — whatever the model says.
+function _fileIncomplete(txt) {
+  if (!txt || txt.length < 200) return false;
+  var t = String(txt);
+  // An odd number of code fences means a block was opened and never closed.
+  var fences = (t.match(/```/g) || []).length;
+  if (fences % 2 === 1) return true;
+  var tail = t.slice(-4000);
+  // An HTML document must actually end.
+  if (/<!doctype html>/i.test(t.slice(0, 4000)) || /<html[\s>]/i.test(t.slice(0, 4000))) {
+    if (!/<\/html>/i.test(tail)) return true;
+  }
+  // A delivery block that was opened and never closed.
+  if (t.indexOf('\u2039\u2039FILE_DELIVERY\u203A\u203A') >= 0 && t.indexOf('\u2039\u2039/FILE_DELIVERY\u203A\u203A') < 0) return true;
+  return false;
+}
 function maxOutFor(model) {
   var id = String(model || '').toLowerCase();
   if (/fable|mythos|opus-4-(8|7|6)|opus-4\.(8|7|6)/.test(id)) return 128000;
@@ -1486,9 +1508,10 @@ async function handleChat(event, user, res, onProgress) {
   // cannot exceed its own ceiling, but the SERVER can keep asking it to continue and STITCH the
   // pieces into one whole file. The operator gets ONE download. No parts. No seams. No manual work.
   // This is the only way a file larger than any single pass can ever come back complete.
-  if (_truncated && usedModel && text && !b.bg2) {
+  var _structIncomplete = _fileIncomplete(text);
+  if ((_truncated || _structIncomplete) && usedModel && text) {
     var _MAX_CONT = 6;                       // enough for ~700KB even on Sonnet
-    for (var _c = 0; _c < _MAX_CONT && _truncated; _c++) {
+    for (var _c = 0; _c < _MAX_CONT && (_truncated || _fileIncomplete(text)); _c++) {
       if (onProgress) { try { onProgress({ stage: 'writing', model: usedModel, chars: text.length, tokens: Math.round(text.length / 4), continuing: _c + 1 }); } catch (e) {} }
       var _tail = text.slice(-2000);          // give it the exact seam to resume from
       var _contBody = {
@@ -1514,13 +1537,20 @@ async function handleChat(event, user, res, onProgress) {
       var _more = _cd.content.filter(function (x) { return x && x.type === 'text' && typeof x.text === 'string'; }).map(function (x) { return x.text; }).join('');
       if (!_more || !_more.trim()) break;
       // strip a code fence if the model re-opened one, and any repeated preamble
-      _more = _more.replace(/^\s*```[a-zA-Z0-9_.\-]*\s*\n/, '').replace(/\n```\s*$/, '');
+      // Strip only a fence the model RE-OPENED at the start of the continuation. Do NOT strip a
+      // trailing fence — when the first pass left a code block open, that closing fence is the
+      // legitimate end of the file, and removing it left the block unterminated forever.
+      _more = _more.replace(/^\s*```[a-zA-Z0-9_.\-]*\s*\n/, '');
       text += _more;
       _truncated = (_cd.stop_reason === 'max_tokens');
-      if (!_truncated) break;                 // finished
+      // Do NOT stop just because the model says it is done. Check the FILE. If it still does not
+      // close, keep going — the model has claimed completion on a cut-off file before.
+      if (!_truncated && !_fileIncomplete(text)) break;   // genuinely finished
     }
-    if (!_truncated) {
-      _modelNote = (_modelNote ? _modelNote + ' | ' : '') + 'File exceeded the model output limit; written in ' + (_c + 2) + ' passes and stitched into one complete file.';
+    if (!_truncated && !_fileIncomplete(text)) {
+      _modelNote = (_modelNote ? _modelNote + ' | ' : '') + 'File exceeded the model output limit; written in ' + (_c + 1) + ' pass(es) and stitched into one complete file.';
+    } else {
+      _truncated = true;   // still not closed after every pass — the operator MUST be told
     }
   }
 
