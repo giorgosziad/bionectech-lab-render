@@ -989,31 +989,47 @@ async function handleChat(event, user, res) {
       res.set('X-Accel-Buffering', 'no');   // never let a proxy buffer the stream
       if (typeof res.flushHeaders === 'function') res.flushHeaders();
 
+      // Send a byte IMMEDIATELY so the client knows the stream is open and the proxy does not sit on
+      // an empty response. An SSE comment line is ignored by the parser but flushes the connection.
+      try { res.write(': open\n\n'); } catch (e) {}
+
       var _full = '', _stop2 = '', _buf = '';
       // Production `fetch` yields Uint8Array chunks; a Node Readable yields Buffers. Calling
       // .toString('utf8') on a Uint8Array does NOT decode UTF-8 — it produces "72,105,32…" and the
-      // SSE parser sees garbage. A TextDecoder handles BOTH correctly, and also stitches multi-byte
-      // characters that land across a chunk boundary.
+      // SSE parser sees garbage. A TextDecoder handles BOTH, and stitches multi-byte characters
+      // that land across a chunk boundary.
       var _td = new TextDecoder('utf-8');
-      var _reader = sr.body;
-      try {
-        for await (var chunk of _reader) {
-          _buf += _td.decode(chunk, { stream: true });
-          var lines = _buf.split('\n');
-          _buf = lines.pop();
-          for (var li = 0; li < lines.length; li++) {
-            var line = lines[li].trim();
-            if (line.indexOf('data:') !== 0) continue;
-            var payload = line.slice(5).trim();
-            if (!payload || payload === '[DONE]') continue;
-            var ev = null; try { ev = JSON.parse(payload); } catch (e3) { continue; }
-            if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta' && ev.delta.text) {
-              _full += ev.delta.text;
-              res.write('data: ' + JSON.stringify({ delta: ev.delta.text }) + '\n\n');
-            } else if (ev.type === 'message_delta' && ev.delta && ev.delta.stop_reason) {
-              _stop2 = ev.delta.stop_reason;
-            }
+      function _feed(bytes) {
+        _buf += _td.decode(bytes, { stream: true });
+        var lines = _buf.split('\n');
+        _buf = lines.pop();
+        for (var li = 0; li < lines.length; li++) {
+          var line = lines[li].trim();
+          if (line.indexOf('data:') !== 0) continue;
+          var payload = line.slice(5).trim();
+          if (!payload || payload === '[DONE]') continue;
+          var ev = null; try { ev = JSON.parse(payload); } catch (e3) { continue; }
+          if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta' && ev.delta.text) {
+            _full += ev.delta.text;
+            try { res.write('data: ' + JSON.stringify({ delta: ev.delta.text }) + '\n\n'); } catch (e) {}
+          } else if (ev.type === 'message_delta' && ev.delta && ev.delta.stop_reason) {
+            _stop2 = ev.delta.stop_reason;
           }
+        }
+      }
+      try {
+        // A web ReadableStream (what global fetch returns) is read with getReader(). `for await` on
+        // it is NOT reliable across runtimes and was hanging forever — nothing ever arrived. A Node
+        // Readable (node-fetch style) has no getReader, so it is iterated instead. Handle both.
+        if (sr.body && typeof sr.body.getReader === 'function') {
+          var _rd = sr.body.getReader();
+          while (true) {
+            var _step = await _rd.read();
+            if (_step.done) break;
+            if (_step.value) _feed(_step.value);
+          }
+        } else if (sr.body) {
+          for await (var chunk of sr.body) { _feed(chunk); }
         }
       } catch (e4) {
         // Stream broke mid-flight. Headers are already sent, so we cannot fall back — be honest.
