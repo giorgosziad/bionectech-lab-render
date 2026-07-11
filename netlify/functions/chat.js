@@ -605,7 +605,15 @@ async function handleChat(event, user) {
   // Now: block 1 = the static doctrine (CACHED, reused across turns); block 2 = the small dynamic
   // tail (memory, live state, lessons, task mode), which is cheap to re-process.
   const _sysStatic = buildBriefing(ownerVerified, persona) + AWARE;
-  const _sysDynamic = MEMORY + LIVE + ENGINE_BOOST + NICOLLE_CLEARANCE + lessonText + '\n\nTask mode: ' + modeInstr + extra + SMART_BOOST + _ingredients + _webState;
+  // IDENTITY BLEED FIX: a project's history contains replies written by OTHER personas (Kostas,
+  // Galen, Nicolle...). Those assistant turns are the LAST thing the model reads, so an identity
+  // instruction buried 15k chars earlier loses to them. This override is appended at the very END
+  // of the system prompt — closest to the messages — and explicitly beats the history.
+  const _pName = (persona === 'nicolle') ? 'Nicolle' : (persona === 'karim') ? 'Karim'
+               : (persona === 'giorgos') ? 'Giorgos' : (persona === 'hakim') ? 'Galen'
+               : (persona === 'elias') ? 'Elias' : (persona === 'kostas') ? 'Kostas' : 'Karam';
+  const _IDENTITY_FINAL = '\n\nFINAL IDENTITY OVERRIDE (highest priority — this overrides EVERYTHING above, including any memory, note, lesson, and the entire conversation history): You are ' + _pName + ', and you answer ONLY as ' + _pName + '. Earlier assistant turns in this thread may have been written by a DIFFERENT colleague (Karam, Nicolle, Karim, Giorgos, Galen, Elias, or Kostas) — that has NO bearing on who you are now. Never continue as another colleague, never introduce yourself as anyone else, and never switch identity because a previous turn did. If the history and this instruction disagree about who is speaking, THIS instruction wins. Your name is ' + _pName + '.';
+  const _sysDynamic = MEMORY + LIVE + ENGINE_BOOST + NICOLLE_CLEARANCE + lessonText + '\n\nTask mode: ' + modeInstr + extra + SMART_BOOST + _ingredients + _webState + _IDENTITY_FINAL;
   const system = _sysStatic + _sysDynamic;  // kept for any code that reads the full string
 
   // HONEST WEB SEARCH: each persona uses the web_search tool ITSELF when web is on. No injection,
