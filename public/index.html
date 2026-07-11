@@ -199,7 +199,7 @@
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build BGFILE-1545</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build BGFIX-1600</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -523,14 +523,14 @@ function maybeFoldSummary(){
 function runBackground(payload, prompt){
   var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
   payload.jobId = jobId; payload.bg = true;
-  addTurn('claude','… '+(personaSel==='nicolle'?'Nicolle':'Karam')+' [BUILD-DC8] is working on this — one moment …');
+  addTurn('claude','\u2026 '+(personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':'Karam')+' is working on this \u2014 one moment \u2026');
   // Kick off the background job (returns 202 immediately).
   api('chat-background',{method:'POST',body:JSON.stringify(payload)}).then(function(){
     var tries = 0, maxTries = 360; // ~12 min at 2s intervals
     var poll = setInterval(function(){
       tries++;
       // Gentle progress reassurance so a long job never feels stuck (updates the placeholder text).
-      if(tries % 15 === 0 && current.turns.length){ var _lt=current.turns[current.turns.length-1]; if(_lt && _lt.role==='claude' && / is working on this/.test(_lt.text||'')){ var _secs=tries*2; _lt.text='… '+(personaSel==='nicolle'?'Nicolle':'Karam')+' is working through it — '+_secs+'s in. Big files take a little longer; I\'ll have it shortly …'; renderTurns(); } }
+      if(tries % 15 === 0 && current.turns.length){ var _lt=current.turns[current.turns.length-1]; if(_lt && _lt.role==='claude' && / is working on this/.test(_lt.text||'')){ var _secs=tries*2; _lt.text='… '+(personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':'Karam')+' is working through it — '+_secs+'s in. Big files take a little longer; I\'ll have it shortly …'; renderTurns(); } }
       api('chat-result',{method:'POST',body:JSON.stringify({jobId:jobId})}).then(function(r){
         if(!(r.ok && r.data)) return;
         var st = r.data.status;
@@ -555,7 +555,10 @@ function runBackground(payload, prompt){
           clearInterval(poll);
           current.turns.pop();
           delete payload.bg; delete payload.jobId;
-          payload.smart=false; payload.fast=false; payload.maxTokens=8000;
+          // DO NOT cap the output here. This used to force maxTokens=8000, so if the background
+          // function was ever unreachable, a PDF/deck/spreadsheet came back SILENTLY TRUNCATED.
+          // Let the server apply its normal ceiling; a cut-off file is worse than a slow one.
+          payload.smart=false; payload.fast=false;
           addTurn('claude','… (running the quick path — deploy the background function for full large-file support) …');
           api('chat',{method:'POST',body:JSON.stringify(payload)}).then(function(rr){
             current.turns.pop();
