@@ -936,6 +936,7 @@ async function handleChat(event, user, res, onProgress) {
   const _turnEnd = _turnStart + _turnBudgetMs;
   const _msLeft = function () { return _turnEnd - Date.now(); };
   let text = null, usedModel = null, lastErr = null, _truncated = false;
+  let _sysForCont = null, _effForCont = null;   // the continuation runs AFTER the loop, so keep what it needs
   for (let ci = 0; ci < candidates.length; ci++) {
     const m = candidates[ci];
     const apiBody = { model: m, max_tokens: maxTokens, system: [
@@ -1038,6 +1039,7 @@ async function handleChat(event, user, res, onProgress) {
       var _rewrite = (b.files && b.files.length) && /\b(rebuild|rewrite|complete|whole|full|deliver)\b/i.test(String(prompt || ''));
       var _eff = b.smart ? 'xhigh' : (_trivial ? 'low' : (_rewrite ? 'low' : 'medium'));
       apiBody.output_config = { effort: capEffort(m, _eff) };
+      _effForCont = apiBody.output_config;
       if (typeof b.temperature === 'number') apiBody.temperature = Math.max(0, Math.min(1, b.temperature));
     }
     // Nicolle searches the web herself: attach the web tool to her own call (single call, no 504).
@@ -1108,6 +1110,7 @@ async function handleChat(event, user, res, onProgress) {
       lastErr = { status: 504, error: _timeoutMsg(m, b, _turnBudgetMs, Date.now() - _turnStart) };
       break;
     }
+    _sysForCont = apiBody.system;                 // the continuation needs the same doctrine
     var _deadlineMs = Math.max(5000, _msLeft());   // only ever the time that REMAINS
     var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var _to = _ac ? setTimeout(function(){ try { _ac.abort(); } catch (e) {} }, _deadlineMs) : null;
@@ -1394,8 +1397,14 @@ async function handleChat(event, user, res, onProgress) {
     }
     if (r.ok) {
       usedModel = m;
-      text = (data.content || []).map(function (c) { return c.type === 'text' ? c.text : ''; }).join('\n').trim();
-      var _stop = data.stop_reason || '';
+      // DO NOT trim (or newline-join) a file we may have to CONTINUE. Trimming eats the line break at
+      // the seam and glues the last line of one pass onto the first line of the next. Joining blocks
+      // with '\n' inserts a break that was never in the file. A continued file must be byte-exact.
+      var _stop = data.stop_reason || '';   // MUST be read BEFORE it is used — it was declared a line
+                                            // too late, so the check below silently saw `undefined`
+                                            // and trimmed the file, eating the newline at the seam.
+      var _rawParts = (data.content || []).map(function (c) { return c.type === 'text' ? c.text : ''; });
+      text = (_stop === 'max_tokens') ? _rawParts.join('') : _rawParts.join('\n').trim();
       // FABLE 5 REFUSAL: Fable's safety classifier can DECLINE a request, returning stop_reason
       // 'refusal' as a 200 (not an error) with no usable text. Do not retry the same model (it will
       // refuse again) and do not mislabel it 'empty/out of room' - fall through to the next candidate
@@ -1471,6 +1480,50 @@ async function handleChat(event, user, res, onProgress) {
   if (_modelFailures.length && usedModel) {
     _modelNote = 'Fell back to ' + usedModel + '. Tried first: ' + _modelFailures.join(' | ');
   }
+  // ── AUTO-CONTINUE ─────────────────────────────────────────────────────────────────────────
+  // THE FILE WAS BIGGER THAN THE MODEL'S OUTPUT CEILING. Karam wrote it in two parts and the second
+  // was cut off mid-function. The operator's rule is ONE complete file — and that is right. A model
+  // cannot exceed its own ceiling, but the SERVER can keep asking it to continue and STITCH the
+  // pieces into one whole file. The operator gets ONE download. No parts. No seams. No manual work.
+  // This is the only way a file larger than any single pass can ever come back complete.
+  if (_truncated && usedModel && text && !b.bg2) {
+    var _MAX_CONT = 6;                       // enough for ~700KB even on Sonnet
+    for (var _c = 0; _c < _MAX_CONT && _truncated; _c++) {
+      if (onProgress) { try { onProgress({ stage: 'writing', model: usedModel, chars: text.length, tokens: Math.round(text.length / 4), continuing: _c + 1 }); } catch (e) {} }
+      var _tail = text.slice(-2000);          // give it the exact seam to resume from
+      var _contBody = {
+        model: usedModel,
+        max_tokens: maxOutFor(usedModel),
+        system: _sysForCont,
+        messages: messages.concat([
+          { role: 'assistant', content: text },
+          { role: 'user', content: 'CONTINUE. You ran out of room and stopped mid-file. Resume EXACTLY where you stopped — the last characters you wrote were:\n\n...' + _tail + '\n\nContinue from precisely that point. Do NOT repeat anything you already wrote. Do NOT restart the file. Do NOT add commentary, a preamble, or a code fence. Output ONLY the remaining raw content of the file, continuing seamlessly, until it is complete.' }
+        ])
+      };
+      if (_effForCont) _contBody.output_config = _effForCont;
+      var _cr = null, _cd = null;
+      try {
+        _cr = await fetchWithRetry(ANTHROPIC_URL, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify(_contBody)
+        });
+        _cd = await _cr.json();
+      } catch (e) { break; }
+      if (!_cr.ok || !_cd || !Array.isArray(_cd.content)) break;
+      var _more = _cd.content.filter(function (x) { return x && x.type === 'text' && typeof x.text === 'string'; }).map(function (x) { return x.text; }).join('');
+      if (!_more || !_more.trim()) break;
+      // strip a code fence if the model re-opened one, and any repeated preamble
+      _more = _more.replace(/^\s*```[a-zA-Z0-9_.\-]*\s*\n/, '').replace(/\n```\s*$/, '');
+      text += _more;
+      _truncated = (_cd.stop_reason === 'max_tokens');
+      if (!_truncated) break;                 // finished
+    }
+    if (!_truncated) {
+      _modelNote = (_modelNote ? _modelNote + ' | ' : '') + 'File exceeded the model output limit; written in ' + (_c + 2) + ' passes and stitched into one complete file.';
+    }
+  }
+
   // A truncated answer must be flagged, not quietly shipped. The operator has to KNOW the file is
   // incomplete before they hand it to anyone.
   if (_truncated) {
