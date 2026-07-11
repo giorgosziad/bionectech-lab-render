@@ -195,7 +195,7 @@
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build FILES-1055</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build PERF-1110</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -601,6 +601,12 @@ function send(){
   _payload.stream = true;
   addTurn('claude','…');
   var _sIdx = current.turns.length - 1;
+  /* PERF — THE HANG: renderTurns() rebuilds the ENTIRE chat log (every turn, every code block,
+     every download button) and it was being called on EVERY SINGLE TOKEN. On a long conversation
+     with a long reply that is O(n^2) DOM work and the browser locks solid. Grab the live text node
+     once and write straight into it; do ONE full renderTurns() at the end. */
+  var _liveEl = null;
+  try { var _tn = $('log').querySelectorAll('.turn'); var _lastT = _tn[_tn.length-1]; _liveEl = _lastT ? _lastT.querySelector('.body') : null; } catch(e){}
   var _hdrs = {'Content-Type':'application/json'};
   if(TOKEN) _hdrs['Authorization']='Bearer '+TOKEN;
   fetch('/.netlify/functions/chat',{method:'POST',headers:_hdrs,body:JSON.stringify(_payload)}).then(function(resp){
@@ -640,8 +646,20 @@ function send(){
           var pl = line.slice(5).trim();
           if(!pl) continue;
           var ev=null; try{ ev=JSON.parse(pl); }catch(e){ continue; }
-          if(ev.delta){ full += ev.delta; var tu=current.turns[_sIdx]; if(tu){ tu.text = full; renderTurns(); } }
-          else if(ev.error){ var te=current.turns[_sIdx]; if(te){ te.text = (full ? full + '\n\n' : '') + ev.error; renderTurns(); } }
+          if(ev.delta){
+            full += ev.delta;
+            var tu=current.turns[_sIdx]; if(tu) tu.text = full;
+            if(_liveEl){
+              /* While a file is being emitted, do not scroll a wall of raw JSON past the operator —
+                 mask the delivery block and show progress instead. It is stripped for real at the end. */
+              var _vis = full, _fd = _vis.indexOf('\u2039\u2039FILE_DELIVERY');
+              if(_fd >= 0) _vis = _vis.slice(0,_fd).replace(/\s+$/,'') + '\n\n\u2026 building your file \u2026';
+              _liveEl.textContent = _vis;
+              var _lg=$('log'); if(_lg) _lg.scrollTop=_lg.scrollHeight;
+            }
+            else if(tu){ renderTurns(); }   /* fallback only if the node was not found */
+          }
+          else if(ev.error){ var te=current.turns[_sIdx]; if(te){ te.text = (full ? full + '\n\n' : '') + ev.error; if(_liveEl){ _liveEl.textContent = te.text; } else { renderTurns(); } } }
           else if(ev.done){ meta = ev; }
         }
         return pump();
