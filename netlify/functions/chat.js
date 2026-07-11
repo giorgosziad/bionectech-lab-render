@@ -902,10 +902,14 @@ async function handleChat(event, user, res) {
       // everything — that is what made the Lab crawl. 'medium' is the right default for working chat:
       // fully capable, and far faster. Writing a real file still earns 'high'. Smartest ON (above)
       // goes deeper still (xhigh/max), and a bare greeting drops to 'low'.
-      // Smartest ON means the operator explicitly asked for depth — honour it even if the "is this
-      // hard?" heuristic disagreed. Their toggle beats our guess.
-      var _eff = b.smart ? 'xhigh' : (_trivial ? 'low' : (_wantsBuild ? 'high' : 'medium'));
-      apiBody.output_config = { effort: capEffort(m, _eff) };
+      // EFFORT — SIMPLE AND PREDICTABLE, WITH THE DIAL IN THE OPERATOR'S HAND.
+      // Fable ALWAYS thinks; effort is the only control. I previously set 'high' on real work AND on
+      // builds, which meant deep thinking on top of an already-large generation — a full deck could
+      // take minutes. 'medium' is genuinely capable and far faster, and it is now the default for
+      // everything. Depth is one toggle away: Smartest ON goes deep, and it is the operator's call,
+      // not a guess made on their behalf. Builds still get the FULL 128k of output room, so nothing
+      // truncates — they just do not also think for a minute first.
+      apiBody.output_config = { effort: capEffort(m, b.smart ? 'xhigh' : (_trivial ? 'low' : 'medium')) };
       if (typeof b.temperature === 'number') apiBody.temperature = Math.max(0, Math.min(1, b.temperature));
     }
     // Nicolle searches the web herself: attach the web tool to her own call (single call, no 504).
@@ -1008,6 +1012,17 @@ async function handleChat(event, user, res) {
       try { res.write(': open\n\n'); } catch (e) {}
 
       var _full = '', _stop2 = '', _buf = '', _lastThink = 0, _thinkMs = 0;
+      // HEARTBEAT — TIME-BASED, not event-based. Fable thinks before it writes, and with the default
+      // thinking.display of "omitted" the thinking blocks come back EMPTY — so there may be NO
+      // thinking_delta events at all. An event-driven heartbeat therefore never fires and the operator
+      // sits looking at a dead "…" for 30-60s. A timer cannot fail: it ticks every second until the
+      // first real text arrives, so they can always see it is alive and how long it has been working.
+      var _t0 = Date.now();
+      var _hb = setInterval(function () {
+        if (_full) return;                                  // real text is flowing; no need
+        try { res.write('data: ' + JSON.stringify({ thinking: Math.round((Date.now() - _t0) / 1000) }) + '\n\n'); } catch (e) {}
+      }, 1000);
+      function _stopHb() { try { clearInterval(_hb); } catch (e) {} }
       // Production `fetch` yields Uint8Array chunks; a Node Readable yields Buffers. Calling
       // .toString('utf8') on a Uint8Array does NOT decode UTF-8 — it produces "72,105,32…" and the
       // SSE parser sees garbage. A TextDecoder handles BOTH, and stitches multi-byte characters
@@ -1056,11 +1071,13 @@ async function handleChat(event, user, res) {
           for await (var chunk of sr.body) { _feed(chunk); }
         }
       } catch (e4) {
+        _stopHb();
         // Stream broke mid-flight. Headers are already sent, so we cannot fall back — be honest.
         if (_to) clearTimeout(_to);
         try { res.write('data: ' + JSON.stringify({ error: 'The connection dropped mid-answer. Please try again.' }) + '\n\n'); res.end(); } catch (e5) {}
         return { __streamed: true };
       }
+      _stopHb();
       if (_to) clearTimeout(_to);
 
       // Fable can DECLINE (stop_reason: refusal, HTTP 200, no text). Say so honestly.
