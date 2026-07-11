@@ -367,6 +367,9 @@ async function handleChat(event, user) {
   const reqModel = (b.model || '').toString();
   // Ordered candidate models: latest-first, with automatic fallback so a model
   // your key cannot use never bounces the chat — it falls through to the next.
+  // Owner control: if a specific model was explicitly chosen in the dropdown, it stays first and no
+  // downgrade or auto-discovery may override it. Defined HERE (before any use) to avoid a TDZ error.
+  const _explicitModel = !!(reqModel && reqModel !== 'auto' && /^claude-[a-z0-9.\-]+$/i.test(reqModel));
   let candidates;
   if (reqModel && reqModel !== 'auto' && /^claude-[a-z0-9.\-]+$/i.test(reqModel)) {
     candidates = [reqModel].concat(PREFERENCE);
@@ -379,6 +382,10 @@ async function handleChat(event, user) {
   // (model names change as Anthropic ships new ones). PREFERENCE already starts with the current
   // flagship (Fable), and auto-discovery below promotes whatever newest flagship the key can reach.
   if (b.smart) { candidates.unshift('claude-opus-4-8'); candidates.unshift(PREFERENCE[0]); }
+  // NOTE: we deliberately do NOT downgrade the model for speed. "Latest (auto)" means the LATEST
+  // flagship (Fable), and an explicitly chosen model is always honoured. Speed comes from caching
+  // the static doctrine block and from not forcing max-effort thinking on every turn — never from
+  // silently serving a different model than the operator asked for.
   // SAFEGUARD: a file/builder turn must output a whole file. Haiku truncates large output, so for
   // these turns we drop Haiku from the candidates and make sure a capable model (Sonnet) leads.
   if ((b.mode === 'builder' || (b.files && b.files.length))) {
@@ -394,7 +401,7 @@ async function handleChat(event, user) {
   // AUTO-ROUTING: within Smartest, decide if THIS message is actually hard. Only hard messages
   // get the expensive deep brain (Opus + 24k thinking + protocol). Easy ones answer cheap & fast.
   // This makes Smartest both smarter (depth where it counts) and cheaper (no waste on easy turns).
-  const _explicitModel = !!(reqModel && reqModel !== 'auto' && /^claude-[a-z0-9.\-]+$/i.test(reqModel));
+  // (_explicitModel is defined earlier, before the candidate list is built.)
   let _smartHard = false;
   if (b.smart) {
     const _txt = String(prompt || '');
@@ -591,7 +598,15 @@ async function handleChat(event, user) {
     ? '\n\nTWO MORE REASONING HABITS: (g) RESTATE THE GOAL - before answering a hard request, briefly restate what a correct, complete answer must achieve, so you solve the actual problem and not a nearby one. (h) COMPARE SOLUTIONS - when more than one approach exists, weigh two or three briefly and pick the best with a reason, instead of grabbing the first that comes to mind.'
       + '\nTHREE MORE: (i) VERIFICATION PASS - after drafting your answer, re-derive the key result a second way and check the two agree before sending; if they disagree, find out why. (j) PRE-MORTEM - before finalizing a plan or design, ask "if this fails in production, what is the most likely reason?" and address it up front. (k) SCOPE DISCIPLINE - answer exactly what was asked at the right depth; do not over-build or under-build.'
     : '';
-  const system = buildBriefing(ownerVerified, persona) + MEMORY + LIVE + AWARE + ENGINE_BOOST + NICOLLE_CLEARANCE + lessonText + '\n\nTask mode: ' + modeInstr + extra + SMART_BOOST + _ingredients + _webState;
+  // SPEED — PROMPT CACHING SPLIT: the persona doctrine (buildBriefing) is large (6-8k tokens) and is
+  // IDENTICAL on every turn for a given persona. MEMORY and LIVE change every couple of turns. When
+  // everything sat in ONE cached block, any memory change invalidated the whole cache and the model
+  // re-processed the entire doctrine on nearly every message — the real source of the delay.
+  // Now: block 1 = the static doctrine (CACHED, reused across turns); block 2 = the small dynamic
+  // tail (memory, live state, lessons, task mode), which is cheap to re-process.
+  const _sysStatic = buildBriefing(ownerVerified, persona) + AWARE;
+  const _sysDynamic = MEMORY + LIVE + ENGINE_BOOST + NICOLLE_CLEARANCE + lessonText + '\n\nTask mode: ' + modeInstr + extra + SMART_BOOST + _ingredients + _webState;
+  const system = _sysStatic + _sysDynamic;  // kept for any code that reads the full string
 
   // HONEST WEB SEARCH: each persona uses the web_search tool ITSELF when web is on. No injection,
   // no fabricated "from Nicolle" findings, no fake handoff. Karam searches when you ask Karam;
@@ -658,9 +673,13 @@ async function handleChat(event, user) {
   }
 
   let text = null, usedModel = null, lastErr = null;
+  const _modelFailures = [];   // records WHY a model was skipped, so the fallback is never silent
   for (let ci = 0; ci < candidates.length; ci++) {
     const m = candidates[ci];
-    const apiBody = { model: m, max_tokens: maxTokens, system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }], messages };
+    const apiBody = { model: m, max_tokens: maxTokens, system: [
+      { type: 'text', text: _sysStatic, cache_control: { type: 'ephemeral' } },  // big, static -> CACHED across turns
+      { type: 'text', text: _sysDynamic }                                        // small, changes -> not cached
+    ], messages };
     // Clamp to this model's real max output so a high builder ceiling never 400s.
     var _modelMax = maxOutFor(m);
     if (apiBody.max_tokens > _modelMax) apiBody.max_tokens = _modelMax;
@@ -842,8 +861,11 @@ async function handleChat(event, user) {
     }
     lastErr = { status: r.status, error: (data && data.error && data.error.message) || 'Anthropic API error.', triedModel: m };
     if (modelUnavailable(r.status, data)) {
+      // HONEST FALLBACK: remember why this model was dropped, so the operator can SEE it in the
+      // reply instead of silently getting a different model than the one they picked.
+      _modelFailures.push(m + ': ' + ((data && data.error && data.error.message) || ('HTTP ' + r.status)));
       try { _blocked[m] = Date.now() + 60000; writeJSON(null, 'model:blocked', _blocked).catch(function () {}); } catch (e) {}
-      continue;  // key can't use this model -> fall back, and skip it for 5 min
+      continue;  // key can't use this model -> fall back, and skip it for 1 min
     }
     break; // a real error (rate limit / auth / server) — stop and report it
   }
@@ -860,7 +882,13 @@ async function handleChat(event, user) {
       ? AEGIS.assessFull({ fidelity, answer: text, delivered: true, mode: b.mode || 'builder' })
       : AEGIS.assess({ fidelity, answer: text, delivered: true, mode: b.mode || 'builder' });
   }
-  return json(200, { text, model: usedModel, aegis, owner: ownerVerified, persona: persona, websearched: _searchRan, sources: _srcCount });
+  // HONEST MODEL REPORTING: if the operator asked for a specific model (or 'auto' = the latest
+  // flagship) and we ended up on a different one, say WHY — never swap models silently.
+  var _modelNote = null;
+  if (_modelFailures.length && usedModel) {
+    _modelNote = 'Fell back to ' + usedModel + '. Tried first: ' + _modelFailures.join(' | ');
+  }
+  return json(200, { text, model: usedModel, modelNote: _modelNote, aegis, owner: ownerVerified, persona: persona, websearched: _searchRan, sources: _srcCount });
 };
 
 // Exported so the background function (chat-background.js) reuses the identical logic.
