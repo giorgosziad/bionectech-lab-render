@@ -734,6 +734,33 @@ async function handleChat(event, user) {
     if (b.web && (persona === 'nicolle' || persona === 'karam' || persona === 'hakim')) {
       apiBody.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }];
     }
+    // ── BIONECTECH MCP CONNECTORS ────────────────────────────────────────────────
+    // The governed connectors (RxSmart, BagPing, OncoDefy CDS). Each is Bearer-gated and
+    // keeps its own SHA-256 audit chain; every tool output carries its regulatory note.
+    // Fails SAFE: if the token or the URLs are not set in env, nothing is attached and the
+    // chat behaves exactly as before. Turned on per-turn by the Connectors toggle (b.mcp).
+    var _mcpBeta = false;
+    if (b.mcp && process.env.MCP_TOKEN) {
+      var _mcpAll = [
+        { name: 'rxsmart',  url: process.env.MCP_RXSMART_URL  || '' },
+        { name: 'bagping',  url: process.env.MCP_BAGPING_URL  || '' },
+        { name: 'oncodefy', url: process.env.MCP_ONCODEFY_URL || '' }
+      ].filter(function (s) { return !!s.url; });
+      if (_mcpAll.length) {
+        apiBody.mcp_servers = _mcpAll.map(function (s) {
+          return {
+            type: 'url',
+            url: String(s.url).replace(/\/+$/, '') + '/mcp',
+            name: s.name,
+            authorization_token: process.env.MCP_TOKEN
+          };
+        });
+        apiBody.tools = (apiBody.tools || []).concat(_mcpAll.map(function (s) {
+          return { type: 'mcp_toolset', mcp_server_name: s.name };
+        }));
+        _mcpBeta = true;
+      }
+    }
     let r, data;
     // ABSOLUTE SAFEGUARD: adaptive thinking needs adequate max_tokens for thinking + answer. Guarantee it
     // here, right before the call, no matter what path set the budget — so the request can never be
@@ -753,9 +780,11 @@ async function handleChat(event, user) {
     var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var _to = _ac ? setTimeout(function(){ try { _ac.abort(); } catch (e) {} }, _deadlineMs) : null;
     try {
+      var _hdrs = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' };
+      if (_mcpBeta) _hdrs['anthropic-beta'] = 'mcp-client-2025-11-20';
       r = await fetchWithRetry(ANTHROPIC_URL, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        headers: _hdrs,
         body: JSON.stringify(apiBody),
         signal: _ac ? _ac.signal : undefined,
       });

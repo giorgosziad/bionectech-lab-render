@@ -167,6 +167,7 @@
         <div class="lr"><span>Imagine</span><input id="temp" type="range" min="0" max="1" step="0.05" value="1"><span id="tempV">1.0</span></div>
         <div class="lr"><span>Assistant</span><button id="personaKaram" type="button">Karam</button><button id="personaNicolle" type="button">Nicolle</button><button id="personaKarim" type="button">Karim</button><button id="personaGiorgos" type="button">Giorgos</button><button id="personaHakim" type="button">Galen</button><button id="personaElias" type="button">Elias</button><button id="personaKostas" type="button">Kostas</button><span class="g" style="font-size:10px;color:var(--soft)">Nicolle = notes, minutes, emails</span></div>
         <div class="lr"><span>Web search</span><button id="webBtn" type="button">off</button><span class="g" style="font-size:10px;color:var(--soft)">Karam and Nicolle can search the live web</span></div>
+        <div class="lr"><span>Connectors</span><button id="mcpBtn" type="button">off</button><span class="g" style="font-size:10px;color:var(--soft)">RxSmart &middot; BagPing &middot; OncoDefy &mdash; governed, audited MCPs</span></div>
         <div class="lr"><span>Fast</span><button id="fastBtn" type="button">off</button><span class="g" style="font-size:10px;color:var(--soft)">quicker replies (Haiku)</span></div>
         <div class="lr"><span>Smartest</span><button id="smartBtn" type="button">off</button><span class="g" style="font-size:10px;color:var(--soft)">maximum reasoning — AEGIS engine + newest model (auto) + deep thinking</span></div>
         <div class="lr"><span>Code mode</span><button id="codeBtn" type="button">off</button><span class="g" style="font-size:10px;color:var(--soft)">auto when you attach a file (admin); toggle forces it for text too</span></div>
@@ -571,7 +572,7 @@ function send(){
   // that's the accepted tradeoff for maximum depth.)
   // SPEED: honour the Fast / Smartest toggles instead of forcing the deepest brain on every turn.
   // Smartest OFF = normal full-model reply, fast. Smartest ON = extended thinking when you want depth.
-  var _payload={prompt:prompt,history:history,files:files,model:$('model').value,mode:(_hasFile?'builder':mode),temperature:temp,engine:engineOn,ownerCode:ownerCode,web:webOn,fast:fastOn,smart:(smartOn || _hasFile),persona:personaSel};
+  var _payload={prompt:prompt,history:history,files:files,model:$('model').value,mode:(_hasFile?'builder':mode),temperature:temp,engine:engineOn,ownerCode:ownerCode,web:webOn,mcp:mcpOn,fast:fastOn,smart:(smartOn || _hasFile),persona:personaSel};
   // With deepest thinking on, file fixes need the 15-min background window. Route files to background;
   // if it isn't deployed, runBackground automatically falls back to a capped sync path.
   // ROUTING: the synchronous 'chat' function is always mounted and reliable. The background
@@ -880,6 +881,10 @@ var _pg=$('personaHakim'); if(_pg) _pg.addEventListener('click',function(){ pers
 paintPersona();
 var _asw=$('assistantSwitch'); if(_asw) _asw.addEventListener('click',function(){ personaSel=(personaSel==='karam'?'nicolle':personaSel==='nicolle'?'karim':personaSel==='karim'?'giorgos':personaSel==='giorgos'?'hakim':personaSel==='hakim'?'elias':personaSel==='elias'?'kostas':'karam'); if(personaSel==='nicolle'&&typeof nicolleOK==='function'&&!nicolleOK()){ personaSel='karim'; } try{sessionStorage.setItem('bnt_persona',personaSel);}catch(e){} paintPersona(); toast(personaSel==='nicolle'?'Nicolle is active.':personaSel==='karim'?'Karim is active - oversight and quality gate.':personaSel==='giorgos'?'Giorgos is active - founder standards.':personaSel==='hakim'?'Galen is active - clinical colleague.':personaSel==='elias'?'Elias is active - sales & marketing.':personaSel==='kostas'?'Kostas is active - capital & finance.':'Karam is active.'); });
 function paintWeb(){ var b=$('webBtn'); if(b) b.textContent=webOn?'on':'off'; }
+var mcpOn=false; try{ mcpOn=sessionStorage.getItem('bnt_mcp')==='1'; }catch(e){}
+function paintMcp(){ var b=$('mcpBtn'); if(b) b.textContent=mcpOn?'on':'off'; }
+var _mcb=$('mcpBtn'); if(_mcb) _mcb.addEventListener('click',function(){ mcpOn=!mcpOn; try{ sessionStorage.setItem('bnt_mcp',mcpOn?'1':'0'); }catch(e){} paintMcp(); toast(mcpOn?'Connectors on \u2014 the assistant can call the RxSmart, BagPing and OncoDefy MCPs.':'Connectors off.'); });
+paintMcp();
 function paintFast(){ var b=$('fastBtn'); if(b) b.textContent=fastOn?'on':'off'; }
 function paintSmart(){ var b=$('smartBtn'); if(b) b.textContent=smartOn?'on':'off'; }
 var _wb=$('webBtn'); if(_wb) _wb.addEventListener('click',function(){ webOn=!webOn; try{ sessionStorage.setItem('bnt_web',webOn?'1':'0'); }catch(e){} paintWeb(); toast(webOn?'Web search on — the assistant can search the live web.':'Web search off.'); });
