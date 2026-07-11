@@ -581,7 +581,15 @@ async function handleChat(event, user, res) {
   // full capability. Fail-safe direction: an unmatched message is treated as work, never as chit-chat.
   var _trivial = !_wantsBuild && _p.length <= 30 && !/[?]/.test(_p) &&
     /^(hi|hii+|hey|hello|helo|yo|hiya|sup|good (morning|afternoon|evening)|morning|thanks|thank you|thx|ty|ok|okay|k|cool|nice|great|perfect|got it|understood|noted|yes|no|yep|nope|sure|please|go ahead|continue|proceed)[\s!.,\u2019']*$/i.test(_p);
-  if (_wantsBuild) {
+  // A DOCUMENT is not a codebase. Handing Fable a 128,000-token ceiling to write a five-slide deck
+  // made it plan (and think) for an enormous answer — a PowerPoint was taking minutes. A PDF, deck,
+  // Word doc or spreadsheet almost never needs more than ~32k. Only a real CODE build (a whole file,
+  // a project, a zip) gets the full ceiling.
+  var _isDocFile = /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|word document|slide deck|deck|slides)\b/i.test(_p)
+                   && !/\b(index\.html|\.js\b|\.css\b|codebase|repo|project|zip|whole site|full site)\b/i.test(_p);
+  if (_wantsBuild && _isDocFile) {
+    maxTokens = Math.min(Math.max(maxTokens, 24000), 32000);   // documents: generous, but sane
+  } else if (_wantsBuild) {
     // A full project / multi-file zip delivery can be large — give it a HIGH output ceiling so the
     // model can write every file completely and never truncate (partial zip). Capped per-model below.
     maxTokens = Math.max(maxTokens, 128000);
@@ -1125,6 +1133,14 @@ async function handleChat(event, user, res) {
       // If we aborted on the deadline on a SYNC turn, retry ONCE with NO thinking so the user
       // gets a fast answer instead of a 504. (Omit thinking entirely = no extended thinking.)
       var _aborted = e && (e.name === 'AbortError' || /abort/i.test(String(e && e.message)));
+      // FAIL FAST: on a sync deadline abort we used to retry, and then fall through to the NEXT model
+      // with a fresh 88s deadline each time — so a slow turn could run for minutes while the operator
+      // watched a clock climb. One retry without thinking is fair; after that, STOP and say so.
+      if (_aborted && !b.bg && apiBody._noThinkRetry) {
+        _modelFailures.push(m + ' timed out');
+        lastErr = { status: 504, error: 'That took too long and was stopped. Try a smaller ask, or pick Claude Sonnet 4.6 (much faster) for file jobs.' };
+        break;
+      }
       if (_aborted && !b.bg && !apiBody._noThinkRetry) {
         try {
           var _fastBody = { model: m, max_tokens: Math.max(8000, maxTokens), system: apiBody.system, messages: messages, _noThinkRetry: true };
