@@ -1253,7 +1253,14 @@ async function handleChat(event, user, res, onProgress) {
     // Stream from Anthropic internally and count the tokens as they land. Report the truth to the
     // job record every second. The operator sees what is ACTUALLY happening, not a clock guess.
     if (onProgress) {
-      try { onProgress({ stage: 'calling', model: m }); } catch (e) {}
+      // "CALLING" WAS A DEAD END. The progress timer only started AFTER the connection opened — but on a
+      // large context the model can take MINUTES to return its first byte, so the display sat on
+      // "calling" with no clock and looked hung. A timer starts BEFORE the fetch and cannot go quiet.
+      var _cT0 = Date.now();
+      var _cHb = setInterval(function () {
+        try { onProgress({ stage: 'calling', model: m, chars: 0, tokens: 0, waited: Math.round((Date.now() - _cT0) / 1000) }); } catch (e) {}
+      }, 1000);
+      try { onProgress({ stage: 'calling', model: m, chars: 0, tokens: 0, waited: 0 }); } catch (e) {}
       var _pHdrs = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' };
       if (_mcpBeta) _pHdrs['anthropic-beta'] = 'mcp-client-2025-11-20';
       var _pRes = null;
@@ -1264,6 +1271,7 @@ async function handleChat(event, user, res, onProgress) {
           signal: _ac ? _ac.signal : undefined
         });
       } catch (e) { _pRes = null; }
+      try { clearInterval(_cHb); } catch (e) {}   // connected (or failed) — the next phase takes over
 
       if (_pRes && _pRes.ok && _pRes.body) {
         var _pTxt = '', _pStop = '', _pBuf = '', _pLast = 0, _pTd = new TextDecoder('utf-8');
