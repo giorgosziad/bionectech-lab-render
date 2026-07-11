@@ -199,7 +199,7 @@
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build MSG-1720</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build FIX-1745</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -534,7 +534,7 @@ function runBackground(payload, prompt){
   var _bgTick = setInterval(function(){
     var secs = Math.round((Date.now() - _bgT0)/1000);
     var lbl = '\u2026 ' + (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':'Karam') + ' is working \u2014 ' + secs + 's \u2026'
-            + (secs > 20 ? ((files && files.length) ? ' (reading your file \u2014 this is real work)'
+            + (secs > 20 ? ((payload && payload.files && payload.files.length) ? ' (reading your file \u2014 this is real work)'
                           : (webOn ? ' (searching the web \u2014 each search takes a moment)'
                           : ' (thinking it through)')) : '');
     if(_bgEl){ _bgEl.textContent = lbl; }
