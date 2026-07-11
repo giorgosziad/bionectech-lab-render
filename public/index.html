@@ -195,7 +195,7 @@
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build STREAM-FIX-1040</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build FILES-1055</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -417,7 +417,7 @@ $('renProj').addEventListener('click',function(){if(!current)return;var n=(windo
 $('delProj').addEventListener('click',function(){if(!current)return;if(!window.confirm('Delete project?'))return;projects=projects.filter(function(p){return p.id!==current.id;});if(projects.length===0)projects=[{id:newId(),name:'Project 1',turns:[],updated:Date.now()}];current=projects[0];renderProjects();renderTurns();saveData();});
 
 function addTurn(role,text){current.turns=current.turns||[];current.turns.push({role:role,text:text,persona:(role!=='you'?personaSel:undefined),ts:Date.now()});current.updated=Date.now();renderTurns();renderProjects();saveData();}
-function addTurnA(role,text,aegis,model,persona,websearched,modelNote){current.turns=current.turns||[];var who=(role!=='you')?(persona||personaSel):undefined;var _turn={role:role,text:text,aegis:aegis||null,model:model||null,modelNote:modelNote||null,persona:who,websearched:!!websearched,ts:Date.now()};current.turns.push(_turn);current.updated=Date.now();renderTurns();renderProjects();saveData();if(role==='claude' && typeof text==='string' && text.indexOf('FILE_DELIVERY')>=0){ /* JSON delivery disabled (it truncates to empty). Strip the block from view only; real downloads come from labeled code blocks via extractFilesFromText. */ try{ var _o=text.indexOf('\u2039\u2039FILE_DELIVERY'); if(_o>=0){ var _c=text.indexOf('\u2039\u2039/FILE_DELIVERY'); var _end=(_c>=0)?(text.indexOf('\u203A\u203A',_c)+2):text.length; var cleaned=(text.slice(0,_o)+text.slice(_end)).trim(); if(cleaned!==text){ _turn.text=cleaned; renderTurns(); saveData(); } } }catch(e){} } }
+function addTurnA(role,text,aegis,model,persona,websearched,modelNote){current.turns=current.turns||[];var who=(role!=='you')?(persona||personaSel):undefined;var _turn={role:role,text:text,aegis:aegis||null,model:model||null,modelNote:modelNote||null,persona:who,websearched:!!websearched,ts:Date.now()};current.turns.push(_turn);current.updated=Date.now();renderTurns();renderProjects();saveData();if(role==='claude' && typeof text==='string' && text.indexOf('FILE_DELIVERY')>=0){ deliverFiles(_turn); } }
 async function bigFileFlow(userTask, bigText, otherFiles, mode, temp){
   var task=userTask||'Review the attached document.';
   addTurn('you', task); $('send').disabled=true;
@@ -626,6 +626,7 @@ function send(){
             var tt=current.turns[_sIdx];
             if(tt){ tt.aegis=meta.aegis||null; tt.model=meta.model||null; tt.modelNote=meta.modelNote||null; tt.persona=meta.persona||personaSel; tt.websearched=!!meta.websearched; }
             renderTurns(); saveData();
+            if(tt) deliverFiles(tt);   /* PDF/PPTX/DOCX/XLSX get BUILT here on the streaming path */
             if(autoRead) speak(full, (meta&&meta.persona)||personaSel);
             pushLive(personaSel, prompt, full);
           }
@@ -1360,6 +1361,24 @@ $('exportBtn').addEventListener('click',function(){ if(!current) return; var lin
 $('checkBtn').addEventListener('click',function(){ toast('Checking...'); api('me',{method:'GET'}).then(function(r){ if(r.ok&&r.data){ toast('Connected as '+r.data.desk+' ('+r.data.role+'). '+(r.data.unlimited?'Unlimited time.':(r.data.remainingMin+' min left today.'))); } else if(r.status===401){ toast('Session expired - sign in again.'); } else { toast('Server reachable but: '+((r.data&&r.data.error)||('HTTP '+r.status))); } }).catch(function(){ toast('Could not reach the server.'); }); });
 $('clearBtn').addEventListener('click',function(){ if(!current) return; if(!window.confirm('Clear all messages in this project?')) return; current.turns=[]; renderTurns(); renderProjects(); saveData(); });
 
+/* ── REAL FILE DELIVERY ────────────────────────────────────────────────────────────
+   The FILE_DELIVERY block was DISABLED (strip-from-view only), so asking a colleague for a
+   PDF / PPTX / DOCX / XLSX printed the raw JSON at you and produced no file. Every builder
+   (buildPdf, buildDocx, buildPptx, buildXlsx) and every library (jspdf, docx, pptxgenjs,
+   xlsx, jszip) was ALREADY loaded and simply never called. This turns it on, for BOTH the
+   streaming and the buffered path. */
+function deliverFiles(turn){
+  if(!turn || typeof turn.text !== 'string') return;
+  if(turn.text.indexOf('FILE_DELIVERY') < 0) return;
+  try{
+    KaramDeliver.process(turn.text).then(function(cleaned){
+      if(typeof cleaned === 'string' && cleaned !== turn.text){
+        turn.text = cleaned;
+        renderTurns(); saveData();
+      }
+    }).catch(function(e){ toast('Could not build that file: ' + ((e && e.message) || 'unknown')); });
+  }catch(e){ toast('Could not build that file.'); }
+}
 /* ===== KARAM/NICOLLE FILE DELIVERY — build & download ANY file type in-browser ===== */
 var KaramDeliver = (function(){
   var OPEN="\u2039\u2039FILE_DELIVERY\u203A\u203A", CLOSE="\u2039\u2039/FILE_DELIVERY\u203A\u203A";
