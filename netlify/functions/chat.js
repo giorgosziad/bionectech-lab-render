@@ -953,7 +953,13 @@ async function handleChat(event, user, res, onProgress) {
   // A FULL FILE REBUILD IS NOT A CHAT TURN. Two files + web search + rewriting an entire application
   // is genuinely minutes of work. 300s was still not enough and it was cutting off real work. Give a
   // file job the room it actually needs; ordinary chat still fails fast so it can never hang.
-  const _turnBudgetMs = b.bg ? (18 * 60 * 1000) : (_isFileJob ? (10 * 60 * 1000) : 85000);   // files: 5 min. chat: 85s.
+  // THE BUDGET MUST MATCH THE REAL WORK, not just whether the word "PDF" appears. A deep analysis on
+  // a thinking model with WEB SEARCH ON is heavy work: each search alone costs 40-60s before a word is
+  // written. Giving it 85s guaranteed failure. Heavy work now gets the long window whether it is a
+  // file, a web-research turn, a deep-model turn, or a long prompt. Only genuinely light chat stays at 85s.
+  var _deepModel = /opus|fable|mythos/i.test(String(reqModel || m || ''));
+  var _heavyTurn = _isFileJob || b.web || (b.smart && _deepModel) || (_deepModel && String(prompt||'').length > 600);
+  const _turnBudgetMs = b.bg ? (18 * 60 * 1000) : (_heavyTurn ? (10 * 60 * 1000) : 85000);   // files: 5 min. chat: 85s.
   const _turnStart = Date.now();
   const _turnEnd = _turnStart + _turnBudgetMs;
   const _msLeft = function () { return _turnEnd - Date.now(); };
