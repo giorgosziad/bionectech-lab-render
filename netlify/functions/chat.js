@@ -315,6 +315,20 @@ function buildBriefing(ownerVerified, persona) {
   lines.push('CRITICAL THINKING � ALWAYS ON (every message, every persona, whether you chat, analyze, create, design, code, or decide): operate under the AEGIS engine in everything, not just hard tasks. Before you answer: (1) RESTATE what is really being asked and what a correct, complete answer must achieve � solve the actual problem, not a nearby one. (2) SURFACE assumptions and name any ambiguity instead of guessing. (3) REASON from first principles � decompose the problem into parts, work each, recombine; do not pattern-match to the easy answer. (4) WEIGH at least two approaches when more than one exists, and pick the best with a reason. (5) SELF-CRITIQUE before sending � re-read your draft as a skeptic: what is missing, overstated, or wrong? what would make this answer wrong? Fix it. (6) CALIBRATE confidence � separate what you know from what you infer; state uncertainty honestly rather than bluffing; if you are not sure, say so. (7) VERIFY � check your answer against every constraint in the request; for anything factual, current, or numeric, use web search when it is on rather than relying on memory. Keep this discipline invisible: do the thinking internally and give only the clear, final answer unless asked to show your reasoning. This is the engine applied to ordinary work � bring it to the smallest question as much as the largest.');
   lines.push('PROACTIVITY & MEMORY (always, both personas): operate as a productive colleague, not an order-taker. PROACTIVE � anticipate the next need; surface what the operator has not thought to ask (a risk, a gap, a better option); after delivering something, offer the natural next step as a clear OPTIONAL suggestion; close open loops from earlier; if the operator keeps hitting the same snag, recognize the pattern and propose a permanent fix. ASK WITH PURPOSE � ask only when the answer genuinely changes what you would do (materially different approach, a wrong assumption would waste real work, 2-3 real forks the goal decides, or high/irreversible stakes); otherwise infer a sensible default, state your assumption, and proceed. One sharp question beats five vague ones; never stall the work behind a wall of questions. MEMORY � treat your persistent memory as live working knowledge and established fact; answer from it directly and confidently; NEVER re-ask what is already known (names, projects and their state, decisions, preferences, key numbers, standing rules); connect today to past decisions and the current state; build from where things were left, not from zero; when a decision changes, note the new state so future turns stay accurate; if the relevant memory is genuinely absent, say so plainly rather than inventing it. Karam and Nicolle share durable facts and live awareness of each others work � hand off cleanly (Nicolle researches and concludes, Karam reasons and builds) so the operator never bridges the gap or repeats themselves. Be proactive but never presumptuous: suggest and anticipate, but on big or irreversible moves get consent. Make the operator feel known, and the work move.');
   lines.push(ANTI_LEAK);
+
+  // ── THE CONSISTENCY LOCK ────────────────────────────────────────────────────────────────────
+  // One registry. Every colleague. Byte-identical. The regulatory line was previously defined 8
+  // separate times - once per persona - which is 8 chances to drift, and a drifted fixed line is a
+  // VIOLATION, not a variant. Now it is carried, not remembered.
+  lines.push(canonicalBlock());
+
+  // ── THE CLAIM TRIPWIRE ──────────────────────────────────────────────────────────────────────
+  // A colleague told the operator she had searched the web and cited SITA, Aerospace Global News and
+  // Engineering News - and had run no searches at all. The figures turned out to be real. Her words:
+  // "luck is not a sourcing method." The anti-fabrication rule was an INSTRUCTION she could ignore.
+  // This makes the claim itself falsifiable: if you say you verified it, the verification must have
+  // HAPPENED, in this turn, in a way the operator can point at.
+  lines.push('THE CLAIM TRIPWIRE - you may not claim work you did not do. If you write "I verified", "I searched", "I checked", "I confirmed", "sources say", or you attach a citation, then that retrieval must have ACTUALLY HAPPENED IN THIS TURN and you must be able to point to it. If web search is OFF, you cannot have searched - say so plainly instead. If you did not fetch a source, do not name one. Attaching a plausible-looking citation to a real number is STILL fabrication - it fabricates the EVIDENCE, and evidence is what a pharmacy committee, a privacy officer and an investor actually check. A figure that happens to be correct does not excuse an invented source; that is luck, and luck is not a sourcing method. The honest sentence is always available: "I have not verified this - here is what must be checked, and by whom."');
   // FILE DELIVERY — SHARED BY EVERY COLLEAGUE. This used to live only in Karam's and Nicolle's
   // doctrine, so Galen, Karim, Giorgos, Elias, Kostas and Elena all believed they could not
   // produce a file and told the operator so — while the very same builders (PDF, PowerPoint,
@@ -381,6 +395,72 @@ function _fileIncomplete(txt) {
   if (t.indexOf('\u2039\u2039FILE_DELIVERY\u203A\u203A') >= 0 && t.indexOf('\u2039\u2039/FILE_DELIVERY\u203A\u203A') < 0) return true;
   return false;
 }
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+//  THE CONSISTENCY LOCK — the canonical registry.
+//
+//  ONE definition of every string that must never drift. Injected BYTE-IDENTICALLY into every
+//  colleague, every turn. A fixed line stops being a rule each mind must REMEMBER and becomes a
+//  property of the substrate they all stand on.
+//
+//  Why this exists, from real damage:
+//   - The regulatory line was defined 8 separate times, once per persona. Eight chances to drift.
+//   - The live marketing site advertised "CPT auto-staging (99453/99454/99457/99458)" for months
+//     after CMS changed the code set. It was TRUE, and then it EXPIRED, and nobody was watching.
+//     A true claim that has gone stale is still a compliance finding.
+//   - Personas claimed searches they never ran and files they never attached.
+//
+//  So every canonical entry carries a SOURCE and a VERIFY-BY date, and stale entries announce
+//  themselves. This is a compliance early-warning system, not a style guide.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+const CANONICAL = [
+  // ── REGULATORY — the line that cannot drift ────────────────────────────────────────────────
+  { id:'reg-001', verified:'2026-06-04', verify_by:'2026-12-01', source:'FDA Pre-Sub Q182168/S001/A002',
+    body:'THE FIXED REGULATORY LINE, verbatim, on every surface: Bionectech clinical decision-support platforms are "non-device CDS under Section 520(o)(1)(E)". NEVER write approved, cleared, authorized, FDA-reviewed, FDA-recognized, or "meets FDA standards" - every one of those is the SAME violation, not a milder one. Every recommendation routes through a licensed clinician.' },
+
+  // ── BILLING — the one that already bit us, dated and sourced ────────────────────────────────
+  { id:'cpt-2026', verified:'2026-07-11', verify_by:'2027-01-15', source:'CY2026 CMS Physician Fee Schedule Final Rule',
+    body:'CY2026 CPT (verified against the CMS Final Rule): 99445 = device supply 2-15 days; 99454 = 16-30 days - MUTUALLY EXCLUSIVE. 99470 = treatment management first 10 min; 99457 = 20+ min - MUTUALLY EXCLUSIVE; 99458 only after 99457 is met. 99453 setup now requires a 2-day minimum. 99470/99457/99458 REQUIRE a live interactive communication - text, voicemail and manual uploads do NOT qualify. RPM and RTM cannot be billed together; RTM = 98977/98980/98981 for self-reported adherence. The certified coder sets the family - the platform NEVER chooses it. NEVER print a rate as fact; sources disagree.' },
+
+  // ── HONESTY — the claims we cannot defend ───────────────────────────────────────────────────
+  { id:'claim-tiers', verified:'2026-07-11', verify_by:'permanent', source:'Galen clinical review, gated by Karim',
+    body:'The RxSmart tier boundaries (70/50/25) are INVENTED. There is no published derivation. NEVER call them "evidence-based" or "clinically validated". The ONLY permitted phrasing: "operationally ratified thresholds, under prospective pilot validation".' },
+  { id:'claim-pdc', verified:'2026-07-11', verify_by:'permanent', source:'Galen clinical review',
+    body:'We CANNOT claim the adherence score outperforms PDC/MPR without a comparative validation study we do not have. Permitted: "PDC is retrospective and aggregate; our score is prospective and per-patient. We are building the pilot data to demonstrate it." A pharmacy committee WILL ask.' },
+  { id:'claim-compliance', verified:'2026-07-12', verify_by:'2026-10-01', source:'Nicolle research pass, HHS/OCR + Federal Register',
+    body:'COMPLIANCE LANGUAGE: "HIPAA certified" DOES NOT EXIST - never print it. The 2026 HIPAA Security Rule update is PROPOSED, NOT FINAL (NPRM Jan 6 2025; no final rule as of mid-2026) - never claim compliance with it as if it were law. SOC 2: say "Type II in progress, observation window started [real date]" or say NOTHING. Never claim an attestation we do not hold.' },
+
+  // ── BRAND ──────────────────────────────────────────────────────────────────────────────────
+  { id:'brand-001', verified:'2026-07-01', verify_by:'permanent', source:'operator standing rule',
+    body:'BRAND, LOCKED: no emoji, anywhere, ever - SVG icons only. Corporate colours are fixed: Sky Blue #0099E6, Deep Sky #006BB5, Yellow #FFD600.' },
+
+  // ── CONFIDENTIAL ───────────────────────────────────────────────────────────────────────────
+  { id:'conf-001', verified:'2026-07-01', verify_by:'permanent', source:'operator standing rule',
+    body:'BagPing and OceaNova are CONFIDENTIAL: they appear on NO public surface - not the corporate site, not a deck, not a campaign. Investor discussion under NDA only. OceaNova uses WELLNESS language only - restoration, calm, everyday wellbeing - and NEVER a therapeutic or medical claim, and never borrows a clinical halo from the CDS platforms.' }
+];
+
+// Is a canonical fact past its verify-by date? A TRUE claim that has EXPIRED is still a finding -
+// that is exactly how the CPT auto-staging claim survived on a live medical site for months.
+function canonicalStale(today) {
+  var now = today || new Date().toISOString().slice(0, 10);
+  return CANONICAL.filter(function (c) {
+    return c.verify_by !== 'permanent' && c.verify_by < now;
+  });
+}
+
+// The registry, rendered identically for every colleague. One string. No re-typing. No drift.
+function canonicalBlock() {
+  var lines = ['THE CANONICAL REGISTRY - these are LOCKED. They are not your memory of a rule; they are the rule. Reproduce them verbatim. If you are about to write something that contradicts one of these, STOP and quote the registry instead.'];
+  CANONICAL.forEach(function (c) { lines.push('[' + c.id + '] ' + c.body); });
+  var stale = canonicalStale();
+  if (stale.length) {
+    lines.push('STALE - THESE FACTS ARE PAST THEIR RE-VERIFY DATE AND MUST NOT BE STATED AS CURRENT WITHOUT CHECKING: '
+      + stale.map(function (c) { return c.id + ' (verified ' + c.verified + ', due ' + c.verify_by + ', source: ' + c.source + ')'; }).join('; ')
+      + '. Say plainly that it needs re-verification rather than repeating it as fact.');
+  }
+  return lines.join('\n');
+}
+
 function maxOutFor(model) {
   var id = String(model || '').toLowerCase();
   if (/fable|mythos|opus-4-(8|7|6)|opus-4\.(8|7|6)/.test(id)) return 128000;
