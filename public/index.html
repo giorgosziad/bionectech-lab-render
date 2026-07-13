@@ -516,11 +516,56 @@ function loadData(){ api('data',{method:'GET'}).then(function(r){
 }).catch(function(){
   _dataFailed("Can't reach the Lab right now. Refresh to retry.");
 }); }
-function saveData(){
+/* ── PARALLEL-SAFE SAVE (read - merge - write) ──────────────────────────────────────────────
+   THE BUG: saveData() POSTed the WHOLE projects array, blind. With two windows open — one running
+   Karam, one running Kostas — each holds its own copy of every project. Tab A finishes and saves.
+   Tab B, holding a copy from BEFORE that, saves too — and Karam's entire answer is overwritten and
+   gone. Last write wins, and the loser is a conversation you cannot get back.
+   THE FIX: never write blind. RE-READ what is actually on the server, MERGE it with what we have,
+   and only then write. A project another window created or extended is kept, not clobbered.
+   AND: if the re-read FAILS, we do NOT write at all — writing a stale copy over good data is the
+   exact failure we are here to prevent. */
+function mergeProjects(remote, local){
+  var by = {};
+  (remote||[]).forEach(function(p){ if(p && p.id) by[p.id] = p; });
+  (local||[]).forEach(function(p){
+    if(!p || !p.id) return;
+    var r = by[p.id];
+    if(!r){ by[p.id] = p; return; }                       /* only we have it — keep ours */
+    var lt = (p.turns||[]).length, rt = (r.turns||[]).length;
+    if(lt > rt) by[p.id] = p;                             /* we have MORE turns — ours is newer */
+    else if(lt === rt && (p.updated||0) >= (r.updated||0)) by[p.id] = p;  /* same length, ours fresher */
+    /* else: the OTHER window has more — keep theirs. That is the whole point. */
+  });
+  return Object.keys(by).map(function(k){ return by[k]; })
+    .sort(function(a,b){ return (b.updated||0) - (a.updated||0); });
+}
+
+function saveData(force){
   /* HARD STOP: never write when the load failed. This single line is what stands between an
      expired session and losing every conversation in the Lab. */
   if(!_dataLoaded) return;
-  clearTimeout(saveT); saveT=setTimeout(function(){ api('data',{method:'POST',body:JSON.stringify({data:{projects:projects,notes:notes}})}); },600); }
+  clearTimeout(saveT);
+  saveT = setTimeout(function(){
+    /* A DELETE or RENAME is an intentional overwrite — the operator meant it. Write it straight
+       through, or a merge would helpfully resurrect the project they just deleted. */
+    if(force){
+      api('data',{method:'POST',body:JSON.stringify({data:{projects:projects,notes:notes}})});
+      return;
+    }
+    api('data',{method:'GET'}).then(function(r){
+      if(!r.ok || !r.data){ return; }                     /* read failed -> DO NOT WRITE a stale copy */
+      var d = (r.data && r.data.data) || {};
+      var merged = mergeProjects(d.projects || [], projects);
+      var curId = current && current.id;
+      projects = merged;
+      if(curId){                                          /* keep `current` pointing at the live object */
+        for(var i=0;i<projects.length;i++){ if(projects[i].id === curId){ current = projects[i]; break; } }
+      }
+      api('data',{method:'POST',body:JSON.stringify({data:{projects:projects,notes:notes}})});
+    }).catch(function(){ /* unreachable -> write nothing. Silence is safer than loss. */ });
+  }, 600);
+}
 function renderProjects(){ projects.sort(function(a,b){return (b.updated||0)-(a.updated||0);}); var s=$('project'); s.innerHTML=''; projects.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name+' ('+(p.turns?p.turns.length:0)+')';if(current&&p.id===current.id)o.selected=true;s.appendChild(o);}); }
 function renderTurns(){ var log=$('log');log.innerHTML='';var t=current&&current.turns||[];if(!t.length){log.innerHTML='<div class="empty">No messages yet. Ask something below.</div>';return;}
   t.forEach(function(turn){var d=document.createElement('div');d.className='turn '+(turn.role==='you'?'you':'claude');var w=document.createElement('div');w.className='who2';w.textContent=turn.role==='you'?'You':(turn.persona==='nicolle'?'Nicolle':turn.persona==='karim'?'Karim':turn.persona==='giorgos'?'Giorgos':turn.persona==='galen'?'Galen':turn.persona==='elias'?'Elias':turn.persona==='kostas'?'Kostas':turn.persona==='elena'?'Elena':'Karam');d.appendChild(w);var b=document.createElement('div');b.className='body';var parts=turn.text.split(/```/);for(var i=0;i<parts.length;i++){if(i%2===1){var pre=document.createElement('pre');pre.textContent=parts[i].replace(/^[a-zA-Z0-9_.-]*\n/,'');d.appendChild(pre);}else if(parts[i]){var sp=document.createElement('span');sp.textContent=parts[i];b.appendChild(sp);}}if(b.childNodes.length)d.appendChild(b);if(turn.role!=='you'&&turn.text&&turn.text!=='…'){var rb=document.createElement('button');rb.className='readbtn';rb.type='button';rb.textContent='Read aloud';rb.addEventListener('click',function(){speak(turn.text,turn.persona||'karam');});d.appendChild(rb);if(turn.model){var mt=document.createElement('span');mt.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--soft);margin-left:8px';mt.textContent=turn.model;d.appendChild(mt);}if(turn.modelNote){var mn=document.createElement('div');mn.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--gold-dim);margin-top:4px;opacity:.9';mn.textContent='\u26A0 '+turn.modelNote;d.appendChild(mn);}if(turn.aegis&&engineOn&&ROLE==='admin'){var ae=turn.aegis;var chip=document.createElement('div');chip.className='aegis '+(ae.status||'').toLowerCase();var act=ae.action+(ae.response_window?(' · '+ae.response_window):'');var tail=ae.built_in?(' · built-in · attest '+esc(ae.attest||'')):'';chip.innerHTML='<span class="dot"></span><b>'+ae.engine+' '+ae.version+'</b> · '+ae.status+' · '+esc(act)+' · input fidelity '+ae.fidelity+tail;d.appendChild(chip);}
@@ -535,8 +580,8 @@ function renderTurns(){ var log=$('log');log.innerHTML='';var t=current&&current
   log.scrollTop=log.scrollHeight; }
 $('project').addEventListener('change',function(){for(var i=0;i<projects.length;i++){if(projects[i].id===$('project').value){current=projects[i];break;}}renderTurns();});
 $('newProj').addEventListener('click',function(){var n=(window.prompt('Name this project:','Project '+(projects.length+1))||'').trim();if(!n)return;current={id:newId(),name:n,turns:[],updated:Date.now()};projects.push(current);renderProjects();renderTurns();saveData();});
-$('renProj').addEventListener('click',function(){if(!current)return;var n=(window.prompt('Rename:',current.name)||'').trim();if(!n)return;current.name=n;renderProjects();saveData();});
-$('delProj').addEventListener('click',function(){if(!current)return;if(!window.confirm('Delete project?'))return;projects=projects.filter(function(p){return p.id!==current.id;});if(projects.length===0)projects=[{id:newId(),name:'Project 1',turns:[],updated:Date.now()}];current=projects[0];renderProjects();renderTurns();saveData();});
+$('renProj').addEventListener('click',function(){if(!current)return;var n=(window.prompt('Rename:',current.name)||'').trim();if(!n)return;current.name=n;renderProjects();saveData(true);});
+$('delProj').addEventListener('click',function(){if(!current)return;if(!window.confirm('Delete project?'))return;projects=projects.filter(function(p){return p.id!==current.id;});if(projects.length===0)projects=[{id:newId(),name:'Project 1',turns:[],updated:Date.now()}];current=projects[0];renderProjects();renderTurns();saveData(true);});
 
 function addTurn(role,text){current.turns=current.turns||[];current.turns.push({role:role,text:text,persona:(role!=='you'?personaSel:undefined),ts:Date.now()});current.updated=Date.now();renderTurns();renderProjects();saveData();}
 function addTurnA(role,text,aegis,model,persona,websearched,modelNote){current.turns=current.turns||[];var who=(role!=='you')?(persona||personaSel):undefined;var _turn={role:role,text:text,aegis:aegis||null,model:model||null,modelNote:modelNote||null,persona:who,websearched:!!websearched,ts:Date.now()};current.turns.push(_turn);current.updated=Date.now();renderTurns();renderProjects();saveData();if(role==='claude' && typeof text==='string' && text.indexOf('FILE_DELIVERY')>=0){ deliverFiles(_turn); } }
