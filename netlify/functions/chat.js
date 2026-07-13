@@ -1038,7 +1038,11 @@ async function handleChat(event, user, res, onProgress) {
   // written. Giving it 85s guaranteed failure. Heavy work now gets the long window whether it is a
   // file, a web-research turn, a deep-model turn, or a long prompt. Only genuinely light chat stays at 85s.
   var _deepModel = /opus|fable|mythos/i.test(String(reqModel || m || ''));
-  var _heavyTurn = _isFileJob || b.web || (b.smart && _deepModel) || (_deepModel && String(prompt||'').length > 600);
+  // A DEEP-THINKING MODEL IS SLOW ON A SHORT QUESTION TOO. I previously gated this on prompt length
+  // (_deepModel && prompt > 600 chars), which is a stupid rule: Fable ALWAYS thinks. A one-line
+  // question to Fable still needs minutes, and it died at 85s. The model decides the budget, NOT the
+  // length of the question. Only a fast model on a light turn stays at 85s.
+  var _heavyTurn = _isFileJob || b.web || b.smart || _deepModel;
   const _turnBudgetMs = b.bg ? (18 * 60 * 1000) : (_heavyTurn ? (10 * 60 * 1000) : 85000);   // files: 5 min. chat: 85s.
   const _turnStart = Date.now();
   const _turnEnd = _turnStart + _turnBudgetMs;

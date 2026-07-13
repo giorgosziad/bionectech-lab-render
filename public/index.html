@@ -810,7 +810,9 @@ function send(){
                || (smartOn && prompt.length > 400)
                || webOn
                || _wantsFileH
-               || (_deepH && prompt.length > 600);
+               || _deepH;   /* A deep model (Fable/Opus/auto) ALWAYS goes to the background path.
+                                  It thinks before it writes, whatever the question's length. Gating
+                                  this on prompt size was wrong and killed a one-line question. */
   if(_heavyJob){ runBackground(_payload, prompt); return; }
   /* ── BUFFERED SEND (streaming reverted) ──────────────────────────────────────────
      Streaming was implemented correctly end-to-end — heartbeat, SSE parser, live painting —
