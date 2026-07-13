@@ -393,6 +393,29 @@ function _fileIncomplete(txt) {
   }
   // A delivery block that was opened and never closed.
   if (t.indexOf('\u2039\u2039FILE_DELIVERY\u203A\u203A') >= 0 && t.indexOf('\u2039\u2039/FILE_DELIVERY\u203A\u203A') < 0) return true;
+
+  // A DELIVERY BLOCK THAT IS "CLOSED" CAN STILL BE BROKEN. Kostas hit the output ceiling MID-JSON,
+  // inside the block. The markers were both present on his retry — but the JSON in the first attempt
+  // was cut in half, and a delivery block whose JSON does not PARSE renders NOTHING. The operator
+  // waits, sees no file, and calls it a bug. It IS a bug: checking for the closing marker is not the
+  // same as checking the payload is valid. Parse it. If it does not parse, the file was never made.
+  var _open = t.indexOf('\u2039\u2039FILE_DELIVERY\u203A\u203A');
+  if (_open >= 0) {
+    var _close = t.indexOf('\u2039\u2039/FILE_DELIVERY\u203A\u203A', _open);
+    if (_close > _open) {
+      var _body = t.slice(_open + 17, _close).trim();
+      try {
+        var _j = JSON.parse(_body);
+        if (!_j || !Array.isArray(_j.files) || !_j.files.length) return true;   // parsed, but no files
+        for (var _i = 0; _i < _j.files.length; _i++) {
+          var _f = _j.files[_i];
+          if (!_f || typeof _f.content !== 'string' || !_f.path) return true;   // a file with no body
+        }
+      } catch (e) {
+        return true;   // the JSON is broken -> the file will not render -> KEEP WRITING
+      }
+    }
+  }
   return false;
 }
 
