@@ -463,7 +463,24 @@ const CANONICAL = [
 
   // ── CONFIDENTIAL ───────────────────────────────────────────────────────────────────────────
   { id:'conf-001', verified:'2026-07-01', verify_by:'permanent', source:'operator standing rule',
-    body:'BagPing and OceaNova are CONFIDENTIAL: they appear on NO public surface - not the corporate site, not a deck, not a campaign. Investor discussion under NDA only. OceaNova uses WELLNESS language only - restoration, calm, everyday wellbeing - and NEVER a therapeutic or medical claim, and never borrows a clinical halo from the CDS platforms.' }
+    body:'BagPing and OceaNova are CONFIDENTIAL: they appear on NO public surface - not the corporate site, not a deck, not a campaign. Investor discussion under NDA only. OceaNova uses WELLNESS language only - restoration, calm, everyday wellbeing - and NEVER a therapeutic or medical claim, and never borrows a clinical halo from the CDS platforms.' },
+  // ─── FIELD DOCTRINE, 13 July 2026. Not facts about the world — facts about how we FAIL.
+  //     Each one cost hours the day it was learned. They are here so they cost nothing again. ───
+  { id:'dep-001', verified:'2026-07-13', verify_by:'permanent', source:'Proven FIVE times in one day: RxSmart shipped a decoy index.html; Render served a cached page; BagPing TestFlight ran an 8-day-old build while the fix sat unbuilt in the repo; a stale 52KB local copy was sent to an engineer who would have patched a file nobody runs; and a "wired" script tag pointed at a file that did not exist.',
+    text:'JUDGE THE DEPLOYED ARTIFACT, NOT THE FILE IN HAND. A commit is not a deploy. A deploy is not a build. A build is not what is on the phone. Before diagnosing anything, verify what is ACTUALLY RUNNING - curl the endpoint, read the boot log, check the build number. "It is in the repo" has been wrong every single time it mattered.' },
+
+  { id:'sil-001', verified:'2026-07-13', verify_by:'permanent', source:'The same bug, three times in one day: an empty catch(e){} hid a failed auth call for eight days and got an innocent engineer blamed; the same pattern hid the microphone failure; a guard clause that silently returns hid dead translations.',
+    text:'A SILENT FAILURE IS WORSE THAN A CRASH. catch(e){} is not error handling - it is a decision to lie. Every failure path must say what failed, to the user AND to the console. If a feature can fail quietly, it WILL, and someone will be blamed for a bug that was never theirs.' },
+
+  { id:'fab-001', verified:'2026-07-13', verify_by:'permanent', source:'A colleague stated "lang: en-US was hardcoded" as the root cause of a voice bug. It was not - the code mapped all 19 locales correctly. He had inferred it from a snippet and presented the inference as a verified finding. When challenged he owned it plainly: "I dressed an inference up as fact. Diagnosing against a remembered version instead of the real file is exactly the trap I am supposed to avoid."',
+    text:'DO NOT DIAGNOSE AGAINST A REMEMBERED FILE. If you do not have the actual source in front of you, say so and ask for it. An inference presented as a finding is a fabrication, even when the fix that follows happens to be correct. The work can be right and the story still be a lie - separate them, and say which is which.' },
+
+  { id:'fat-001', verified:'2026-07-13', verify_by:'permanent', source:'In one late-night session the operator typed a REAL patient name into a system with no BAA, typed keyboard-mash into a live medical platform, pasted a private key into a chat window twice, hard-refreshed mid-generation and killed a running job, pushed a JavaScript syntax error to production, and deleted his own translation files. Every one was fatigue, not skill.',
+    text:'FATIGUE IS A SAFETY ISSUE, NOT A CHARACTER FLAW. When the operator starts making mechanical errors - wrong file, wrong window, pasted secrets, commands typed into the wrong shell - the correct response is to say STOP, plainly, and mean it. Shipping one more fix at 1am is never worth a PHI incident or a burned key. Say it even when he does not want to hear it. ESPECIALLY then.' },
+
+  { id:'sec-001', verified:'2026-07-13', verify_by:'permanent', source:'A private key was pasted into a chat window twice and had to be rotated three times, costing an afternoon. The root cause was finally found by logging what the server ACTUALLY had: the PUBLIC key was sitting in the PRIVATE key slot (449 chars / 8 lines / "BEGIN PUBLIC KEY" instead of ~1700 chars / 28 lines / "BEGIN PRIVATE KEY").',
+    text:'NEVER ASK FOR, AND NEVER ACCEPT, A PRIVATE KEY IN CHAT. Public keys are safe and exist to be shared; private keys go from a file to the secret store and touch nothing else. And when a key is rejected, PRINT WHAT THE SERVER ACTUALLY HAS - length, first line, last line - before theorising. The answer is usually visible in the first 30 characters.' }
+
 ];
 
 // Is a canonical fact past its verify-by date? A TRUE claim that has EXPIRED is still a finding -
