@@ -572,7 +572,7 @@ function renderTurns(){ var log=$('log');log.innerHTML='';var t=current&&current
     /* Downloadable files in Karam's reply: a Download button per file, plus Download as ZIP if many. */
     var _files=extractFilesFromText(turn.text);
     if(_files.length){ var fbar=document.createElement('div'); fbar.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center';
-      _files.forEach(function(ff){ var db=document.createElement('button'); db.className='btn gold sm'; db.type='button'; db.style.cssText='white-space:nowrap'; db.textContent='⬇ '+ff.name; db.addEventListener('click',function(){ downloadFile(ff.name, ff.content); }); fbar.appendChild(db); });
+      _files.forEach(function(ff){ var db=document.createElement('button'); db.className='btn gold sm'; db.type='button'; db.style.cssText='white-space:nowrap'; db.textContent='\u2b07 '+ff.name; db.addEventListener('click',function(){ downloadFile(ff.name, ff.content); }); fbar.appendChild(db); if(/\.html?$/i.test(ff.name||'')){ var pb=document.createElement('button'); pb.className='btn sm'; pb.type='button'; pb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--sky,#0099E6)'; pb.textContent='Save as designed PDF'; pb.addEventListener('click',function(){ printHtmlToPdf(ff.content, ff.name); }); fbar.appendChild(pb); } });
       if(_files.length>1){ var zb=document.createElement('button'); zb.className='btn sm'; zb.type='button'; zb.style.cssText='white-space:nowrap;background:var(--navy-deep,#0b1020);color:#fff;border:1px solid var(--gold,#FFD600)'; zb.textContent='⬇ Download all as ZIP'; zb.addEventListener('click',function(){ downloadZip(_files, (current&&current.name?current.name.replace(/[^\w.-]+/g,'_'):'karam')+'-files.zip'); }); fbar.appendChild(zb); }
       d.appendChild(fbar);
     }
@@ -1398,6 +1398,23 @@ function buildZip(files){
   var total=0; allParts.forEach(function(p){ total+=p.length; });
   var zip=new Uint8Array(total); var pos=0; allParts.forEach(function(p){ zip.set(p,pos); pos+=p.length; });
   return zip;
+}
+function printHtmlToPdf(html, name){
+  try{
+    var ifr=document.createElement('iframe');
+    ifr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(ifr);
+    var doc=ifr.contentWindow.document;
+    doc.open(); doc.write(html); doc.close();
+    var done=false;
+    function go(){ if(done) return; done=true; try{ ifr.contentWindow.focus(); ifr.contentWindow.print(); }catch(e){ toast('Print dialog blocked - allow popups and retry.'); } setTimeout(function(){ try{ document.body.removeChild(ifr); }catch(e){} }, 60000); }
+    // give webfonts/images a moment; also try the fonts.ready promise if present
+    var waited=false;
+    try{ if(ifr.contentWindow.document.fonts && ifr.contentWindow.document.fonts.ready){ ifr.contentWindow.document.fonts.ready.then(function(){ setTimeout(go,300); }); waited=true; } }catch(e){}
+    if(!waited){ setTimeout(go, 1200); }
+    // hard fallback so it always fires
+    setTimeout(go, 2500);
+  }catch(e){ toast('Could not open the print view - use the HTML file and print to PDF manually.'); }
 }
 function downloadFile(name,content){ var u=URL.createObjectURL(new Blob([content],{type:'application/octet-stream'})); var a=document.createElement('a'); a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(u);},1500); }
 function downloadZip(files,zipName){ var z=buildZip(files); downloadFile(zipName||'karam-files.zip', z); }
