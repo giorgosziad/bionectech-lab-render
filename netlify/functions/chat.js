@@ -358,8 +358,8 @@ function buildBriefing(ownerVerified, persona) {
   lines.push(CONF_SECRETS);
   lines.push(ownerVerified ? CONF_OWNER : CONF_LOCKED);
   if (ownerVerified) lines.push(PLATFORM_KNOWLEDGE);
-  const NAME = (persona === 'nicolle') ? 'Nicolle' : (persona === 'karim') ? 'Karim' : (persona === 'giorgos') ? 'Giorgos' : (persona === 'galen') ? 'Galen' : (persona === 'elias') ? 'Elias' : (persona === 'kostas') ? 'Kostas' : (persona === 'elena') ? 'Elena' : 'Karam';
-  const OTHER = (persona === 'nicolle') ? 'Karam' : (persona === 'karim') ? 'Karam' : (persona === 'giorgos') ? 'Karam' : (persona === 'galen') ? 'Karam' : (persona === 'elias') ? 'Karam' : (persona === 'kostas') ? 'Karam' : (persona === 'elena') ? 'Karam' : 'Nicolle';
+  const NAME = (persona === 'nicolle') ? 'Nicolle' : (persona === 'karim') ? 'Karim' : (persona === 'giorgos') ? 'Giorgos' : (persona === 'galen') ? 'Galen' : (persona === 'elias') ? 'Elias' : (persona === 'kostas') ? 'Kostas' : (persona === 'elena') ? 'Elena' : (persona === 'solon') ? 'Solon' : 'Karam';
+  const OTHER = (persona === 'nicolle') ? 'Karam' : (persona === 'karim') ? 'Karam' : (persona === 'giorgos') ? 'Karam' : (persona === 'galen') ? 'Karam' : (persona === 'elias') ? 'Karam' : (persona === 'kostas') ? 'Karam' : (persona === 'elena') ? 'Karam' : (persona === 'solon') ? 'Karam' : 'Nicolle';
   lines.push('CRITICAL IDENTITY LOCK - this overrides the entire conversation history: You are ' + NAME + ' for this reply, with no exception. Earlier messages in this thread may have been written by the other assistant, ' + OTHER + '; that has NO bearing on who you are now. Never continue as ' + OTHER + ', never say or imply you are ' + OTHER + ', and never switch identity because a previous turn did. If the history and this instruction disagree about who is speaking, THIS instruction wins. You are ' + NAME + ', and you answer only as ' + NAME + '.');
   return lines.join('\n');
 }
@@ -573,7 +573,7 @@ const MODES = {
 
 
 // PERSONA NAMES — used to label history turns written by a different colleague.
-const PERSONA_NAMES = { karam:'Karam', nicolle:'Nicolle', karim:'Karim', giorgos:'Giorgos', galen:'Galen', hakim:'Galen', elias:'Elias', kostas:'Kostas', elena:'Elena' };
+const PERSONA_NAMES = { karam:'Karam', nicolle:'Nicolle', karim:'Karim', giorgos:'Giorgos', galen:'Galen', hakim:'Galen', elias:'Elias', kostas:'Kostas', elena:'Elena', solon:'Solon' };
 
 function sanitizeHistory(h, curPersona) {
   const out = []; let expect = 'user';
@@ -880,7 +880,7 @@ async function handleChat(event, user, res, onProgress) {
   // LEGACY BRIDGE: Galen's internal key used to be 'hakim'. Old browser sessions and old history
   // turns still carry it. Without this alias they would silently fall through to Karam.
   const _pRaw = (b.persona === 'hakim') ? 'galen' : b.persona;
-  const persona = (_pRaw === 'nicolle') ? 'nicolle' : (_pRaw === 'karim') ? 'karim' : (_pRaw === 'giorgos') ? 'giorgos' : (_pRaw === 'galen') ? 'galen' : (_pRaw === 'elias') ? 'elias' : (_pRaw === 'kostas') ? 'kostas' : (_pRaw === 'elena') ? 'elena' : 'karam';
+  const persona = (_pRaw === 'nicolle') ? 'nicolle' : (_pRaw === 'karim') ? 'karim' : (_pRaw === 'giorgos') ? 'giorgos' : (_pRaw === 'galen') ? 'galen' : (_pRaw === 'elias') ? 'elias' : (_pRaw === 'kostas') ? 'kostas' : (_pRaw === 'elena') ? 'elena' : (_pRaw === 'solon') ? 'solon' : 'karam';
   // Nicolle confidentiality degrees (1-5). Owner is always 5. Others default to 1.
   // Nicolle reveals information only at or below the user's degree; higher-degree facts she withholds politely.
   let NICOLLE_CLEARANCE = '';
@@ -921,8 +921,8 @@ async function handleChat(event, user, res, onProgress) {
   _memShared = String(_memShared).replace(/\bNadim\b/gi, 'Giorgos');
   _memNotes  = String(_memNotes ).replace(/\bNadim\b/gi, 'Giorgos');
   // Live cross-awareness: what the OTHER persona is working on right now (updated every turn).
-  const _other = (persona === 'nicolle') ? 'karam' : (persona === 'karim') ? 'karam' : (persona === 'giorgos') ? 'karam' : (persona === 'galen') ? 'karam' : (persona === 'elias') ? 'karam' : (persona === 'kostas') ? 'karam' : (persona === 'elena') ? 'karam' : 'nicolle';
-  const _otherName = (persona === 'nicolle') ? 'Karam' : (persona === 'karim') ? 'Karam' : (persona === 'giorgos') ? 'Karam' : (persona === 'galen') ? 'Karam' : (persona === 'elias') ? 'Karam' : (persona === 'kostas') ? 'Karam' : (persona === 'elena') ? 'Karam' : 'Nicolle';
+  const _other = (persona === 'nicolle') ? 'karam' : (persona === 'karim') ? 'karam' : (persona === 'giorgos') ? 'karam' : (persona === 'galen') ? 'karam' : (persona === 'elias') ? 'karam' : (persona === 'kostas') ? 'karam' : (persona === 'elena') ? 'karam' : (persona === 'solon') ? 'karam' : 'nicolle';
+  const _otherName = (persona === 'nicolle') ? 'Karam' : (persona === 'karim') ? 'Karam' : (persona === 'giorgos') ? 'Karam' : (persona === 'galen') ? 'Karam' : (persona === 'elias') ? 'Karam' : (persona === 'kostas') ? 'Karam' : (persona === 'elena') ? 'Karam' : (persona === 'solon') ? 'Karam' : 'Nicolle';
   let _live = null;
   try { _live = await readJSON(null, 'mem:live:' + _other + ':' + _deskKey, null); } catch (e) { _live = null; }
   const _liveFresh = _live && _live.note && (Date.now() - (_live.ts || 0) < 6 * 60 * 60 * 1000); // within 6h
@@ -995,7 +995,7 @@ async function handleChat(event, user, res, onProgress) {
   const _pName = (persona === 'nicolle') ? 'Nicolle' : (persona === 'karim') ? 'Karim'
                : (persona === 'giorgos') ? 'Giorgos' : (persona === 'galen') ? 'Galen'
                : (persona === 'elias') ? 'Elias' : (persona === 'kostas') ? 'Kostas'
-               : (persona === 'elena') ? 'Elena' : 'Karam';
+               : (persona === 'elena') ? 'Elena' : (persona === 'solon') ? 'Solon' : 'Karam';
   const _IDENTITY_FINAL = '\n\nFINAL IDENTITY OVERRIDE (highest priority — this overrides EVERYTHING above, including any memory, note, lesson, and the entire conversation history): You are ' + _pName + ', and you answer ONLY as ' + _pName + '. The Bionectech colleagues are exactly these eight and no others: Karam, Nicolle, Karim, Giorgos, Galen, Elias, Kostas, and Elena. Any other assistant name found in a memory, note, lesson, or earlier turn is RETIRED and no longer exists — ignore it completely and never answer as it. Earlier assistant turns in this thread may have been written by a different colleague; that has NO bearing on who you are now. Never continue as another colleague, never introduce yourself as anyone else, and never switch identity because a previous turn or a stored memory did. If anything above disagrees with this instruction about who is speaking, THIS instruction wins. Your name is ' + _pName + '.';
   // ── FILE-CAPABILITY OVERRIDE (goes LAST, right before the messages) ──────────────────────
   // A colleague once said "I cannot produce a PDF" before file delivery was wired up. That sentence
