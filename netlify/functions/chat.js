@@ -1658,6 +1658,14 @@ async function handleChat(event, user, res, onProgress) {
   // cannot exceed its own ceiling, but the SERVER can keep asking it to continue and STITCH the
   // pieces into one whole file. The operator gets ONE download. No parts. No seams. No manual work.
   // This is the only way a file larger than any single pass can ever come back complete.
+  // DELIVERY-COMPLETE GUARD: if a full, valid FILE_DELIVERY block is present, the files are
+  // delivered. A max_tokens stop then truncated only trailing PROSE (an explanation after the
+  // block), not a file. Do NOT auto-continue or flag [INCOMPLETE] - the delivery is done.
+  try {
+    var _dOpen = text.indexOf('\u2039\u2039FILE_DELIVERY\u203A\u203A');
+    var _dClose = _dOpen >= 0 ? text.indexOf('\u2039\u2039/FILE_DELIVERY\u203A\u203A', _dOpen) : -1;
+    if (_dOpen >= 0 && _dClose > _dOpen && !_fileIncomplete(text)) { _truncated = false; }
+  } catch (e) {}
   var _structIncomplete = _fileIncomplete(text);
   if ((_truncated || _structIncomplete) && usedModel && text) {
     var _MAX_CONT = 6;                       // enough for ~700KB even on Sonnet
