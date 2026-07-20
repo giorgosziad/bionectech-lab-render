@@ -1795,7 +1795,9 @@ var KaramDeliver = (function(){
   function buildPdf(f){
     if(!window.jspdf||!window.jspdf.jsPDF) throw new Error('the PDF library did not load (check your connection and retry)');
     var doc=new window.jspdf.jsPDF();
+    function _asciiPdf(s){ if(typeof s!=='string') s=String(s||''); var map={'\u2192':'->','\u2190':'<-','\u2194':'<->','\u2794':'->','\u279c':'->','\u21d2':'=>','\u2014':'-','\u2013':'-','\u2212':'-','\u00b7':'-','\u2022':'-','\u25aa':'-','\u25cf':'-','\u2018':"'",'\u2019':"'",'\u201c':'"','\u201d':'"','\u2026':'...','\u00a0':' ','\u2039':'<','\u203a':'>','\u00ab':'<<','\u00bb':'>>'}; s=s.replace(/[\u2192\u2190\u2194\u2794\u279c\u21d2\u2014\u2013\u2212\u00b7\u2022\u25aa\u25cf\u2018\u2019\u201c\u201d\u2026\u00a0\u2039\u203a\u00ab\u00bb]/g,function(ch){return map[ch]||' ';}); s=s.replace(/[^\x00-\xFF]/g,' '); return s; }
     var text = Array.isArray(f.content)?f.content.map(function(b){return typeof b==='string'?b:(b.text||'');}).join('\n') : String(f.content||'');
+    text=_asciiPdf(text);
     var lines=doc.splitTextToSize(text,180); var y=15;
     lines.forEach(function(ln){ if(y>280){doc.addPage();y=15;} doc.text(ln,15,y); y+=7; });
     return doc.output('blob');
