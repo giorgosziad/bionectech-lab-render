@@ -1666,6 +1666,31 @@ async function handleChat(event, user, res, onProgress) {
     var _dClose = _dOpen >= 0 ? text.indexOf('\u2039\u2039/FILE_DELIVERY\u203A\u203A', _dOpen) : -1;
     if (_dOpen >= 0 && _dClose > _dOpen && !_fileIncomplete(text)) { _truncated = false; }
   } catch (e) {}
+  // -- FERRIS DRIFT WARNING LIGHT (warn mode) --
+  // Scans the finalized reply against canonical rules and logs real drift (warn only, never blocks).
+  // The Board Room panel reads 'drift:log'. Earn-the-hold discipline: warn first, prove, then hold.
+  function _driftScan(t) {
+    if (typeof t !== 'string' || !t) return { clean: true, hits: [] };
+    var hits = [];
+    var reFda = /FDA[\s\-]*(approved|cleared|authorized|authorised)/ig, m;
+    while ((m = reFda.exec(t)) !== null) { hits.push({ rule: 'reg-line', quote: m[0] }); if (hits.length > 20) break; }
+    var reFda2 = /(approved|cleared|authorized|authorised)[\s\w]{0,12}\bby the FDA\b/ig;
+    while ((m = reFda2.exec(t)) !== null) { hits.push({ rule: 'reg-line', quote: m[0] }); if (hits.length > 20) break; }
+    var reEmoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
+    if (reEmoji.test(t)) { var em = t.match(reEmoji); hits.push({ rule: 'brand-no-emoji', quote: em ? em[0] : 'emoji' }); }
+    return { clean: hits.length === 0, hits: hits };
+  }
+  try {
+    var _ds = _driftScan(text);
+    if (_ds && !_ds.clean && _ds.hits.length) {
+      var _dev = { ts: Date.now(), persona: (typeof persona !== 'undefined' ? persona : 'unknown'), hits: _ds.hits.slice(0, 8) };
+      readJSON(null, 'drift:log').then(function (log) {
+        var arr = Array.isArray(log) ? log : []; arr.push(_dev);
+        if (arr.length > 200) arr = arr.slice(arr.length - 200);
+        writeJSON(null, 'drift:log', arr).catch(function () {});
+      }).catch(function () { writeJSON(null, 'drift:log', [_dev]).catch(function () {}); });
+    }
+  } catch (e) {}
   var _structIncomplete = _fileIncomplete(text);
   if ((_truncated || _structIncomplete) && usedModel && text) {
     var _MAX_CONT = 6;                       // enough for ~700KB even on Sonnet
