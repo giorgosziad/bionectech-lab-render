@@ -1809,7 +1809,48 @@ var KaramDeliver = (function(){
     if(!blob) throw new Error('PowerPoint writer returned nothing');
     return blob;
   }
-  function buildPdf(f){
+  // KARAM DESIGNED-PDF DELIVERY (Part 2). Designed HTML renders via the server-side
+// proxy /.netlify/functions/render (token never ships to the browser). The original
+// jsPDF builder below is renamed buildPdfLegacy and remains the fallback, byte-untouched.
+async function karamRenderPdf(html){
+  try{
+    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var tm = ctl ? setTimeout(function(){ ctl.abort(); }, 30000) : null;
+    var opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ html: html }) };
+    if(ctl){ opts.signal = ctl.signal; }
+    var r;
+    try { r = await fetch('/.netlify/functions/render', opts); }
+    finally { if(tm){ clearTimeout(tm); } }
+    if(!r || !r.ok){ return null; }
+    var j = await r.json();
+    if(!j || j.ok !== true || typeof j.pdf !== 'string' || j.pdf.length === 0){ return null; }
+    var bin = atob(j.pdf);
+    var n = bin.length;
+    var u8 = new Uint8Array(n);
+    for(var i = 0; i < n; i++){ u8[i] = bin.charCodeAt(i); }
+    return new Blob([u8], { type: 'application/pdf' });
+  }catch(e){ return null; }
+}
+function karamPickHtml(f){
+  if(!f){ return null; }
+  if(typeof f.html === 'string' && f.html.length > 0){ return f.html; }
+  if(f.render === true && typeof f.content === 'string' && f.content.length > 0){ return f.content; }
+  if(typeof f.content === 'string'){
+    var s = f.content.replace(/^[\s\uFEFF]+/, '');
+    var low = s.slice(0, 15).toLowerCase();
+    if(low.indexOf('<!doctype') === 0 || low.indexOf('<html') === 0){ return f.content; }
+  }
+  return null;
+}
+async function buildPdf(f){
+  var karamHtml = karamPickHtml(f);
+  if(karamHtml){
+    var karamBlob = await karamRenderPdf(karamHtml);
+    if(karamBlob){ return karamBlob; }
+  }
+  return buildPdfLegacy(f);
+}
+function buildPdfLegacy(f){
     if(!window.jspdf||!window.jspdf.jsPDF) throw new Error('the PDF library did not load (check your connection and retry)');
     var doc=new window.jspdf.jsPDF();
     function _asciiPdf(s){ if(typeof s!=='string') s=String(s||''); var map={'\u2192':'->','\u2190':'<-','\u2194':'<->','\u2794':'->','\u279c':'->','\u21d2':'=>','\u2014':'-','\u2013':'-','\u2212':'-','\u00b7':'-','\u2022':'-','\u25aa':'-','\u25cf':'-','\u2018':"'",'\u2019':"'",'\u201c':'"','\u201d':'"','\u2026':'...','\u00a0':' ','\u2039':'<','\u203a':'>','\u00ab':'<<','\u00bb':'>>'}; s=s.replace(/[\u2192\u2190\u2194\u2794\u279c\u21d2\u2014\u2013\u2212\u00b7\u2022\u25aa\u25cf\u2018\u2019\u201c\u201d\u2026\u00a0\u2039\u203a\u00ab\u00bb]/g,function(ch){return map[ch]||' ';}); s=s.replace(/[^\x00-\xFF]/g,' '); return s; }
@@ -1825,7 +1866,7 @@ var KaramDeliver = (function(){
     if(type==='docx') return {blob:await buildDocx(f), name:path.replace(/\.[^.]*$/,'')+'.docx'};
     if(type==='xlsx') return {blob:await buildXlsx(f), name:path.replace(/\.[^.]*$/,'')+'.xlsx'};
     if(type==='pptx') return {blob:await buildPptx(f), name:path.replace(/\.[^.]*$/,'')+'.pptx'};
-    if(type==='pdf')  return {blob:buildPdf(f),        name:path.replace(/\.[^.]*$/,'')+'.pdf'};
+    if(type==='pdf')  return {blob:await buildPdf(f),        name:path.replace(/\.[^.]*$/,'')+'.pdf'};
     // text or base64 (html, css, js, md, csv, json, svg, png, etc.)
     var enc=(f.encoding||'utf8').toLowerCase();
     if(enc==='base64') return {blob:new Blob([b64ToBytes(f.content||'')]), name:path.split('/').pop()};
