@@ -15,10 +15,10 @@ masterbook's illustrative 3.1 KB sample). 16 KB is ~19x that reading.
 ## DECISION 3 - DEFAULT COUPLINGS
 Phase 2: KARIM ONLY, at LOW coupling. All other minds remain at ZERO.
 Phase 3:
-  HIGH   - Karim, Galen, Solon, [Giorgos-persona - proposed 2026-07-26, PENDING
-           OPERATOR CONFIRMATION: same class as Karim/Galen/Solon - the persona's
+  HIGH   - Karim, Galen, Solon, Giorgos-persona (confirmed by the operator, 2026-07-26:
+           same class as Karim/Galen/Solon - the persona's
            entire function is enforcing fidelity to founder standards, so drift
-           there is exactly as expensive as drift in the other compliance roles.]
+           there is exactly as expensive as drift in the other compliance roles).
   MEDIUM - Kostas, Elena, Elias
   LOW    - Karam, Nicolle
   ZERO   - none permanently
@@ -75,7 +75,7 @@ STATUS: drafted, accepted by Karim (senior), NOT YET formally ratified by the
 operator. Awaiting a one-word confirmation, same as Decisions 1-6.
 
 ## OPEN ITEMS (2026-07-26)
-1. Giorgos-persona coupling level - operator confirmation needed (recommended: HIGH).
+1. Giorgos-persona coupling - RESOLVED. Operator confirmed HIGH, 2026-07-26.
 2. Decision 7 - operator ratification needed (one word: AGREE or amend).
 3. Possible gap: flux-sense.js logs field-snapshot + byte count only. The
    masterbook's own Phase-1 sample diary also tracks "would-have-cited" (per-mind
@@ -83,6 +83,6 @@ operator. Awaiting a one-word confirmation, same as Decisions 1-6.
    for judging the Phase 1 exit criterion is an open question, not yet decided.
 
 ## STATUS
-Phase 0: COMPLETE pending items 1-2 above.
+Phase 0: COMPLETE pending item 2 above (Decision 7 ratification).
 Phase 1: RUNNING. Started 2026-07-23. Day 3 of 14 as of 2026-07-26. Floor: 2026-08-06.
 Phase 2: GATED. Does not open before the floor, regardless of preparation completed.
