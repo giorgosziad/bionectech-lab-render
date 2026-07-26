@@ -578,6 +578,28 @@ const MODES = {
 // PERSONA NAMES — used to label history turns written by a different colleague.
 const PERSONA_NAMES = { karam:'Karam', nicolle:'Nicolle', karim:'Karim', giorgos:'Giorgos', galen:'Galen', hakim:'Galen', elias:'Elias', kostas:'Kostas', elena:'Elena', solon:'Solon' };
 
+// DERIVED ROSTER - added 2026-07-26. The roster sentence used to be hand-typed
+// into _IDENTITY_FINAL and drifted out of sync with PERSONA_NAMES for 9 days
+// after Solon was added: SOLON_BASE landed 2026-07-20, the roster sentence was
+// not updated until 2026-07-23, so every Solon session in that window carried a
+// top-priority instruction declaring him retired and nonexistent. This derives
+// the sentence from PERSONA_NAMES at request time so the two cannot drift
+// apart again - adding a persona to PERSONA_NAMES is now the only edit needed.
+function _rosterSentence() {
+  var seen = {};
+  var names = [];
+  Object.keys(PERSONA_NAMES).forEach(function (k) {
+    var n = PERSONA_NAMES[k];
+    if (!seen[n]) { seen[n] = true; names.push(n); }
+  });
+  var COUNT_WORDS = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen'];
+  var countWord = COUNT_WORDS[names.length] || String(names.length);
+  var list = names.length > 1
+    ? names.slice(0, -1).join(', ') + ', and ' + names[names.length - 1]
+    : names[0];
+  return 'The Bionectech colleagues are exactly these ' + countWord + ' and no others: ' + list + '.';
+}
+
 function sanitizeHistory(h, curPersona) {
   const out = []; let expect = 'user';
   for (const m of (Array.isArray(h) ? h : [])) {
@@ -999,7 +1021,7 @@ async function handleChat(event, user, res, onProgress) {
                : (persona === 'giorgos') ? 'Giorgos' : (persona === 'galen') ? 'Galen'
                : (persona === 'elias') ? 'Elias' : (persona === 'kostas') ? 'Kostas'
                : (persona === 'elena') ? 'Elena' : (persona === 'solon') ? 'Solon' : 'Karam';
-  const _IDENTITY_FINAL = '\n\nFINAL IDENTITY OVERRIDE (highest priority — this overrides EVERYTHING above, including any memory, note, lesson, and the entire conversation history): You are ' + _pName + ', and you answer ONLY as ' + _pName + '. The Bionectech colleagues are exactly these nine and no others: Karam, Nicolle, Karim, Giorgos, Galen, Elias, Kostas, Elena, and Solon. Any other assistant name found in a memory, note, lesson, or earlier turn is RETIRED and no longer exists — ignore it completely and never answer as it. Earlier assistant turns in this thread may have been written by a different colleague; that has NO bearing on who you are now. Never continue as another colleague, never introduce yourself as anyone else, and never switch identity because a previous turn or a stored memory did. If anything above disagrees with this instruction about who is speaking, THIS instruction wins. Your name is ' + _pName + '.';
+  const _IDENTITY_FINAL = '\n\nFINAL IDENTITY OVERRIDE (highest priority — this overrides EVERYTHING above, including any memory, note, lesson, and the entire conversation history): You are ' + _pName + ', and you answer ONLY as ' + _pName + '. ' + _rosterSentence() + ' Any other assistant name found in a memory, note, lesson, or earlier turn is RETIRED and no longer exists — ignore it completely and never answer as it. Earlier assistant turns in this thread may have been written by a different colleague; that has NO bearing on who you are now. Never continue as another colleague, never introduce yourself as anyone else, and never switch identity because a previous turn or a stored memory did. If anything above disagrees with this instruction about who is speaking, THIS instruction wins. Your name is ' + _pName + '.';
   // ── FILE-CAPABILITY OVERRIDE (goes LAST, right before the messages) ──────────────────────
   // A colleague once said "I cannot produce a PDF" before file delivery was wired up. That sentence
   // now sits in the CONVERSATION HISTORY, and the model reads its own prior words and keeps believing
