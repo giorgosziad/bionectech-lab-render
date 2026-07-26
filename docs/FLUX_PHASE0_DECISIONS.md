@@ -20,7 +20,7 @@ Phase 3:
            entire function is enforcing fidelity to founder standards, so drift
            there is exactly as expensive as drift in the other compliance roles).
   MEDIUM - Kostas, Elena, Elias
-  LOW    - Karam, Nicolle
+  LOW    - Karam, Nicolle, Nour (confirmed by the operator, 2026-07-26)
   ZERO   - none permanently
 Standing rule: ANY mind showing character-flattening drops to ZERO immediately.
 
@@ -76,6 +76,7 @@ operator. Awaiting a one-word confirmation, same as Decisions 1-6.
 
 ## OPEN ITEMS (2026-07-26)
 1. Giorgos-persona coupling - RESOLVED. Operator confirmed HIGH, 2026-07-26.
+1b. Nour coupling - RESOLVED. Operator confirmed LOW, 2026-07-26. Same tier as Karam/Nicolle - builder/advisor role, not compliance-enforcement.
 2. Decision 7 - operator ratification needed (one word: AGREE or amend).
 3. Possible gap: flux-sense.js logs field-snapshot + byte count only. The
    masterbook's own Phase-1 sample diary also tracks "would-have-cited" (per-mind
