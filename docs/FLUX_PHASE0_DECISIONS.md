@@ -77,13 +77,13 @@ operator. Awaiting a one-word confirmation, same as Decisions 1-6.
 ## OPEN ITEMS (2026-07-26)
 1. Giorgos-persona coupling - RESOLVED. Operator confirmed HIGH, 2026-07-26.
 1b. Nour coupling - RESOLVED. Operator confirmed LOW, 2026-07-26. Same tier as Karam/Nicolle - builder/advisor role, not compliance-enforcement.
-2. Decision 7 - operator ratification needed (one word: AGREE or amend).
+2. Decision 7 - RESOLVED. Operator ratified AGREE-with-amendments (A: independent canary authorship; B: re-skinned same-class canaries), 2026-07-27.
 3. Possible gap: flux-sense.js logs field-snapshot + byte count only. The
    masterbook's own Phase-1 sample diary also tracks "would-have-cited" (per-mind
    citation simulation) and "repetition-avoidable" estimates. Whether this matters
    for judging the Phase 1 exit criterion is an open question, not yet decided.
 
 ## STATUS
-Phase 0: COMPLETE pending item 2 above (Decision 7 ratification).
+Phase 0: COMPLETE. All 7 decisions ratified as of 2026-07-27.
 Phase 1: RUNNING. Started 2026-07-23. Day 3 of 14 as of 2026-07-26. Floor: 2026-08-06.
 Phase 2: GATED. Does not open before the floor, regardless of preparation completed.
