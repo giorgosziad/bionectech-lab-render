@@ -71,8 +71,8 @@ input, never ratification. Requires:
     uncoupled then); breaks in Phase 3 once observers live inside the field too.
     "The human is the only permanently out-of-field observer - that is why the
     checkpoint cannot be automated away."
-STATUS: drafted, accepted by Karim (senior), NOT YET formally ratified by the
-operator. Awaiting a one-word confirmation, same as Decisions 1-6.
+STATUS: RATIFIED by operator (Dr. Ziad Gerges), 2026-07-27 - AGREE with amendments A+B.
+  Amendment A: canaries authored/re-skinned by the operator or a non-gate persona - never by the gate under test. Amendment B: canaries are same-defect-class with a re-skinned surface each run, not literally identical - preserves comparability, defeats memorization.
 
 ## OPEN ITEMS (2026-07-26)
 1. Giorgos-persona coupling - RESOLVED. Operator confirmed HIGH, 2026-07-26.
