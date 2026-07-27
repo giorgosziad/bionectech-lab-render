@@ -426,13 +426,15 @@ function _fileIncomplete(txt) {
   if (_open >= 0) {
     var _close = t.indexOf('\u2039\u2039/FILE_DELIVERY\u203A\u203A', _open);
     if (_close > _open) {
-      var _body = t.slice(_open + 17, _close).trim();
+      var _body = t.slice(_open + 17, _close).trim().replace(/^```[a-zA-Z]*\s*/,'').replace(/```$/,'').trim();
       try {
         var _j = JSON.parse(_body);
         if (!_j || !Array.isArray(_j.files) || !_j.files.length) return true;   // parsed, but no files
         for (var _i = 0; _i < _j.files.length; _i++) {
           var _f = _j.files[_i];
-          if (!_f || typeof _f.content !== 'string' || !_f.path) return true;   // a file with no body
+          if (!_f || !_f.path) return true;
+          var _hasBody = (typeof _f.content === 'string' && _f.content.length) || (Array.isArray(_f.content) && _f.content.length) || (Array.isArray(_f.sheets) && _f.sheets.length) || (Array.isArray(_f.slides) && _f.slides.length) || (Array.isArray(_f.rows) && _f.rows.length);
+          if (!_hasBody) return true;   // a file with no body of any known shape
         }
       } catch (e) {
         return true;   // the JSON is broken -> the file will not render -> KEEP WRITING
