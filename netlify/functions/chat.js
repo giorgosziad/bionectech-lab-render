@@ -1527,12 +1527,12 @@ async function handleChat(event, user, res, onProgress) {
           } catch (e) {}
         }, 1000);
         try {
-          var _pr = (typeof _pRes.body.getReader === 'function') ? _pRes.body.getReader() : null;
+          var _pr = (typeof _pRes.body.getReader === 'function') ? _pRes.body.getReader() : null; var _pWd=Date.now(); var _pWdT=setInterval(function(){ if(Date.now()-_pWd>45000){ try{ if(_ac) _ac.abort(); }catch(e){} try{ if(_pr) _pr.cancel(); }catch(e){} } },5000);
           while (true) {
             var _step;
             if (_pr) { _step = await _pr.read(); if (_step.done) break; }
             else break;
-            _pBuf += _pTd.decode(_step.value, { stream: true });
+            _pWd=Date.now(); _pBuf += _pTd.decode(_step.value, { stream: true });
             var _lines = _pBuf.split('\n'); _pBuf = _lines.pop();
             for (var _li = 0; _li < _lines.length; _li++) {
               var _l = _lines[_li].trim();
@@ -1563,7 +1563,7 @@ async function handleChat(event, user, res, onProgress) {
             }
           }
         } catch (e) { /* stream broke — fall through to the buffered call below */ }
-        try { clearInterval(_pHb); } catch (e) {}   // the loop is over — stop the thinking timer
+        try { clearInterval(_pWdT); } catch (e) {} try { clearInterval(_pHb); } catch (e) {}   // the loop is over — stop the thinking timer
 
         if (_pTxt && _pTxt.trim().length > 1) {
           if (_to) clearTimeout(_to);
