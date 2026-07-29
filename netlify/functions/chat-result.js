@@ -12,13 +12,20 @@ exports.handler = async function (event) {
     try { jobId = (JSON.parse(event.body || '{}').jobId || '').toString(); } catch (e) {}
   }
   if (!jobId) return json(400, { error: 'Missing jobId.' });
+  // BP-DELIVERY-GUARD v2: the authoritative final lives under 'jobdone:' — a key the
+  // in-flight progress heartbeats never write. Read it FIRST. A late progress write can
+  // clobber 'job:' back to running, but it can never touch this key, so a finished job
+  // is always deliverable no matter what the heartbeats did.
+  let fin = null;
+  try { fin = await readJSON(null, 'jobdone:' + jobId, null); } catch (e) { fin = null; }
+  if (fin && (fin.status === 'done' || fin.status === 'error')) {
+    try { await expire('jobdone:' + jobId, 180); } catch (e) {}
+    try { await expire('job:' + jobId, 180); } catch (e) {}
+    return json(200, fin);
+  }
   let job = null;
   try { job = await readJSON(null, 'job:' + jobId, null); } catch (e) { job = null; }
   if (!job) return json(200, { status: 'missing' });
-  // BP-DELIVERY-GUARD: never delete a result on first read. If that one response is
-  // lost in transit, the answer is gone forever and the UI freezes on stale progress.
-  // Instead, give terminal results a short TTL so retried polls can re-fetch them,
-  // and Redis still cleans up on its own.
   if (job.status === 'done' || job.status === 'error') {
     try { await expire('job:' + jobId, 180); } catch (e) {}
   }

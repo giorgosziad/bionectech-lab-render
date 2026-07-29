@@ -4,16 +4,22 @@
 // then stores the result in Redis under a job id. The browser polls chat-result for the answer.
 const { userFrom, readJSON, writeJSON, json } = require('./lib/auth');
 const { handleChat } = require('./chat');
-// BP-DELIVERY-GUARD: the final result write is the single most important write in the
-// system — if it fails, the whole job's work is lost and the UI freezes on stale
-// progress. Retry it up to 3 times before giving up.
-async function writeFinal(key, value) {
-  let lastErr = null;
+// BP-DELIVERY-GUARD v2: the final result write is the single most important write in the
+// system. Retry it up to 3 times — AND write it under its OWN key ('jobdone:') that the
+// in-flight progress heartbeats can never touch. Progress writes are fire-and-forget and
+// can land LATE (after the job finished), clobbering a final written to the shared key
+// back to status:'running' forever — the frozen "delivering the answer" bug. A separate
+// final key makes that race impossible by construction.
+async function writeFinal(jobId, value) {
+  let ok = false;
   for (let a = 0; a < 3; a++) {
-    try { await writeJSON(null, key, value); return true; }
-    catch (e) { lastErr = e; await new Promise(function (r) { setTimeout(r, 800); }); }
+    try { await writeJSON(null, 'jobdone:' + jobId, value); ok = true; break; }
+    catch (e) { await new Promise(function (r) { setTimeout(r, 800); }); }
   }
-  return false;
+  // Best-effort mirror to the legacy key too (harmless if a late heartbeat clobbers it —
+  // the poller reads 'jobdone:' first).
+  try { await writeJSON(null, 'job:' + jobId, value); } catch (e) {}
+  return ok;
 }
 exports.handler = async function (event) {
   // Background functions return 202 immediately to the caller; the real work continues here.
@@ -32,14 +38,14 @@ exports.handler = async function (event) {
     let payload = null;
     try { payload = JSON.parse(res.body || '{}'); } catch (e) { payload = { error: 'Bad result.' }; }
     const ok = res.statusCode >= 200 && res.statusCode < 300;
-    await writeFinal(key, {
+    await writeFinal(jobId, {
       status: ok ? 'done' : 'error',
       httpStatus: res.statusCode,
       result: payload,
       finishedAt: Date.now()
     });
   } catch (e) {
-    await writeFinal(key, {
+    await writeFinal(jobId, {
       status: 'error',
       httpStatus: 500,
       result: { error: 'Background chat failed: ' + (e && e.message ? e.message : String(e)) },
