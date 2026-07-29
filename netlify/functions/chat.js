@@ -1272,7 +1272,7 @@ async function handleChat(event, user, res, onProgress) {
       var _eff = b.smart ? 'xhigh' : (_trivial ? 'low' : (_rewrite ? 'low' : 'medium'));
       apiBody.output_config = { effort: capEffort(m, _eff) };
       _effForCont = apiBody.output_config;
-      if (typeof b.temperature === 'number') apiBody.temperature = Math.max(0, Math.min(1, b.temperature));
+      /* BP-NO-TEMP: temperature is deprecated/rejected on newer models - never send it */
     }
     // Nicolle searches the web herself: attach the web tool to her own call (single call, no 504).
     // Karam does not search — he solves from what Nicolle provides.
