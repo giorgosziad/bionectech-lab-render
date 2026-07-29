@@ -1663,7 +1663,7 @@ async function handleChat(event, user, res, onProgress) {
         // simply OMIT the thinking field. So this retry has no thinking/output_config at all.
         var retryBody = { model: m, max_tokens: Math.max(maxTokens, b.bg ? 48000 : 16000), system: apiBody.system, messages: messages };
         try {
-          var rr2 = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(retryBody) });
+          var _r2ac=(typeof AbortController!=='undefined')?new AbortController():null; var _r2to=_r2ac?setTimeout(function(){try{_r2ac.abort();}catch(e){}},180000):null; var rr2 = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(retryBody), signal: _r2ac ? _r2ac.signal : undefined }); if(_r2to) clearTimeout(_r2to);
           var dd2 = await rr2.json();
           if (rr2.ok) { text = (dd2.content || []).map(function (c) { return c.type === 'text' ? c.text : ''; }).join('\n').trim(); }
         } catch (e2) {}
