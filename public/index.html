@@ -683,7 +683,7 @@ function runBackground(payload, prompt){
       else if(pr.stage === 'thinking')  stage = pr.model + ' is thinking' + (pr.waited ? (' \u2014 ' + pr.waited + 's') : '') + ' (it reasons before it writes)';
       else if(pr.stage === 'writing')   stage = 'writing \u2014 ' + pr.tokens.toLocaleString() + ' tokens so far';
       else if(pr.stage === 'calling')   stage = 'connecting to ' + pr.model + (pr.waited ? (' \u2014 ' + pr.waited + 's (a big file takes a moment to start)') : '');
-      else if(pr.stage === 'done')      stage = 'finishing up \u2014 ' + pr.tokens.toLocaleString() + ' tokens';
+      else if(pr.stage === 'done')      stage = 'delivering the answer \u2014 ' + pr.tokens.toLocaleString() + ' tokens written';
       else                              stage = pr.stage;
     } else if(nf && secs < 20)          stage = 'reading your ' + nf + ' file' + (nf>1?'s':'');
     else                                stage = 'starting';
@@ -696,7 +696,7 @@ function runBackground(payload, prompt){
   function _bgStop(){ try{ clearInterval(_bgTick); }catch(e){} }
   // Kick off the background job (returns 202 immediately).
   api('chat-background',{method:'POST',body:JSON.stringify(payload)}).then(function(){
-    var tries = 0, maxTries = 900;   /* 900 x 2s = 30 MIN. The server tops out at 18 — the browser must
+    var tries = 0, maxTries = 900; var _missN=0;   /* 900 x 2s = 30 MIN. The server tops out at 18 — the browser must
                                        NEVER give up before the server does. It used to quit at 12 minutes
                                        while the file was still being written. That was the bug. */ // ~12 min at 2s intervals
     var poll = setInterval(function(){
@@ -707,7 +707,7 @@ function runBackground(payload, prompt){
         var st = r.data.status;
         /* REAL PROGRESS from the server — which model, and how many tokens ACTUALLY written. */
         if(r.data.progress){ window.__bgProgress = r.data.progress; }
-        if(st==='done'){
+        if(st==='missing' && window.__bgProgress){ _missN++; if(_missN>=6){ clearInterval(poll); _bgStop(); current.turns.pop(); addTurn('claude','The answer was written but its delivery was lost in transit. Please ask once more.'); } return; } if(st!=='missing'){ _missN=0; } if(st==='done'){
           clearInterval(poll); _bgStop();
           var d = (r.data.result)||{};
           current.turns.pop();

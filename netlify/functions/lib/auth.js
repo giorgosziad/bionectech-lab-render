@@ -75,6 +75,7 @@ async function readJSON(_st, key, fallback) {
 }
 async function writeJSON(_st, key, value) { await redis(['SET', key, JSON.stringify(value)]); }
 async function del(key) { try { await redis(['DEL', key]); } catch (e) {} }
+async function expire(key, seconds) { try { await redis(['EXPIRE', key, seconds]); } catch (e) {} }
 function todayKey() { const d = new Date(); return d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1) + '-' + d.getUTCDate(); }
 // Brute-force guard: counts attempts in a rolling window. Returns the new count.
 async function rlHit(key, windowSec) {
@@ -86,4 +87,4 @@ function clientIp(event) {
   const h = event.headers || {};
   return (h['x-nf-client-connection-ip'] || h['client-ip'] || h['x-forwarded-for'] || 'ip').toString().split(',')[0].trim();
 }
-module.exports = { cors, json, sign, verify, bearer, userFrom, newSalt, hashPw, store, readJSON, writeJSON, del, todayKey, rlHit, rlReset, clientIp };
+module.exports = { cors, json, sign, verify, bearer, userFrom, newSalt, hashPw, store, readJSON, writeJSON, del, expire, todayKey, rlHit, rlReset, clientIp };
