@@ -667,7 +667,7 @@ function runBackground(payload, prompt){
        a plain question -> thinking -> still thinking (never any file language)
      On this path the model sends nothing until it finishes, so the phase is a TIME-BASED ESTIMATE,
      not a claim of knowledge. But the stages are real and they happen in that order. */
-  var _bgTick = setInterval(function(){ /* _BGTICK_OFF: label mechanism removed - silent until the answer lands */ return;
+  var _bgTick = setInterval(function(){
     var secs = Math.round((Date.now() - _bgT0)/1000);
     var who  = (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':personaSel==='solon'?'Solon':personaSel==='nour'?'Nour':'Karam');
     var nf   = (payload && payload.files && payload.files.length) || 0;
@@ -683,7 +683,7 @@ function runBackground(payload, prompt){
       else if(pr.stage === 'thinking')  stage = pr.model + ' is thinking' + (pr.waited ? (' \u2014 ' + pr.waited + 's') : '') + ' (it reasons before it writes)';
       else if(pr.stage === 'writing')   stage = 'writing \u2014 ' + pr.tokens.toLocaleString() + ' tokens so far';
       else if(pr.stage === 'calling')   stage = 'connecting to ' + pr.model + (pr.waited ? (' \u2014 ' + pr.waited + 's (a big file takes a moment to start)') : '');
-      else if(pr.stage === 'done')      stage = 'almost ready \u2014 ' + pr.tokens.toLocaleString() + ' tokens';
+      else if(pr.stage === 'done')      stage = 'almost ready';
       else                              stage = pr.stage;
     } else if(nf && secs < 20)          stage = 'reading your ' + nf + ' file' + (nf>1?'s':'');
     else                                stage = 'starting';
