@@ -851,7 +851,7 @@ function send(){
   var _mdlH = ($('model') && $('model').value) || 'auto';
   var _deepH = /opus|fable|mythos|auto/i.test(_mdlH);
   var _wantsFileH = /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|deck|slides|deliver|download)\b/i.test(prompt);
-  var _heavyJob = (files && files.length > 0) || (prompt && prompt.length > 8000)
+  var _heavyJob = (files && files.length > 0) || (prompt && prompt.length > 1500)
                || (smartOn && prompt.length > 400)
                || webOn
                || _wantsFileH
