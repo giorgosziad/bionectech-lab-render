@@ -681,6 +681,7 @@ exports.handler = async function (event, res) {
     return await handleChat(event, user, res);
   } catch (e) {
     // Surface the real reason instead of a bare platform 502, so failures are diagnosable.
+    console.error('[CHAT-500]', e && e.stack ? e.stack : String(e));
     return json(500, { error: 'chat handler error: ' + (e && e.message ? e.message : String(e)) });
   }
 };
