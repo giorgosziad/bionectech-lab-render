@@ -683,7 +683,7 @@ function runBackground(payload, prompt){
       else if(pr.stage === 'thinking')  stage = pr.model + ' is thinking' + (pr.waited ? (' \u2014 ' + pr.waited + 's') : '') + ' (it reasons before it writes)';
       else if(pr.stage === 'writing')   stage = 'writing \u2014 ' + pr.tokens.toLocaleString() + ' tokens so far';
       else if(pr.stage === 'calling')   stage = 'connecting to ' + pr.model + (pr.waited ? (' \u2014 ' + pr.waited + 's (a big file takes a moment to start)') : '');
-      else if(pr.stage === 'done')      stage = 'working \u2014 ' + pr.tokens.toLocaleString() + ' tokens';
+      else if(pr.stage === 'done')      stage = 'almost ready \u2014 ' + pr.tokens.toLocaleString() + ' tokens';
       else                              stage = pr.stage;
     } else if(nf && secs < 20)          stage = 'reading your ' + nf + ' file' + (nf>1?'s':'');
     else                                stage = 'starting';
