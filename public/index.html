@@ -667,7 +667,7 @@ function runBackground(payload, prompt){
        a plain question -> thinking -> still thinking (never any file language)
      On this path the model sends nothing until it finishes, so the phase is a TIME-BASED ESTIMATE,
      not a claim of knowledge. But the stages are real and they happen in that order. */
-  var _bgTick = setInterval(function(){
+  var _bgTick = setInterval(function(){ /* _BGTICK_OFF: label mechanism removed - silent until the answer lands */ return;
     var secs = Math.round((Date.now() - _bgT0)/1000);
     var who  = (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':personaSel==='solon'?'Solon':personaSel==='nour'?'Nour':'Karam');
     var nf   = (payload && payload.files && payload.files.length) || 0;
