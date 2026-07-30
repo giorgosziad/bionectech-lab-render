@@ -1177,7 +1177,7 @@ async function handleChat(event, user, res, onProgress) {
     ], messages };
     // Clamp to this model's real max output so a high builder ceiling never 400s.
     var _modelMax = maxOutFor(m);
-    if (apiBody.max_tokens > _modelMax) apiBody.max_tokens = _modelMax;
+    if (apiBody.max_tokens > _modelMax) apiBody.max_tokens = _modelMax; _cleanBody(apiBody); /* BP-STRIP-CALL */
     if (b.smart && _smartHard && /opus|sonnet|fable|mythos/i.test(m)) {
       // Adaptive thinking budget. Deep by default; trimmed when a big attachment is present so the
       // call still finishes inside the function timeout instead of 504-ing. Web turns stay lean.
