@@ -1241,8 +1241,8 @@ async function handleChat(event, user, res, onProgress) {
       // No time-cap needed — keep the desired effort (max for deep text reasoning). This gives
       // Karam/Nicolle full intelligence on every turn, not just background ones.
       var _effort = capEffort(m, _wantEffort);
-      apiBody.thinking = { type: 'adaptive' };
-      apiBody.output_config = { effort: _effort };
+      /* BP-NO-THINK: adaptive thinking rejected on newer models - never send it */
+      /* BP-NO-THINK: effort/output_config rejected on newer models */
     } else {
       // SPEED — THE BIG ONE: with no output_config, the model defaults to HIGH effort and runs
       // extended thinking on EVERY message, including "HI". That was the slowness. With Smartest
@@ -1270,7 +1270,7 @@ async function handleChat(event, user, res, onProgress) {
       // (Smartest), and the operator chooses it — we never make that call for them.
       var _rewrite = (b.files && b.files.length) && /\b(rebuild|rewrite|complete|whole|full|deliver)\b/i.test(String(prompt || ''));
       var _eff = b.smart ? 'xhigh' : (_trivial ? 'low' : (_rewrite ? 'low' : 'medium'));
-      apiBody.output_config = { effort: capEffort(m, _eff) };
+      /* BP-NO-THINK: effort/output_config rejected on newer models */
       _effForCont = apiBody.output_config;
       /* BP-NO-TEMP: temperature is deprecated/rejected on newer models - never send it */
     }
