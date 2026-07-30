@@ -686,7 +686,7 @@ function runBackground(payload, prompt){
       else if(pr.stage === 'done')      stage = 'almost ready \u2014 ' + pr.tokens.toLocaleString() + ' tokens';
       else                              stage = pr.stage;
     } else if(nf && secs < 20)          stage = 'reading your ' + nf + ' file' + (nf>1?'s':'');
-    else                                stage = 'starting';
+    else                                stage = 'connecting to Claude';
     var mins = Math.floor(secs/60), rem = secs % 60;
     var t = mins ? (mins + 'm ' + rem + 's') : (secs + 's');
     var lbl = '\u2026 ' + who + ' \u2014 ' + t + ' \u2014 ' + stage + ' \u2026';
