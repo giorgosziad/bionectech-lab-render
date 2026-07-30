@@ -1171,7 +1171,7 @@ async function handleChat(event, user, res, onProgress) {
   let _sysForCont = null, _effForCont = null;   // the continuation runs AFTER the loop, so keep what it needs
   for (let ci = 0; ci < candidates.length; ci++) {
     const m = candidates[ci];
-    const apiBody = { model: m, max_tokens: maxTokens, system: [
+    function _cleanBody(bo){ /* BP-STRIP-INTERNAL: remove internal-only flags the API rejects */ try{ delete bo._retried; delete bo._noThinkRetry; }catch(e){} return bo; } const apiBody = { model: m, max_tokens: maxTokens, system: [
       { type: 'text', text: _sysStatic, cache_control: { type: 'ephemeral' } },  // big, static -> CACHED across turns
       { type: 'text', text: _sysDynamic }                                        // small, changes -> not cached
     ], messages };
