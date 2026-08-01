@@ -411,7 +411,7 @@ const lines = (persona === 'nicolle' ? NICOLLE_BASE : persona === 'karim' ? KARI
 // Preference order = most-capable-first among known IDs. 'auto' resolves to the
 // first of these that the live Models API reports as available; brand-new models
 // that appear in the API but aren't listed here are still selectable by name.
-const PREFERENCE = ['claude-sonnet-4-6', 'claude-fable-5', 'claude-opus-4-8', 'claude-opus-4-7', 'claude-haiku-4-5-20251001'];  // Fable first (auto-activates the moment access opens), then fast Sonnet 4.6 as the working default.
+const PREFERENCE = ['claude-fable-5', 'claude-sonnet-4-6', 'claude-opus-4-8', 'claude-opus-4-7', 'claude-haiku-4-5-20251001'];  // Fable first (auto-activates the moment access opens), then fast Sonnet 4.6 as the working default.
 // Effort ceiling per model family. Anthropic rejects unsupported effort levels with a 400, so we
 // clamp the desired effort down to what the model accepts. Order: low<medium<high<xhigh<max.
 
@@ -787,7 +787,7 @@ async function handleChat(event, user, res, onProgress) {
   }
   // Owner control: if a specific model was explicitly chosen in the dropdown, it stays first and
   // auto-discovery does NOT override it. Discovery only leads when the model is left on 'auto'.
-  if (b.smart && _smartHard && !_explicitModel) {
+  if (!_explicitModel) {   /* discovery runs on every auto turn - newest flagship wins */
     try {
       let _disc = _MEM_MODEL_CACHE;
       if (!_disc) { try { _disc = await readJSON(null, 'model:newest', null); } catch (e) { _disc = null; } }
