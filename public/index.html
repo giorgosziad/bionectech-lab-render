@@ -428,6 +428,33 @@ window.addEventListener('load', function(){
     }
   }catch(e){}
 });
+/* LAB-STATUS-STRIP + LOAD-AUTORETRY - the screen states the truth; failed loads self-heal. */
+(function(){
+  var BUILD='LAB-STRIP-2026-08-01';
+  function mk(){ var d=document.createElement('div'); d.id='bntStatusStrip';
+    d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#052744;color:#FFD600;font:11px monospace;padding:2px 8px;letter-spacing:.5px';
+    document.body.appendChild(d); return d; }
+  function upd(){ try{
+    var d=document.getElementById('bntStatusStrip')||mk();
+    var ky=document.getElementById('personaKyros')?'KYROS OK':'KYROS MISSING';
+    var ld=(typeof _dataLoaded!=='undefined'&&_dataLoaded)?'OK':'FAILED';
+    var pc=(typeof projects!=='undefined'&&projects)?projects.length:'?';
+    var dk=(typeof DESK!=='undefined'&&DESK)?DESK:'?';
+    d.textContent=BUILD+' | desk:'+dk+' | load:'+ld+' | projects:'+pc+' | '+ky;
+  }catch(e){} }
+  var tries=0;
+  function retry(){ try{
+    if(typeof _dataLoaded!=='undefined'&&_dataLoaded){ try{sessionStorage.removeItem('bnt_reload_n');}catch(e){} return; }
+    tries++; if(tries>20) return;
+    api('data',{method:'GET'}).then(function(r){
+      if(r&&r.status===401){ try{sessionStorage.removeItem('bnt_token');}catch(e){} location.reload(); return; }
+      if(r&&r.ok){ var n=0; try{n=parseInt(sessionStorage.getItem('bnt_reload_n')||'0',10);}catch(e){}
+        if(n<3){ try{sessionStorage.setItem('bnt_reload_n',String(n+1));}catch(e){} location.reload(); } }
+    }).catch(function(){});
+  }catch(e){} }
+  window.addEventListener('load',function(){ upd(); setInterval(upd,3000); setInterval(retry,8000); });
+})();
+
 window.addEventListener('load', function(){
   try{
     if (typeof addTurnA === 'function'){
