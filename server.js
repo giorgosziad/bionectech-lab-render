@@ -132,11 +132,28 @@ app.all('/.netlify/functions/chat-background', async function (req, res) {
     let payload = null;
     try { payload = JSON.parse(out.body || '{}'); } catch (e) { payload = { error: 'Bad result.' }; }
     const ok = out.statusCode >= 200 && out.statusCode < 300;
-    await writeJSON(null, key, { status: ok ? 'done' : 'error', httpStatus: out.statusCode, result: payload, finishedAt: Date.now() });
+    // JOBDONE RACE FIX: the progress heartbeat above writes status:'running' to the
+    // SAME key, fire-and-forget, and the stage==='done' heartbeat bypasses the throttle
+    // (line ~121) so it fires at exactly the moment generation ends - racing this write.
+    // When the heartbeat lands last it clobbers a completed result back to 'running'
+    // forever, and the browser polls a finished job that reports running. That is the
+    // hang. Write the authoritative final to 'jobdone:' - a key no heartbeat ever
+    // touches - which chat-result.js already reads FIRST. Legacy key still written so
+    // nothing else changes.
+    const _final = { status: ok ? 'done' : 'error', httpStatus: out.statusCode, result: payload, finishedAt: Date.now() };
+    let _fok = false;
+    for (let _a = 0; _a < 3; _a++) {
+      try { await writeJSON(null, 'jobdone:' + jobId, _final); _fok = true; break; }
+      catch (_e) { await new Promise(function (r) { setTimeout(r, 500); }); }
+    }
+    console.log('[bg] job ' + jobId + ' FINAL jobdone ok=' + _fok);
+    try { await writeJSON(null, key, _final); } catch (_e) {}
     console.log('[bg] job ' + jobId + ' DONE status=' + out.statusCode + (ok ? '' : (' error=' + (payload && payload.error ? payload.error : '?'))));
   } catch (e) {
     console.log('[bg] job ' + jobId + ' THREW: ' + (e && e.message ? e.message : String(e)) + (e && e.stack ? ('\n' + e.stack) : ''));
-    try { await writeJSON(null, key, { status: 'error', httpStatus: 500, result: { error: 'Background chat failed: ' + (e && e.message ? e.message : String(e)) }, finishedAt: Date.now() }); } catch (e2) {}
+    const _err = { status: 'error', httpStatus: 500, result: { error: 'Background chat failed: ' + (e && e.message ? e.message : String(e)) }, finishedAt: Date.now() };
+    try { await writeJSON(null, 'jobdone:' + jobId, _err); } catch (e2) {}
+    try { await writeJSON(null, key, _err); } catch (e2) {}
   }
 });
 
