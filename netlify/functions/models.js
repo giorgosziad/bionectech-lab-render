@@ -16,7 +16,7 @@ exports.handler = async function (event) {
     });
     const j = await r.json();
     const list = ((j && j.data) || [])
-      .filter(function (m) { return m && typeof m.id === 'string' && !/mythos/i.test(m.id); })
+      .filter(function (m) { return m && typeof m.id === 'string' && !/fable|mythos/i.test(m.id); })
       .map(function (m) { return { id: m.id, name: m.display_name || m.id }; });
     return json(200, { models: list });
   } catch (e) {
