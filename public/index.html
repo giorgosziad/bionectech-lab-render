@@ -586,7 +586,7 @@ function loadData(){ api('data',{method:'GET'}).then(function(r){
   projects=Array.isArray(d.projects)?d.projects:[]; notes=Array.isArray(d.notes)?d.notes:[];
   if(projects.length===0) projects=[{id:newId(),name:'Project 1',turns:[],updated:Date.now()}];
   current=projects[0];
-  _dataLoaded = true;                     /* the read genuinely succeeded — saving is now safe */
+  _dataLoaded = true; try{ setTimeout(__mirrorRestore, 0); }catch(e){}                     /* the read genuinely succeeded — saving is now safe */
   var sd=$('send'); if(sd) sd.disabled=false;
   renderProjects(); renderTurns(); renderNotes();
 }).catch(function(){
@@ -659,8 +659,53 @@ $('newProj').addEventListener('click',function(){var n=(window.prompt('Name this
 $('renProj').addEventListener('click',function(){if(!current)return;var n=(window.prompt('Rename:',current.name)||'').trim();if(!n)return;current.name=n;renderProjects();saveData(true);});
 $('delProj').addEventListener('click',function(){if(!current)return;if(!window.confirm('Delete project?'))return;projects=projects.filter(function(p){return p.id!==current.id;});if(projects.length===0)projects=[{id:newId(),name:'Project 1',turns:[],updated:Date.now()}];current=projects[0];renderProjects();renderTurns();saveData(true);});
 
-function addTurn(role,text){current.turns=current.turns||[];current.turns.push({role:role,text:text,persona:(role!=='you'?personaSel:undefined),ts:Date.now()});current.updated=Date.now();renderTurns();renderProjects();saveData();}
-function addTurnA(role,text,aegis,model,persona,websearched,modelNote){current.turns=current.turns||[];var who=(role!=='you')?(persona||personaSel):undefined;var _turn={role:role,text:text,aegis:aegis||null,model:model||null,modelNote:modelNote||null,persona:who,websearched:!!websearched,ts:Date.now()};current.turns.push(_turn);current.updated=Date.now();renderTurns();renderProjects();saveData();if(role==='claude' && typeof text==='string' && text.indexOf('FILE_DELIVERY')>=0){ deliverFiles(_turn); } }
+/* TURN MIRROR - a synchronous local copy of the live project, written the instant a turn lands.
+   A network write can be cancelled when the page dies; a localStorage write cannot. The server
+   stays the source of truth - the mirror only ever restores turns the network lost. Additive. */
+function __mirrorKey(){ try{ return "bnt_mirror_" + (DESK||"desk") + "_" + (current && current.id ? current.id : "none"); }catch(e){ return "bnt_mirror_none"; } }
+function __mirrorNow(){
+  try{
+    if(!current || !current.id) return;
+    var k = __mirrorKey();
+    try{ localStorage.setItem(k, JSON.stringify(current)); }
+    catch(e){
+      /* quota hit - keep the tail, which is the part at risk */
+      try{
+        var trimmed = { id:current.id, name:current.name, updated:current.updated, turns:(current.turns||[]).slice(-40) };
+        localStorage.setItem(k, JSON.stringify(trimmed));
+      }catch(e2){}
+    }
+  }catch(e){}
+}
+function __mirrorRestore(){
+  try{
+    if(!_dataLoaded) return;
+    var restored = 0;
+    for(var i=0;i<localStorage.length;i++){
+      var k = localStorage.key(i);
+      if(!k || k.indexOf("bnt_mirror_") !== 0) continue;
+      var m = null;
+      try{ m = JSON.parse(localStorage.getItem(k)); }catch(e){ continue; }
+      if(!m || !m.id || !m.turns) continue;
+      var found = null;
+      for(var j=0;j<projects.length;j++){ if(projects[j].id === m.id){ found = projects[j]; break; } }
+      if(!found){ projects.push(m); restored++; continue; }
+      if((m.turns||[]).length > (found.turns||[]).length){
+        found.turns = m.turns;
+        found.updated = m.updated || Date.now();
+        restored++;
+      }
+    }
+    if(restored){
+      if(current && current.id){ for(var q=0;q<projects.length;q++){ if(projects[q].id === current.id){ current = projects[q]; break; } } }
+      try{ renderProjects(); }catch(e){}
+      try{ renderTurns(); }catch(e){}
+      try{ saveData(); }catch(e){}   /* merge-save: more turns wins, server catches up */
+    }
+  }catch(e){}
+}
+function addTurn(role,text){current.turns=current.turns||[];current.turns.push({role:role,text:text,persona:(role!=='you'?personaSel:undefined),ts:Date.now()});current.updated=Date.now();renderTurns();renderProjects();saveData();__mirrorNow();}
+function addTurnA(role,text,aegis,model,persona,websearched,modelNote){current.turns=current.turns||[];var who=(role!=='you')?(persona||personaSel):undefined;var _turn={role:role,text:text,aegis:aegis||null,model:model||null,modelNote:modelNote||null,persona:who,websearched:!!websearched,ts:Date.now()};current.turns.push(_turn);current.updated=Date.now();renderTurns();renderProjects();saveData();__mirrorNow();if(role==='claude' && typeof text==='string' && text.indexOf('FILE_DELIVERY')>=0){ deliverFiles(_turn); } }
 async function bigFileFlow(userTask, bigText, otherFiles, mode, temp){
   var task=userTask||'Review the attached document.';
   addTurn('you', task); $('send').disabled=true;
