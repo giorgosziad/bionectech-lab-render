@@ -629,6 +629,14 @@ function saveData(force){
       api('data',{method:'POST',body:JSON.stringify({data:{projects:projects,notes:notes}})});
       return;
     }
+    /* PARTIAL SAVE - the archive is now ~10MB. Shipping all of it on every turn queued the
+       poller behind the upload and starved the session token. Send ONLY the live project;
+       the server merges it into the stored archive. Nothing is deleted, nothing is capped.
+       force (delete/rename) still writes the full array above, because that is intentional. */
+    if(current && current.id){
+      api('data',{method:'POST',body:JSON.stringify({data:{project:current,notes:notes}})});
+      return;
+    }
     api('data',{method:'GET'}).then(function(r){
       if(!r.ok || !r.data){ return; }                     /* read failed -> DO NOT WRITE a stale copy */
       var d = (r.data && r.data.data) || {};

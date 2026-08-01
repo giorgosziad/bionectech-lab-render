@@ -25,6 +25,33 @@ exports.handler = async function (event) {
   if (event.httpMethod === 'POST') {
     let b; try { b = JSON.parse(event.body || '{}'); } catch (e) { return json(400, { error: 'Body must be JSON.' }); }
     const incoming = b.data || {};
+    // PARTIAL WRITE: {data:{project:{...}}} saves ONE project into the stored archive
+    // WITHOUT shipping the whole thing. The stored copy is read, this one project is
+    // replaced or appended, and the result is written back. NOTHING is ever deleted here.
+    // The two-window merge that used to live in the browser now lives on the server, where
+    // it belongs - a stale window can no longer clobber a fresher one.
+    if (incoming && incoming.project && incoming.project.id) {
+      const pkey = 'data:' + user.desk.toLowerCase();
+      const cur = await readJSON(st, pkey, { projects: [], notes: [] });
+      const list = Array.isArray(cur.projects) ? cur.projects : [];
+      const p = incoming.project;
+      let hit = -1;
+      for (let i = 0; i < list.length; i++) { if (list[i] && list[i].id === p.id) { hit = i; break; } }
+      if (hit < 0) { list.push(p); }
+      else {
+        const oldT = (list[hit].turns || []).length;
+        const newT = (p.turns || []).length;
+        // more turns wins; equal turns, fresher stamp wins; otherwise KEEP what is stored
+        if (newT > oldT || (newT === oldT && (p.updated || 0) >= (list[hit].updated || 0))) { list[hit] = p; }
+      }
+      const out = {
+        projects: list.slice(0, 500),
+        notes: Array.isArray(incoming.notes) ? incoming.notes.slice(0, 1000) : (cur.notes || []),
+        updated: Date.now()
+      };
+      await writeJSON(st, pkey, out);
+      return json(200, { ok: true, partial: true, projects: out.projects.length });
+    }
     const safe = {
       projects: Array.isArray(incoming.projects) ? incoming.projects.slice(0, 500) : [],
       notes: Array.isArray(incoming.notes) ? incoming.notes.slice(0, 1000) : [],
