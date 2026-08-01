@@ -1094,7 +1094,7 @@ async function handleChat(event, user, res, onProgress) {
   // Memory windowing: keep the project's full history stored client-side, but only
   // send a recent window that fits the model's context. Estimate ~4 chars/token and
   // trim the OLDEST messages until we're under budget. The latest message is always kept.
-  const INPUT_BUDGET_TOKENS = 150000; // leaves room for system + the reply
+  const INPUT_BUDGET_TOKENS = 500000; // leaves room for system + the reply
   // If the NEW message carries attachments, reserve room for them by trimming old history
   // harder. This keeps file-sends working even in long projects, and keeps the request
   // small enough to come back before the platform's timeout.
