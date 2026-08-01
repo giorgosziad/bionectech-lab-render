@@ -1,6 +1,6 @@
 // chat-result.js — the browser polls this to check on a background chat job.
 // Returns { status: 'running' | 'done' | 'error' | 'missing', ... }.
-const { userFrom, readJSON, expire, json } = require('./lib/auth');
+const { userFrom, readJSON, readJSONStrict, expire, json } = require('./lib/auth');
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' }, body: '' };
   const user = userFrom(event);
@@ -17,7 +17,15 @@ exports.handler = async function (event) {
   // clobber 'job:' back to running, but it can never touch this key, so a finished job
   // is always deliverable no matter what the heartbeats did.
   let fin = null;
-  try { fin = await readJSON(null, 'jobdone:' + jobId, null); } catch (e) { fin = null; }
+  let _readFailed = false;
+  try { fin = await readJSONStrict(null, 'jobdone:' + jobId, null); }
+  catch (e) { fin = null; _readFailed = true; }
+  if (_readFailed) {
+    // The store did not answer. Saying 'running' here is a lie that freezes the
+    // browser forever on a placeholder. Tell the truth so the poller can retry
+    // or surface it.
+    return json(200, { status: 'store_unreachable', retry: true });
+  }
   if (fin && (fin.status === 'done' || fin.status === 'error')) {
     try { await expire('jobdone:' + jobId, 180); } catch (e) {}
     try { await expire('job:' + jobId, 180); } catch (e) {}

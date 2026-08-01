@@ -69,7 +69,11 @@ async function redis(cmd) {
   throw lastErr;
 }
 async function store() { return {}; } // kept so existing call sites work unchanged
-async function readJSON(_st, key, fallback) {
+async function readJSONStrict(_st, key, fallback) {
+  const v = await redis(['GET', key]);          // throws on timeout/abort - deliberate
+  if (v === null || v === undefined) return fallback;
+  return JSON.parse(v);
+}async function readJSON(_st, key, fallback) {
   try { const v = await redis(['GET', key]); return (v === null || v === undefined) ? fallback : JSON.parse(v); }
   catch (e) { return fallback; }
 }
@@ -87,4 +91,4 @@ function clientIp(event) {
   const h = event.headers || {};
   return (h['x-nf-client-connection-ip'] || h['client-ip'] || h['x-forwarded-for'] || 'ip').toString().split(',')[0].trim();
 }
-module.exports = { cors, json, sign, verify, bearer, userFrom, newSalt, hashPw, store, readJSON, writeJSON, del, expire, todayKey, rlHit, rlReset, clientIp };
+module.exports = { cors, json, sign, verify, bearer, userFrom, newSalt, hashPw, store, readJSON, readJSONStrict, writeJSON, del, expire, todayKey, rlHit, rlReset, clientIp };
