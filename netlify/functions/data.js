@@ -24,18 +24,6 @@ exports.handler = async function (event) {
 
   if (event.httpMethod === 'POST') {
     let b; try { b = JSON.parse(event.body || '{}'); } catch (e) { return json(400, { error: 'Body must be JSON.' }); }
-  // OVERSIZE_WRITE_GUARD: a current client sends a partial write (a few KB). Only a
-  // STALE client running pre-partial-write code sends the whole ~9.8MB archive, and
-  // that write saturates the shared 6-second store budget, starving job delivery and
-  // hanging every persona. Reject anything implausibly large BEFORE it touches the
-  // store. The threshold is far above any legitimate single-project or partial write
-  // and far below a full-archive dump.
-  try {
-    var _bodyLen = (event.body || '').length;
-    if (_bodyLen > 500000) {
-      return json(413, { error: 'Write too large (' + _bodyLen + ' bytes). Reload the page - this client is running an outdated version.', stale: true });
-    }
-  } catch (e) {}
     const incoming = b.data || {};
     // PARTIAL WRITE: {data:{project:{...}}} saves ONE project into the stored archive
     // WITHOUT shipping the whole thing. The stored copy is read, this one project is
