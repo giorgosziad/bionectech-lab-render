@@ -1167,7 +1167,7 @@ async function handleChat(event, user, res, onProgress) {
   // a thinking model with WEB SEARCH ON is heavy work: each search alone costs 40-60s before a word is
   // written. Giving it 85s guaranteed failure. Heavy work now gets the long window whether it is a
   // file, a web-research turn, a deep-model turn, or a long prompt. Only genuinely light chat stays at 85s.
-  var _deepModel = /opus|fable|mythos/i.test(String(reqModel || m || ''));
+  var _deepModel = /opus|fable|mythos/i.test(String(reqModel || (typeof m !== 'undefined' ? m : '') || (typeof candidates !== 'undefined' && candidates.length ? candidates[0] : '') || ''));
   // A DEEP-THINKING MODEL IS SLOW ON A SHORT QUESTION TOO. I previously gated this on prompt length
   // (_deepModel && prompt > 600 chars), which is a stupid rule: Fable ALWAYS thinks. A one-line
   // question to Fable still needs minutes, and it died at 85s. The model decides the budget, NOT the
