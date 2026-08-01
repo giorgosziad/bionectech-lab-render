@@ -401,13 +401,33 @@ function flushSaveNow(){
   try{
     var h = {'Content-Type':'application/json'};
     if (TOKEN) h['Authorization'] = 'Bearer ' + TOKEN;
-    fetch('/.netlify/functions/data', { method:'POST', headers:h,
-      body: JSON.stringify({ data: { projects: projects, notes: notes } }), keepalive:true });
+    var body = JSON.stringify({ data: { projects: projects, notes: notes } });
+    /* keepalive requests are capped ~64KB by browsers; over that, send a normal
+       best-effort fetch instead of silently losing the flush */
+    var opts = { method:'POST', headers:h, body:body };
+    if (body.length <= 60000) opts.keepalive = true;
+    fetch('/.netlify/functions/data', opts);
     __turnsDirty = false;
   }catch(e){}
 }
 window.addEventListener('beforeunload', flushSaveNow);
 document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') flushSaveNow(); });
+/* NEWBORN-PROJECT UNION - a merge can never drop a project that exists only locally. */
+window.addEventListener('load', function(){
+  try{
+    if (typeof mergeProjects === 'function' && !mergeProjects.__unionized){
+      var _oM = mergeProjects;
+      mergeProjects = function(remote, local){
+        var out = _oM(remote, local) || [];
+        var have = {}; for (var i=0;i<out.length;i++){ if(out[i]&&out[i].id) have[out[i].id]=1; }
+        var loc = local || [];
+        for (var j=0;j<loc.length;j++){ var p=loc[j]; if(p&&p.id&&!have[p.id]) out.push(p); }
+        return out;
+      };
+      mergeProjects.__unionized = true;
+    }
+  }catch(e){}
+});
 window.addEventListener('load', function(){
   try{
     if (typeof addTurnA === 'function'){
