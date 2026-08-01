@@ -392,6 +392,35 @@ var TOKEN='', ROLE='', DESK='';
 try{ TOKEN=sessionStorage.getItem('bnt_token')||''; ROLE=sessionStorage.getItem('bnt_role')||''; DESK=sessionStorage.getItem('bnt_desk')||''; }catch(e){}
 
 function api(path,opts){opts=opts||{};opts.headers=Object.assign({'Content-Type':'application/json'},opts.headers||{});if(TOKEN)opts.headers['Authorization']='Bearer '+TOKEN;return fetch('/.netlify/functions/'+path,opts).then(function(r){return r.text().then(function(t){var j=null;try{j=JSON.parse(t);}catch(e){}return {ok:r.ok,status:r.status,data:j};});});}
+/* FLUSH-ON-EXIT GUARD - conversations are saved on every turn and flushed before the page dies. Additive only. */
+var __turnsDirty = false;
+function flushSaveNow(){
+  if(!_dataLoaded) return;                       /* never write an empty shell - the hard stop stays sacred */
+  if(!__turnsDirty) return;                      /* only flush if THIS window added turns - no blind clobber */
+  try{ clearTimeout(saveT); }catch(e){}
+  try{
+    var h = {'Content-Type':'application/json'};
+    if (TOKEN) h['Authorization'] = 'Bearer ' + TOKEN;
+    fetch('/.netlify/functions/data', { method:'POST', headers:h,
+      body: JSON.stringify({ data: { projects: projects, notes: notes } }), keepalive:true });
+    __turnsDirty = false;
+  }catch(e){}
+}
+window.addEventListener('beforeunload', flushSaveNow);
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') flushSaveNow(); });
+window.addEventListener('load', function(){
+  try{
+    if (typeof addTurnA === 'function'){
+      var _oA = addTurnA;
+      addTurnA = function(){ var r = _oA.apply(this, arguments); __turnsDirty = true; try{ saveData(); }catch(e){} return r; };
+    }
+    if (typeof addTurn === 'function' && addTurn !== addTurnA){
+      var _oT = addTurn;
+      addTurn = function(){ var r = _oT.apply(this, arguments); __turnsDirty = true; try{ saveData(); }catch(e){} return r; };
+    }
+  }catch(e){}
+});
+
 
 /* ── login ── */
 $('asAdmin').addEventListener('change',function(){ $('deskField').style.display=this.checked?'none':'block'; });
