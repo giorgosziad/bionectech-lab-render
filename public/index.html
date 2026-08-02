@@ -2002,12 +2002,47 @@ var KaramDeliver = (function(){
     }
     if(!Array.isArray(_slides) || !_slides.length) throw new Error('no slide content was provided');
     (_slides).forEach(function(s){
-      var sl=p.addSlide();
-      if(s.title) sl.addText(String(s.title),{x:0.5,y:0.3,w:'90%',h:0.8,fontSize:28,bold:true,color:'052744'});
+      /* BNT_DESIGNED_DECK - Bionectech design system. Input shape unchanged, so Karam
+         and every caller stay the same; only the rendered file differs. */
+      if(!p._bntInit){ p._bntInit=1; p.layout='LAYOUT_16x9'; p.author='Bionectech, Inc.'; p.company='Bionectech, Inc.';
+        p._NV='0E1B2E'; p._SK='0099E6'; p._DP='006BB5'; p._GD='FFD600'; p._GY='5A6675'; p._HR='DCE3EA'; p._DM='93A0AE';
+        p._n=0; p._tot=_slides.length+1;
+        p._foot=function(s2,n,dk){ s2.addShape(p.ShapeType.line,{x:0.85,y:6.72,w:11.63,h:0,line:{color:dk?'2A3A4E':p._HR,width:0.75}});
+          s2.addText('Bionectech, Inc.',{x:0.85,y:6.80,w:6,h:0.3,fontSize:8,color:dk?'6E7F92':p._DM,charSpacing:1.1,fontFace:'Arial'});
+          s2.addText(('0'+n).slice(-2)+' / '+('0'+p._tot).slice(-2),{x:6.5,y:6.80,w:5.98,h:0.3,fontSize:8,color:dk?'6E7F92':p._DM,charSpacing:1.1,align:'right',fontFace:'Arial'}); };
+        var _ts=p.addSlide(); _ts.background={color:p._NV};
+        _ts.addText('Bionectech',{x:0.85,y:1.95,w:11.6,h:1.0,fontSize:54,bold:true,color:'FFFFFF',charSpacing:-1.4,fontFace:'Arial'});
+        _ts.addShape(p.ShapeType.rect,{x:0.88,y:3.12,w:0.86,h:0.045,fill:{color:p._GD}});
+        _ts.addText(String(f.title||(_slides[0]&&_slides[0].title)||'Bionectech'),{x:0.85,y:3.42,w:10.0,h:1.0,fontSize:22,bold:true,color:'FFFFFF',fontFace:'Arial',charSpacing:-0.4});
+        if(f.subtitle) _ts.addText(String(f.subtitle),{x:0.85,y:4.55,w:10.0,h:0.4,fontSize:12,color:'C9D5E2',fontFace:'Arial'});
+        p._foot(_ts,1,true); }
+      var sl=p.addSlide(); p._n++;
+      sl.background={color:'FFFFFF'};
+      if(s.eyebrow) sl.addText(String(s.eyebrow).toUpperCase(),{x:0.85,y:0.62,w:11.6,h:0.3,fontSize:8.5,bold:true,color:p._SK,charSpacing:2.8,fontFace:'Arial'});
+      if(s.title) sl.addText(String(s.title),{x:0.85,y:1.05,w:11.0,h:1.15,fontSize:28,bold:true,color:p._NV,fontFace:'Arial',charSpacing:-1.1,valign:'top'});
+      sl.addShape(p.ShapeType.rect,{x:0.88,y:2.28,w:0.86,h:0.04,fill:{color:p._GD}});
+      var _y=2.55;
+      if(s.kicker){ sl.addText(String(s.kicker),{x:0.85,y:_y,w:10.9,h:0.85,fontSize:14,color:p._DP,fontFace:'Arial',lineSpacing:22,valign:'top'}); _y+=0.95; }
+      var body=[];
+      if(Array.isArray(s.bullets)&&s.bullets.length){
+        s.bullets.forEach(function(bt){
+          sl.addShape(p.ShapeType.rect,{x:0.90,y:_y+0.12,w:0.09,h:0.09,fill:{color:p._SK}});
+          sl.addText(String(bt),{x:1.20,y:_y-0.02,w:10.5,h:0.62,fontSize:12,color:p._NV,fontFace:'Arial',valign:'top',lineSpacing:16});
+          sl.addShape(p.ShapeType.line,{x:0.90,y:_y+0.66,w:10.8,h:0,line:{color:p._HR,width:0.75}});
+          _y+=0.78; });
+      } else if(s.body){
+        sl.addText(String(s.body),{x:0.85,y:_y,w:10.9,h:2.4,fontSize:10.5,color:p._GY,fontFace:'Arial',lineSpacing:17,valign:'top'});
+      }
+      if(s.callout){ sl.addShape(p.ShapeType.rect,{x:0.90,y:6.02,w:10.8,h:0.55,fill:{color:'EEF6FC'},line:{color:p._SK,width:1}});
+        sl.addText(String(s.callout),{x:1.08,y:6.02,w:10.5,h:0.55,fontSize:12,bold:true,color:p._DP,fontFace:'Arial',valign:'middle'}); }
+      if(s.footnote) sl.addText(String(s.footnote),{x:0.85,y:6.28,w:11.6,h:0.36,fontSize:7.6,color:'8A96A4',fontFace:'Arial'});
+      if(s.note) sl.addNotes(String(s.note));
+      p._foot(sl,p._n+1,false);
+      /* superseded by BNT_DESIGNED_DECK */
       var body=[];
       if(Array.isArray(s.bullets)) body=s.bullets.map(function(t){return {text:String(t),options:{bullet:true}};});
       else if(s.body) body=[{text:String(s.body)}];
-      if(body.length) sl.addText(body,{x:0.5,y:1.3,w:'90%',h:4.5,fontSize:16,color:'333333'});
+      /* superseded by BNT_DESIGNED_DECK */
     });
     // PptxGenJS 3.x expects write({ outputType:'blob' }). The legacy string form write('blob') can
     // throw on this build — which is exactly why PDF and Excel delivered while PowerPoint silently
