@@ -656,7 +656,7 @@ function renderTurns(){ var log=$('log');log.innerHTML='';var t=current&&current
     /* Downloadable files in Karam's reply: a Download button per file, plus Download as ZIP if many. */
     var _files=extractFilesFromText(turn.text);
     if(_files.length){ var fbar=document.createElement('div'); fbar.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center';
-      _files.forEach(function(ff){ var db=document.createElement('button'); db.className='btn gold sm'; db.type='button'; db.style.cssText='white-space:nowrap'; db.textContent='\u2b07 '+ff.name; db.addEventListener('click',function(){ downloadFile(ff.name, ff.content); }); fbar.appendChild(db); if(/\.html?$/i.test(ff.name||'')){ var pb=document.createElement('button'); pb.className='btn sm'; pb.type='button'; pb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--sky,#0099E6)'; pb.textContent='Save as designed PDF'; pb.addEventListener('click',function(){ printHtmlToPdf(ff.content, ff.name); }); fbar.appendChild(pb); } });
+      _files.forEach(function(ff){ var db=document.createElement('button'); db.className='btn gold sm'; db.type='button'; db.style.cssText='white-space:nowrap'; db.textContent='\u2b07 '+ff.name; db.addEventListener('click',function(){ downloadFile(ff.name, ff.content); }); fbar.appendChild(db); if(/\.html?$/i.test(ff.name||'')){ var pb=document.createElement('button'); pb.className='btn sm'; pb.type='button'; pb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--sky,#0099E6)'; pb.textContent='Save as designed PDF'; pb.addEventListener('click',function(){ printHtmlToPdf(ff.content, ff.name); }); fbar.appendChild(pb); } if(/\.deck\.json$/i.test(ff.name||'')){ var xb=document.createElement('button'); xb.className='btn sm'; xb.type='button'; xb.style.cssText='white-space:nowrap;background:var(--navy-deep,#052744);color:#fff;border:1px solid var(--gold,#FFD600)'; xb.textContent='Download as PowerPoint'; xb.addEventListener('click',function(){ buildDesignedPptx(ff.content, ff.name); }); fbar.appendChild(xb); } });
       if(_files.length>1){ var zb=document.createElement('button'); zb.className='btn sm'; zb.type='button'; zb.style.cssText='white-space:nowrap;background:var(--navy-deep,#0b1020);color:#fff;border:1px solid var(--gold,#FFD600)'; zb.textContent='⬇ Download all as ZIP'; zb.addEventListener('click',function(){ downloadZip(_files, (current&&current.name?current.name.replace(/[^\w.-]+/g,'_'):'karam')+'-files.zip'); }); fbar.appendChild(zb); }
       d.appendChild(fbar);
     }
@@ -1529,6 +1529,86 @@ function buildZip(files){
   var total=0; allParts.forEach(function(p){ total+=p.length; });
   var zip=new Uint8Array(total); var pos=0; allParts.forEach(function(p){ zip.set(p,pos); pos+=p.length; });
   return zip;
+}
+/* DESIGNED POWERPOINT DELIVERY. Karam emits a slide spec as a fenced block named
+   *.deck.json; this builds a real, fully designed .pptx from it - brand colors,
+   backgrounds, layouts, all inside the file. PptxGenJS is loaded lazily from cdnjs
+   only when the button is actually pressed, so the page carries no extra weight. */
+var _PPTX_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js';
+var _pptxLoading = null;
+function loadPptxGen(){
+  if (window.PptxGenJS) return Promise.resolve(window.PptxGenJS);
+  if (_pptxLoading) return _pptxLoading;
+  _pptxLoading = new Promise(function(resolve, reject){
+    var s = document.createElement('script');
+    s.src = _PPTX_CDN;
+    s.onload = function(){ resolve(window.PptxGenJS); };
+    s.onerror = function(){ reject(new Error('Could not load the PowerPoint builder.')); };
+    document.head.appendChild(s);
+  });
+  return _pptxLoading;
+}
+var BNT_NAVY = '052744', BNT_SKY = '0099E6', BNT_DEEP = '006BB5', BNT_GOLD = 'FFD600';
+function buildDesignedPptx(specText, fileName){
+  var spec;
+  try { spec = JSON.parse(specText); }
+  catch(e){ toast('Deck spec is not valid JSON.'); return; }
+  var slides = spec.slides || [];
+  if (!slides.length){ toast('Deck spec has no slides.'); return; }
+  toast('Building designed PowerPoint...');
+  loadPptxGen().then(function(P){
+    var pptx = new P();
+    pptx.layout = 'LAYOUT_16x9';
+    pptx.author = 'Bionectech, Inc.';
+    pptx.company = 'Bionectech, Inc.';
+    pptx.title = spec.title || 'Bionectech';
+
+    /* TITLE SLIDE - deep navy field, white title, gold rule, sky subtitle. */
+    var t = pptx.addSlide();
+    t.background = { color: BNT_NAVY };
+    t.addText(String(spec.title || 'Bionectech'), {
+      x:0.7, y:2.05, w:11.9, h:1.3, fontSize:44, bold:true, color:'FFFFFF', fontFace:'Arial'
+    });
+    t.addShape(pptx.ShapeType.rect, { x:0.75, y:3.42, w:2.1, h:0.06, fill:{ color:BNT_GOLD } });
+    if (spec.subtitle) {
+      t.addText(String(spec.subtitle), {
+        x:0.7, y:3.68, w:11.9, h:0.8, fontSize:20, color:BNT_SKY, fontFace:'Arial'
+      });
+    }
+    if (spec.footer) {
+      t.addText(String(spec.footer), {
+        x:0.7, y:6.35, w:11.9, h:0.4, fontSize:11, color:'8AA6BF', fontFace:'Consolas'
+      });
+    }
+
+    /* CONTENT SLIDES - white field, navy title, sky accent bar, gold bullet marks. */
+    slides.forEach(function(s, idx){
+      var sl = pptx.addSlide();
+      sl.background = { color:'FFFFFF' };
+      sl.addShape(pptx.ShapeType.rect, { x:0, y:0, w:0.22, h:7.5, fill:{ color:BNT_SKY } });
+      sl.addText(String(s.title || ('Slide ' + (idx+2))), {
+        x:0.75, y:0.5, w:11.7, h:0.9, fontSize:30, bold:true, color:BNT_NAVY, fontFace:'Arial'
+      });
+      sl.addShape(pptx.ShapeType.rect, { x:0.78, y:1.45, w:1.5, h:0.05, fill:{ color:BNT_GOLD } });
+      var bl = (s.bullets || []).map(function(b){
+        return { text:String(b), options:{ bullet:{ code:'25AA' }, color:'1A2733', fontSize:17, breakLine:true, paraSpaceAfter:9 } };
+      });
+      if (bl.length) {
+        sl.addText(bl, { x:0.95, y:1.85, w:11.3, h:4.6, fontFace:'Arial', valign:'top' });
+      }
+      if (s.callout) {
+        sl.addShape(pptx.ShapeType.rect, { x:0.95, y:6.05, w:11.3, h:0.62, fill:{ color:'EEF6FC' }, line:{ color:BNT_SKY, width:1 } });
+        sl.addText(String(s.callout), { x:1.12, y:6.05, w:11.0, h:0.62, fontSize:14, bold:true, color:BNT_DEEP, fontFace:'Arial', valign:'middle' });
+      }
+      sl.addText(String(idx + 2), { x:12.35, y:6.85, w:0.5, h:0.35, fontSize:11, color:'9AAFC2', fontFace:'Consolas', align:'right' });
+      if (s.note) { sl.addNotes(String(s.note)); }
+    });
+
+    var out = (fileName || 'deck').replace(/\.deck\.json$/i, '').replace(/[^\w.-]+/g,'_') + '.pptx';
+    return pptx.writeFile({ fileName: out }).then(function(){ toast('PowerPoint delivered: ' + out); });
+  }).catch(function(e){
+    toast('PowerPoint build failed: ' + (e && e.message ? e.message : 'unknown'));
+  });
 }
 function printHtmlToPdf(html, name){
   try{
