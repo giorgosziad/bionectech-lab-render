@@ -656,7 +656,7 @@ function renderTurns(){ var log=$('log');log.innerHTML='';var t=current&&current
     /* Downloadable files in Karam's reply: a Download button per file, plus Download as ZIP if many. */
     var _files=extractFilesFromText(turn.text);
     if(_files.length){ var fbar=document.createElement('div'); fbar.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center';
-      _files.forEach(function(ff){ var db=document.createElement('button'); db.className='btn gold sm'; db.type='button'; db.style.cssText='white-space:nowrap'; db.textContent='\u2b07 '+ff.name; db.addEventListener('click',function(){ downloadFile(ff.name, ff.content); }); fbar.appendChild(db); if(/\.html?$/i.test(ff.name||'')){ var pb=document.createElement('button'); pb.className='btn sm'; pb.type='button'; pb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--sky,#0099E6)'; pb.textContent='Save as designed PDF'; pb.addEventListener('click',function(){ printHtmlToPdf(ff.content, ff.name); }); fbar.appendChild(pb); } if(/\.deck\.json$/i.test(ff.name||'')){ var xb=document.createElement('button'); xb.className='btn sm'; xb.type='button'; xb.style.cssText='white-space:nowrap;background:var(--navy-deep,#052744);color:#fff;border:1px solid var(--gold,#FFD600)'; xb.textContent='Download as PowerPoint'; xb.addEventListener('click',function(){ buildDesignedPptx(ff.content, ff.name); }); fbar.appendChild(xb); var vb=document.createElement('button'); vb.className='btn sm'; vb.type='button'; vb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--gold,#FFD600)'; vb.textContent='Download as MP4'; vb.addEventListener('click',function(){ buildDesignedMp4(ff.content, ff.name, 5); }); fbar.appendChild(vb); } });
+      _files.forEach(function(ff){ var db=document.createElement('button'); db.className='btn gold sm'; db.type='button'; db.style.cssText='white-space:nowrap'; db.textContent='\u2b07 '+ff.name; db.addEventListener('click',function(){ downloadFile(ff.name, ff.content); }); fbar.appendChild(db); if(/\.html?$/i.test(ff.name||'')){ var pb=document.createElement('button'); pb.className='btn sm'; pb.type='button'; pb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--sky,#0099E6)'; pb.textContent='Save as designed PDF'; pb.addEventListener('click',function(){ printHtmlToPdf(ff.content, ff.name); }); fbar.appendChild(pb); } if(/\.deck\.json$/i.test(ff.name||'')){ var xb=document.createElement('button'); xb.className='btn sm'; xb.type='button'; xb.style.cssText='white-space:nowrap;background:var(--navy-deep,#052744);color:#fff;border:1px solid var(--gold,#FFD600)'; xb.textContent='Download as PowerPoint'; xb.addEventListener('click',function(){ buildDesignedPptx(ff.content, ff.name); }); fbar.appendChild(xb); var vb=document.createElement('button'); vb.className='btn sm'; vb.type='button'; vb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--gold,#FFD600)'; vb.textContent='Download as MP4'; vb.addEventListener('click',function(){ buildDesignedMp4(ff.content, ff.name, 5); }); fbar.appendChild(vb); } if(/\.ad\.json$/i.test(ff.name||'')){ var cb2=document.createElement('button'); cb2.className='btn gold sm'; cb2.type='button'; cb2.style.cssText='white-space:nowrap'; cb2.textContent='Build Commercial'; cb2.addEventListener('click',function(){ if(window.confirm('This renders every shot through Runway and spends credits. Continue?')){ buildCommercial(ff.content, ff.name); } }); fbar.appendChild(cb2); } });
       if(_files.length>1){ var zb=document.createElement('button'); zb.className='btn sm'; zb.type='button'; zb.style.cssText='white-space:nowrap;background:var(--navy-deep,#0b1020);color:#fff;border:1px solid var(--gold,#FFD600)'; zb.textContent='⬇ Download all as ZIP'; zb.addEventListener('click',function(){ downloadZip(_files, (current&&current.name?current.name.replace(/[^\w.-]+/g,'_'):'karam')+'-files.zip'); }); fbar.appendChild(zb); }
       d.appendChild(fbar);
     }
@@ -1590,6 +1590,113 @@ function _mp4Wrap(ctx, text, x, y, maxW, lh){
   return n + 1;
 }
 function _mp4Png(cv){ return new Promise(function(res){ cv.toBlob(function(b){ res(b); }, 'image/png'); }); }
+/* COMMERCIAL PIPELINE. Karam directs; Runway renders; the Lab assembles. One press.
+   Karam emits a fenced block named *.ad.json:
+     { "title":"BagPing", "model":"product_ad", "ratio":"1280:720",
+       "shots":[ {"seconds":5,"visual":"dense cinematic prompt","vo":"line"} ] }
+   Every shot is sent to Runway through creative-gen (the API key never reaches the
+   browser), polled to completion, then the clips are concatenated into one MP4 with
+   the ffmpeg encoder already loaded for deck video. */
+var AD_MODELS = { primary: 'product_ad', fallback: 'gen4_turbo' };
+
+function _adPoll(id, onTick){
+  return new Promise(function(resolve, reject){
+    var tries = 0;
+    var iv = setInterval(function(){
+      tries++;
+      if (tries > 90) { clearInterval(iv); reject(new Error('timed out waiting for the clip')); return; }
+      api('creative-gen?id=' + encodeURIComponent(id), { method:'GET' }).then(function(r){
+        if (!(r.ok && r.data)) return;
+        var st = r.data.status;
+        if (onTick) onTick(st, tries);
+        if (st === 'SUCCEEDED'){ clearInterval(iv); resolve(r.data.url); }
+        else if (st === 'FAILED'){ clearInterval(iv); reject(new Error(r.data.failure || 'generation failed')); }
+      }).catch(function(){});
+    }, 6000);
+  });
+}
+
+async function _adRenderShot(model, visual, ratio, seconds){
+  var r = await api('creative-gen', { method:'POST', body: JSON.stringify({
+    kind:'video', model:model, promptText:visual, ratio:ratio||'1280:720',
+    duration: Math.max(2, Math.min(10, seconds||5))
+  })});
+  if (!(r.ok && r.data && r.data.id)){
+    throw new Error((r.data && r.data.error) || ('could not start the shot (HTTP ' + r.status + ')'));
+  }
+  return r.data.id;
+}
+
+async function buildCommercial(specText, fileName){
+  var spec;
+  try { spec = (typeof specText === 'string') ? JSON.parse(specText) : specText; }
+  catch(e){ toast('Ad spec is not valid JSON.'); return; }
+  var shots = (spec && (spec.shots || spec.slides)) || [];
+  if (!shots.length){ toast('Ad spec has no shots.'); return; }
+  var ratio = spec.ratio || '1280:720';
+  var model = spec.model || AD_MODELS.primary;
+
+  try {
+    toast('Commercial: rendering ' + shots.length + ' shots. This takes a few minutes.');
+    var urls = [];
+    for (var i=0;i<shots.length;i++){
+      var s = shots[i];
+      var visual = String(s.visual || s.prompt || s.promptText || '').trim();
+      if (!visual) throw new Error('shot ' + (i+1) + ' has no visual prompt');
+      toast('Shot ' + (i+1) + ' of ' + shots.length + ': starting...');
+      var id;
+      try { id = await _adRenderShot(model, visual, ratio, s.seconds); }
+      catch (e1) {
+        /* The primary model can reject a prompt or be unavailable on this tier. Fall
+           back once rather than losing the whole run on one shot. */
+        toast('Shot ' + (i+1) + ': primary model refused, trying ' + AD_MODELS.fallback);
+        id = await _adRenderShot(AD_MODELS.fallback, visual, ratio, s.seconds);
+      }
+      var url = await _adPoll(id, function(st, n){
+        if (n % 3 === 0) toast('Shot ' + (i+1) + '/' + shots.length + ' - ' + st);
+      });
+      urls.push(url);
+      toast('Shot ' + (i+1) + ' done.');
+    }
+
+    toast('All shots rendered. Assembling the commercial...');
+    await loadMp4Libs();
+    if (!_mp4FF){
+      _mp4FF = new FFmpegWASM.FFmpeg();
+      await _mp4FF.load({
+        coreURL: await FFmpegUtil.toBlobURL(_MP4_CORE + '/ffmpeg-core.js', 'text/javascript'),
+        wasmURL: await FFmpegUtil.toBlobURL(_MP4_CORE + '/ffmpeg-core.wasm', 'application/wasm')
+      });
+    }
+    var ff = _mp4FF;
+    var list = [];
+    for (var k=0;k<urls.length;k++){
+      var resp = await fetch(urls[k]);
+      if (!resp.ok) throw new Error('could not download clip ' + (k+1));
+      var ab = new Uint8Array(await resp.arrayBuffer());
+      var nm = 'c' + String(k+1).padStart(3,'0') + '.mp4';
+      await ff.writeFile(nm, ab);
+      list.push("file '" + nm + "'");
+    }
+    await ff.writeFile('list.txt', new TextEncoder().encode(list.join('\n') + '\n'));
+    /* Stream copy where possible: the clips already share codec and dimensions, so a
+       concat demux avoids a full re-encode and keeps the original quality. */
+    await ff.exec(['-f','concat','-safe','0','-i','list.txt','-c','copy','ad.mp4']);
+    var data = await ff.readFile('ad.mp4');
+    var blob = new Blob([data.buffer], { type:'video/mp4' });
+    var out = String(fileName || spec.title || 'commercial').replace(/\.(ad\.json|json)$/i,'').replace(/[^\w.-]+/g,'_') + '-commercial.mp4';
+    var u = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = u; a.download = out;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 3000);
+    for (var m=0;m<urls.length;m++){ try{ await ff.deleteFile('c' + String(m+1).padStart(3,'0') + '.mp4'); }catch(e){} }
+    try{ await ff.deleteFile('list.txt'); }catch(e){}
+    try{ await ff.deleteFile('ad.mp4'); }catch(e){}
+    toast('Commercial delivered: ' + out + ' (' + (blob.size/1048576).toFixed(1) + ' MB)');
+  } catch (e) {
+    toast('Commercial failed: ' + (e && e.message ? e.message : 'unknown'));
+  }
+}
 async function buildDesignedMp4(specText, fileName, secsPerSlide){
   var spec;
   try { spec = (typeof specText === 'string') ? JSON.parse(specText) : specText; }
