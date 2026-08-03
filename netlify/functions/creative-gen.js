@@ -1,4 +1,4 @@
-// creative-gen.js - one endpoint for every Runway creative output: images, video,
+﻿// creative-gen.js - one endpoint for every Runway creative output: images, video,
 // voice-over, localization. The key NEVER reaches the browser; the browser calls this,
 // this calls Runway.
 //
@@ -18,7 +18,7 @@ const VER = '2024-11-06';
 // Cost discipline: only models we have deliberately chosen are callable. An open model
 // field would let a typo spend credits on something unintended.
 const IMAGE_MODELS = ['gen4_image', 'gen4_image_turbo', 'gemini_image3_pro', 'gemini_image3.1_flash', 'product_campaign_image', 'marketing_stock_image', 'gpt_image_2'];
-const VIDEO_MODELS = ['gen4_turbo', 'gen3a_turbo', 'gen4.5', 'veo3.1', 'veo3.1_fast', 'kling3.0_standard', 'kling3.0_pro', 'product_ad', 'product_ugc', 'multi_shot_video', 'seedance2_fast'];
+const VIDEO_MODELS = ['veo3','veo3.1','veo3.1_fast','kling3.0_standard','kling3.0_pro','kling3.0_4k','klingO3_standard','klingO3_pro','klingO3_4k','seedance2','seedance2_fast','seedance2_mini','happyhorse_1_0','gen4_turbo','gen3a_turbo'];
 
 function clip(s, n) { return String(s == null ? '' : s).slice(0, n); }
 
