@@ -656,7 +656,7 @@ function renderTurns(){ var log=$('log');log.innerHTML='';var t=current&&current
     /* Downloadable files in Karam's reply: a Download button per file, plus Download as ZIP if many. */
     var _files=extractFilesFromText(turn.text);
     if(_files.length){ var fbar=document.createElement('div'); fbar.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center';
-      _files.forEach(function(ff){ var db=document.createElement('button'); db.className='btn gold sm'; db.type='button'; db.style.cssText='white-space:nowrap'; db.textContent='\u2b07 '+ff.name; db.addEventListener('click',function(){ downloadFile(ff.name, ff.content); }); fbar.appendChild(db); if(/\.html?$/i.test(ff.name||'')){ var pb=document.createElement('button'); pb.className='btn sm'; pb.type='button'; pb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--sky,#0099E6)'; pb.textContent='Save as designed PDF'; pb.addEventListener('click',function(){ printHtmlToPdf(ff.content, ff.name); }); fbar.appendChild(pb); } if(/\.deck\.json$/i.test(ff.name||'')){ var xb=document.createElement('button'); xb.className='btn sm'; xb.type='button'; xb.style.cssText='white-space:nowrap;background:var(--navy-deep,#052744);color:#fff;border:1px solid var(--gold,#FFD600)'; xb.textContent='Download as PowerPoint'; xb.addEventListener('click',function(){ buildDesignedPptx(ff.content, ff.name); }); fbar.appendChild(xb); } });
+      _files.forEach(function(ff){ var db=document.createElement('button'); db.className='btn gold sm'; db.type='button'; db.style.cssText='white-space:nowrap'; db.textContent='\u2b07 '+ff.name; db.addEventListener('click',function(){ downloadFile(ff.name, ff.content); }); fbar.appendChild(db); if(/\.html?$/i.test(ff.name||'')){ var pb=document.createElement('button'); pb.className='btn sm'; pb.type='button'; pb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--sky,#0099E6)'; pb.textContent='Save as designed PDF'; pb.addEventListener('click',function(){ printHtmlToPdf(ff.content, ff.name); }); fbar.appendChild(pb); } if(/\.deck\.json$/i.test(ff.name||'')){ var xb=document.createElement('button'); xb.className='btn sm'; xb.type='button'; xb.style.cssText='white-space:nowrap;background:var(--navy-deep,#052744);color:#fff;border:1px solid var(--gold,#FFD600)'; xb.textContent='Download as PowerPoint'; xb.addEventListener('click',function(){ buildDesignedPptx(ff.content, ff.name); }); fbar.appendChild(xb); var vb=document.createElement('button'); vb.className='btn sm'; vb.type='button'; vb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--gold,#FFD600)'; vb.textContent='Download as MP4'; vb.addEventListener('click',function(){ buildDesignedMp4(ff.content, ff.name, 5); }); fbar.appendChild(vb); } });
       if(_files.length>1){ var zb=document.createElement('button'); zb.className='btn sm'; zb.type='button'; zb.style.cssText='white-space:nowrap;background:var(--navy-deep,#0b1020);color:#fff;border:1px solid var(--gold,#FFD600)'; zb.textContent='⬇ Download all as ZIP'; zb.addEventListener('click',function(){ downloadZip(_files, (current&&current.name?current.name.replace(/[^\w.-]+/g,'_'):'karam')+'-files.zip'); }); fbar.appendChild(zb); }
       d.appendChild(fbar);
     }
@@ -1549,6 +1549,132 @@ function loadPptxGen(){
   return _pptxLoading;
 }
 var BNT_NAVY = '052744', BNT_SKY = '0099E6', BNT_DEEP = '006BB5', BNT_GOLD = 'FFD600';
+/* DESIGNED MP4 DELIVERY. Encodes a Bionectech-branded slideshow to real H.264 MP4
+   entirely in the browser. ffmpeg.wasm single-threaded core is used deliberately: the
+   multi-threaded build needs SharedArrayBuffer, which needs COOP/COEP headers the Lab
+   cannot set without breaking its CDN scripts. Core is ~25MB and loads lazily on first
+   press only, so no page weight until the operator actually asks for video. */
+var _MP4_FF = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js';
+var _MP4_UT = 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js';
+var _MP4_CORE = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+var _mp4Libs = null, _mp4FF = null;
+function _mp4Script(src){
+  return new Promise(function(res, rej){
+    var s = document.createElement('script'); s.src = src;
+    s.onload = function(){ res(); };
+    s.onerror = function(){ rej(new Error('could not load ' + src)); };
+    document.head.appendChild(s);
+  });
+}
+function loadMp4Libs(){
+  if (_mp4Libs) return _mp4Libs;
+  _mp4Libs = (async function(){
+    if (typeof FFmpegWASM === 'undefined') await _mp4Script(_MP4_FF);
+    if (typeof FFmpegUtil === 'undefined') await _mp4Script(_MP4_UT);
+    if (typeof FFmpegWASM === 'undefined' || typeof FFmpegUtil === 'undefined'){
+      throw new Error('the video libraries did not load');
+    }
+    return true;
+  })();
+  return _mp4Libs;
+}
+function _mp4Wrap(ctx, text, x, y, maxW, lh){
+  var words = String(text||'').split(' '), line = '', n = 0;
+  for (var i=0;i<words.length;i++){
+    var test = line + words[i] + ' ';
+    if (ctx.measureText(test).width > maxW && line !== ''){
+      ctx.fillText(line.trim(), x, y + n*lh); line = words[i] + ' '; n++;
+    } else { line = test; }
+  }
+  ctx.fillText(line.trim(), x, y + n*lh);
+  return n + 1;
+}
+function _mp4Png(cv){ return new Promise(function(res){ cv.toBlob(function(b){ res(b); }, 'image/png'); }); }
+async function buildDesignedMp4(specText, fileName, secsPerSlide){
+  var spec;
+  try { spec = (typeof specText === 'string') ? JSON.parse(specText) : specText; }
+  catch(e){ toast('Deck spec is not valid JSON.'); return; }
+  var slides = (spec && spec.slides) || [];
+  if (!slides.length){ toast('Deck spec has no slides.'); return; }
+  var SPS = Math.max(2, Math.min(20, secsPerSlide || 5));
+  var NV='#0E1B2E', SK='#0099E6', GD='#FFD600', HR='#DCE3EA', DM='#93A0AE';
+  try {
+    toast('Loading the video encoder (first time takes a moment)...');
+    await loadMp4Libs();
+    if (!_mp4FF){
+      _mp4FF = new FFmpegWASM.FFmpeg();
+      await _mp4FF.load({
+        coreURL: await FFmpegUtil.toBlobURL(_MP4_CORE + '/ffmpeg-core.js', 'text/javascript'),
+        wasmURL: await FFmpegUtil.toBlobURL(_MP4_CORE + '/ffmpeg-core.wasm', 'application/wasm')
+      });
+    }
+    var ff = _mp4FF;
+    toast('Rendering slides...');
+    var cv = document.createElement('canvas'); cv.width = 1920; cv.height = 1080;
+    var ctx = cv.getContext('2d');
+    var total = slides.length + 1, frames = [];
+    /* title frame */
+    ctx.fillStyle = NV; ctx.fillRect(0,0,1920,1080);
+    ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 118px Arial';
+    ctx.fillText(String(spec.title || 'Bionectech'), 140, 470);
+    ctx.fillStyle = GD; ctx.fillRect(144, 520, 150, 9);
+    if (spec.subtitle){ ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 46px Arial'; _mp4Wrap(ctx, spec.subtitle, 140, 620, 1500, 60); }
+    ctx.fillStyle = '#6E7F92'; ctx.font = '22px Consolas';
+    ctx.fillText('Bionectech, Inc.', 140, 1000);
+    frames.push(await _mp4Png(cv));
+    /* content frames */
+    for (var i=0;i<slides.length;i++){
+      var s = slides[i];
+      ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,1920,1080);
+      if (s.eyebrow){ ctx.fillStyle = SK; ctx.font = 'bold 22px Arial'; ctx.fillText(String(s.eyebrow).toUpperCase(), 140, 150); }
+      ctx.fillStyle = NV; ctx.font = 'bold 62px Arial';
+      _mp4Wrap(ctx, s.title || '', 140, 250, 1620, 76);
+      ctx.fillStyle = GD; ctx.fillRect(144, 360, 150, 8);
+      var y = 470;
+      var bl = (s.bullets && s.bullets.length) ? s.bullets : (s.body ? [s.body] : []);
+      for (var j=0;j<bl.length;j++){
+        ctx.fillStyle = SK; ctx.fillRect(144, y-22, 16, 16);
+        ctx.fillStyle = NV; ctx.font = '32px Arial';
+        var used = _mp4Wrap(ctx, bl[j], 200, y, 1520, 44);
+        y += used*44 + 34;
+        ctx.strokeStyle = HR; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(144, y-24); ctx.lineTo(1780, y-24); ctx.stroke();
+        if (y > 900) break;
+      }
+      ctx.strokeStyle = HR; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(140, 975); ctx.lineTo(1780, 975); ctx.stroke();
+      ctx.fillStyle = DM; ctx.font = '20px Consolas';
+      ctx.fillText('Bionectech, Inc.', 140, 1015);
+      ctx.textAlign = 'right';
+      ctx.fillText(('0'+(i+2)).slice(-2) + ' / ' + ('0'+total).slice(-2), 1780, 1015);
+      ctx.textAlign = 'left';
+      frames.push(await _mp4Png(cv));
+    }
+    toast('Encoding MP4 - ' + frames.length + ' slides...');
+    for (var k=0;k<frames.length;k++){
+      var buf = new Uint8Array(await frames[k].arrayBuffer());
+      await ff.writeFile('f' + String(k+1).padStart(4,'0') + '.png', buf);
+    }
+    await ff.exec([
+      '-framerate', String(1/SPS),
+      '-i','f%04d.png',
+      '-c:v','libx264','-preset','ultrafast','-crf','24',
+      '-pix_fmt','yuv420p','-r','25','-movflags','+faststart','out.mp4'
+    ]);
+    var data = await ff.readFile('out.mp4');
+    var blob = new Blob([data.buffer], { type:'video/mp4' });
+    var out = String(fileName || 'deck').replace(/\.(deck\.json|json|pptx)$/i,'').replace(/[^\w.-]+/g,'_') + '.mp4';
+    var u = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = u; a.download = out;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 2000);
+    for (var m=0;m<frames.length;m++){ try{ await ff.deleteFile('f' + String(m+1).padStart(4,'0') + '.png'); }catch(e){} }
+    try{ await ff.deleteFile('out.mp4'); }catch(e){}
+    toast('Video delivered: ' + out + ' (' + (blob.size/1048576).toFixed(1) + ' MB)');
+  } catch (e) {
+    toast('Video build failed: ' + (e && e.message ? e.message : 'unknown'));
+  }
+}
 function buildDesignedPptx(specText, fileName){
   var spec;
   try { spec = JSON.parse(specText); }
