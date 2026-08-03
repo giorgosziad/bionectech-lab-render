@@ -83,7 +83,7 @@ exports.handler = async function (event) {
 
   if (kind === 'video') {
     if (VIDEO_MODELS.indexOf(model) < 0) return json(400, { error: 'Unknown video model. Allowed: ' + VIDEO_MODELS.join(', ') });
-    const dur = Math.max(2, Math.min(10, parseInt(b.duration || 5, 10)));
+    const _rawDur = parseInt(b.duration || 6, 10); const _allowed = [4, 6, 8]; let dur = _allowed[0]; for (const _d of _allowed) { if (Math.abs(_d - _rawDur) < Math.abs(dur - _rawDur)) dur = _d; }
     const body = { model: model, promptText: promptText, ratio: ratio, duration: dur };
     // Image-to-video models need a starting frame; text-to-video ones do not.
     if (b.promptImage) body.promptImage = clip(b.promptImage, 2000);
