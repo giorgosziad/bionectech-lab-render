@@ -41,6 +41,21 @@ exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors, body: '' };
   const user = userFrom(event);
   if (!user) return json(401, { error: 'Sign in first.' });
+  /* PER_PERSONA_LESSONS: each persona keeps its own approved set beside the shared
+     Lab-wide one. These local names shadow the module constants for the whole handler,
+     so vetting, approval, audit and every existing branch work unchanged - only the
+     key they act on differs. No persona field means the shared keys, exactly as before. */
+  var _pv = '';
+  try {
+    var _pb = (event.httpMethod === 'GET')
+      ? ((event.queryStringParameters || {}).persona || '')
+      : ((JSON.parse(event.body || '{}') || {}).persona || '');
+    _pv = String(_pb).toLowerCase().replace(/[^a-z]/g, '');
+  } catch (e) { _pv = ''; }
+  var _sfx = _pv ? (':' + _pv) : '';
+  const LESSONS_KEY = 'engine:lessons' + _sfx;
+  const PENDING_KEY = 'engine:lessons:pending' + _sfx;
+  const AUDIT_KEY   = 'engine:lessons:audit' + _sfx;
 
   let lessons = await readJSON(null, LESSONS_KEY, []);
   let pending = await readJSON(null, PENDING_KEY, []);

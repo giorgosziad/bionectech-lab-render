@@ -1912,6 +1912,13 @@ async function handleChat(event, user, res, onProgress) {
 
   let lessons = [];
   try { lessons = await readJSON(null, 'engine:lessons', []); } catch (e) { lessons = []; }
+  /* PER_PERSONA_LESSONS: shared Lab lessons above, this persona's own set below. Both
+     are injected, so a persona carries the Lab's standing discipline plus what it has
+     learned itself. A persona with no lessons of its own is unaffected. */
+  try {
+    var _ownL = await readJSON(null, 'engine:lessons:' + String(persona || '').toLowerCase(), []);
+    if (Array.isArray(_ownL) && _ownL.length) { lessons = (Array.isArray(lessons) ? lessons : []).concat(_ownL); }
+  } catch (e) {}
   const lessonText = (Array.isArray(lessons) && lessons.length)
     ? '\n\nAccumulated operating lessons (apply these as standing guidance):\n' + lessons.map(function (l, i) { return (i + 1) + '. ' + (l && l.text ? String(l.text).replace(/\bNadim\b/gi, 'Giorgos') : ''); }).join('\n')
     : '';
