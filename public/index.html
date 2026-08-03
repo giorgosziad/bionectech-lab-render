@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -656,7 +656,7 @@ function renderTurns(){ var log=$('log');log.innerHTML='';var t=current&&current
     /* Downloadable files in Karam's reply: a Download button per file, plus Download as ZIP if many. */
     var _files=extractFilesFromText(turn.text);
     if(_files.length){ var fbar=document.createElement('div'); fbar.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center';
-      _files.forEach(function(ff){ var db=document.createElement('button'); db.className='btn gold sm'; db.type='button'; db.style.cssText='white-space:nowrap'; db.textContent='\u2b07 '+ff.name; db.addEventListener('click',function(){ downloadFile(ff.name, ff.content); }); fbar.appendChild(db); if(/\.html?$/i.test(ff.name||'')){ var pb=document.createElement('button'); pb.className='btn sm'; pb.type='button'; pb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--sky,#0099E6)'; pb.textContent='Save as designed PDF'; pb.addEventListener('click',function(){ printHtmlToPdf(ff.content, ff.name); }); fbar.appendChild(pb); } if(/\.deck\.json$/i.test(ff.name||'')){ var xb=document.createElement('button'); xb.className='btn sm'; xb.type='button'; xb.style.cssText='white-space:nowrap;background:var(--navy-deep,#052744);color:#fff;border:1px solid var(--gold,#FFD600)'; xb.textContent='Download as PowerPoint'; xb.addEventListener('click',function(){ buildDesignedPptx(ff.content, ff.name); }); fbar.appendChild(xb); var vb=document.createElement('button'); vb.className='btn sm'; vb.type='button'; vb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--gold,#FFD600)'; vb.textContent='Download as MP4'; vb.addEventListener('click',function(){ buildDesignedMp4(ff.content, ff.name, 5); }); fbar.appendChild(vb); } if(/\.ad\.json$/i.test(ff.name||'')){ var cb2=document.createElement('button'); cb2.className='btn gold sm'; cb2.type='button'; cb2.style.cssText='white-space:nowrap'; cb2.textContent='Build Commercial'; cb2.addEventListener('click',function(){ toast("Commercial: starting..."); buildCommercial(ff.content, ff.name); }); fbar.appendChild(cb2); } });
+      _files.forEach(function(ff){ var db=document.createElement('button'); db.className='btn gold sm'; db.type='button'; db.style.cssText='white-space:nowrap'; db.textContent='\u2b07 '+ff.name; db.addEventListener('click',function(){ downloadFile(ff.name, ff.content); }); fbar.appendChild(db); if(/\.html?$/i.test(ff.name||'')){ var pb=document.createElement('button'); pb.className='btn sm'; pb.type='button'; pb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--sky,#0099E6)'; pb.textContent='Save as designed PDF'; pb.addEventListener('click',function(){ printHtmlToPdf(ff.content, ff.name); }); fbar.appendChild(pb); } if(/\.deck\.json$/i.test(ff.name||'')){ var xb=document.createElement('button'); xb.className='btn sm'; xb.type='button'; xb.style.cssText='white-space:nowrap;background:var(--navy-deep,#052744);color:#fff;border:1px solid var(--gold,#FFD600)'; xb.textContent='Download as PowerPoint'; xb.addEventListener('click',function(){ buildDesignedPptx(ff.content, ff.name); }); fbar.appendChild(xb); var vb=document.createElement('button'); vb.className='btn sm'; vb.type='button'; vb.style.cssText='white-space:nowrap;background:var(--deep,#006BB5);color:#fff;border:1px solid var(--gold,#FFD600)'; vb.textContent='Download as MP4'; vb.addEventListener('click',function(){ buildDesignedMp4(ff.content, ff.name, 5); }); fbar.appendChild(vb); } if(/\.ad\.json$/i.test(ff.name||'')){ var cb2=document.createElement('button'); cb2.className='btn gold sm'; cb2.type='button'; cb2.style.cssText='white-space:nowrap'; cb2.textContent='Build Commercial'; cb2.addEventListener('click',function(){ toast("Commercial: starting..."); buildCommercialV2(ff.content, ff.name); }); fbar.appendChild(cb2); } });
       if(_files.length>1){ var zb=document.createElement('button'); zb.className='btn sm'; zb.type='button'; zb.style.cssText='white-space:nowrap;background:var(--navy-deep,#0b1020);color:#fff;border:1px solid var(--gold,#FFD600)'; zb.textContent='⬇ Download all as ZIP'; zb.addEventListener('click',function(){ downloadZip(_files, (current&&current.name?current.name.replace(/[^\w.-]+/g,'_'):'karam')+'-files.zip'); }); fbar.appendChild(zb); }
       d.appendChild(fbar);
     }
@@ -1627,6 +1627,77 @@ async function _adRenderShot(model, visual, ratio, seconds){
   return r.data.id;
 }
 
+/* COMMERCIAL V2. The first version rendered every shot correctly and then died at the
+   assembly step - a 25MB ffmpeg.wasm load plus a concat that can reject clips whose
+   codec parameters differ. V2 removes that entire failure mode: every clip downloads
+   the moment it is ready. Nothing is held until the end, so a late failure can never
+   cost you footage you already paid for. Joining is a separate, optional step. */
+async function buildCommercialV2(specText, fileName){
+  var spec;
+  try { spec = (typeof specText === 'string') ? JSON.parse(specText) : specText; }
+  catch(e){ toast('Ad spec is not valid JSON.'); return; }
+  var shots = (spec && (spec.shots || spec.slides)) || [];
+  if (!shots.length){ toast('Ad spec has no shots.'); return; }
+  var ratio = spec.ratio || '1280:720';
+  var model = spec.model || 'veo3.1_fast';
+  var base = String(fileName || spec.title || 'ad').replace(/\.(ad\.json|json)$/i,'').replace(/[^\w.-]+/g,'_');
+
+  function saveUrl(url, name){
+    return fetch(url).then(function(r){ return r.blob(); }).then(function(b){
+      var u = URL.createObjectURL(b);
+      var a = document.createElement('a'); a.href = u; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(u); }, 3000);
+    });
+  }
+
+  for (var i=0;i<shots.length;i++){
+    var s = shots[i];
+    var visual = String(s.visual || s.prompt || s.promptText || '').trim();
+    if (!visual){ toast('Shot ' + (i+1) + ' has no visual prompt - stopping.'); return; }
+    toast('Shot ' + (i+1) + ' of ' + shots.length + ': generating...');
+    var start;
+    try {
+      start = await api('creative-gen', { method:'POST', body: JSON.stringify({
+        kind:'video', model:model, promptText:visual, ratio:ratio,
+        duration: Math.max(2, Math.min(10, s.seconds || 4))
+      })});
+    } catch(e){ toast('Shot ' + (i+1) + ' could not start. Stopping.'); return; }
+    if (!(start.ok && start.data && start.data.id)){
+      /* ONE paid attempt per shot. No automatic retry - a retry is another charge,
+         and a silent one. Stop and let the operator decide. */
+      toast('Shot ' + (i+1) + ' rejected: ' + ((start.data && start.data.error) || 'unknown') + ' - stopping, no credits spent on a retry.');
+      return;
+    }
+    var id = start.data.id;
+    console.log('[ad] shot ' + (i+1) + ' task ' + id);
+    var url = null, done = false, n = 0;
+    while (!done && n < 120) {          /* 120 x 6s = 12 minutes per shot */
+      await new Promise(function(r){ setTimeout(r, 6000); });
+      n++;
+      var p;
+      try { p = await api('creative-gen?id=' + encodeURIComponent(id), { method:'GET' }); }
+      catch(e){ continue; }
+      if (!(p.ok && p.data)) continue;
+      if (n % 4 === 0) toast('Shot ' + (i+1) + ': ' + p.data.status);
+      if (p.data.status === 'SUCCEEDED'){ url = p.data.url; done = true; }
+      else if (p.data.status === 'FAILED'){
+        toast('Shot ' + (i+1) + ' failed at Runway. Task ' + id);
+        return;
+      }
+    }
+    if (!url){ toast('Shot ' + (i+1) + ' timed out. Task id in the console: ' + id); return; }
+    toast('Shot ' + (i+1) + ' ready - downloading...');
+    try { await saveUrl(url, base + '-shot' + (i+1) + '.mp4'); }
+    catch(e){
+      /* The signed URL expires. If the direct fetch is blocked, open it so the
+         operator can still save footage that has already been paid for. */
+      window.open(url, '_blank');
+      toast('Shot ' + (i+1) + ' opened in a new tab - save it from there.');
+    }
+  }
+  toast('All ' + shots.length + ' shots downloaded. Check your Downloads folder.');
+}
 async function buildCommercial(specText, fileName){
   var spec;
   try { spec = (typeof specText === 'string') ? JSON.parse(specText) : specText; }
