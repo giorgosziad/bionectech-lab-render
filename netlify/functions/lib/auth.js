@@ -48,7 +48,7 @@ async function redis(cmd) {
   let lastErr = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     const ctl = new AbortController();
-    const timer = setTimeout(function () { ctl.abort(); }, 6000);
+    const timer = setTimeout(function () { ctl.abort(); }, 30000);   /* BNT_BIG_LAB_TIMEOUT: was 6000. A working Lab archive is megabytes; a 6s abort starved every large write and queued every poll behind it. */
     try {
       const r = await fetch(url, {
         method: 'POST',
