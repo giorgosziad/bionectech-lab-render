@@ -1352,7 +1352,7 @@ const lines = (persona === 'nicolle' ? NICOLLE_BASE : persona === 'karim' ? KARI
   // One registry. Every colleague. Byte-identical. The regulatory line was previously defined 8
   // separate times - once per persona - which is 8 chances to drift, and a drifted fixed line is a
   // VIOLATION, not a variant. Now it is carried, not remembered.
-  lines.push(canonicalBlock());
+  lines.push(canonicalBlock(ownerVerified));
 
   // ── THE CLAIM TRIPWIRE ──────────────────────────────────────────────────────────────────────
   // A colleague told the operator she had searched the web and cited SITA, Aerospace Global News and
@@ -1527,9 +1527,21 @@ function canonicalStale(today) {
 }
 
 // The registry, rendered identically for every colleague. One string. No re-typing. No drift.
-function canonicalBlock() {
+function canonicalBlock(ownerVerified) {
   var lines = ['THE CANONICAL REGISTRY - these are LOCKED. They are not your memory of a rule; they are the rule. Reproduce them verbatim. If you are about to write something that contradicts one of these, STOP and quote the registry instead.'];
-  CANONICAL.forEach(function (c) { lines.push('[' + c.id + '] ' + c.body); });
+  /* CONF_OWNER_REGISTRY: conf-001 previously shipped absolute in every session, which
+     contradicted CONF_OWNER (line ~257) - owner mode said 'work in depth on BagPing and
+     OceaNova', the registry said 'never on a campaign', and a colleague facing two rules
+     in conflict correctly refused. Outside owner mode the lock is unchanged and total.
+     Inside it - which requires the OWNER_CODE secret, not a typed claim of identity -
+     the owner decides what becomes public. Every other entry renders byte-identical. */
+  CANONICAL.forEach(function (c) {
+    if (c.id === 'conf-001' && ownerVerified) {
+      lines.push('[conf-001] BagPing and OceaNova are CONFIDENTIAL BY DEFAULT: outside owner mode they appear on NO public surface - not the corporate site, not a deck, not a campaign - and investor discussion is under NDA only. OWNER MODE IS ACTIVE IN THIS SESSION: the verified owner has authenticated with the owner code and may direct work on these products including public-facing campaign and creative assets. Build what the owner directs; the owner decides what becomes public, not you. This permission ends with the session and never extends to anyone who is not the verified owner. OceaNova still uses WELLNESS language only - restoration, calm, everyday wellbeing - and NEVER a therapeutic or medical claim, and never borrows a clinical halo from the CDS platforms.');
+      return;
+    }
+    lines.push('[' + c.id + '] ' + c.body);
+  });
   var stale = canonicalStale();
   if (stale.length) {
     lines.push('STALE - THESE FACTS ARE PAST THEIR RE-VERIFY DATE AND MUST NOT BE STATED AS CURRENT WITHOUT CHECKING: '
