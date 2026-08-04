@@ -36,6 +36,8 @@ exports.handler = async function (event) {
     // milliseconds and survives page teardown via keepalive. Idempotent on turn ts+role
     // so a retry can never double-post.
     if (incoming && incoming.appendTo && incoming.turn) {
+      /* APPEND_TRACE: the append was returning 500 with no diagnostic. Log the real error. */
+      try {
       const akey = 'data:' + user.desk.toLowerCase();
       const cur = await readJSON(st, akey, { projects: [], notes: [] });
       const list = Array.isArray(cur.projects) ? cur.projects : [];
@@ -54,6 +56,7 @@ exports.handler = async function (event) {
       proj.updated = Date.now();
       await writeJSON(st, akey, { projects: list.slice(0, 500), notes: cur.notes || [], updated: Date.now() });
       return json(200, { ok: true, appended: !dup, turns: proj.turns.length });
+      } catch (e) { console.log('[append] FAILED: ' + (e && e.message ? e.message : String(e)) + ' | ' + (e && e.stack ? e.stack : '')); return json(500, { error: String(e && e.message ? e.message : e) }); }
     }
     if (incoming && incoming.project && incoming.project.id) {
       const pkey = 'data:' + user.desk.toLowerCase();
