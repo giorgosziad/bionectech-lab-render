@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1264,7 +1264,7 @@ function timeAgo(ts){ var s=Math.round((Date.now()-ts)/1000); if(s<60)return s+'
 
 /* ── tabs ── */
 var tabs=document.querySelectorAll('.tab');
-for(var i=0;i<tabs.length;i++){ tabs[i].addEventListener('click',function(){var v=this.getAttribute('data-view');for(var k=0;k<tabs.length;k++)tabs[k].classList.remove('active');this.classList.add('active');document.querySelectorAll('.view').forEach(function(s){s.classList.remove('active');});$('view-'+v).classList.add('active');if(v==='admin')loadDesks(); if(v==='notes'&&typeof teamLoad==='function')teamLoad();}); }
+for(var i=0;i<tabs.length;i++){ tabs[i].addEventListener('click',function(){var v=this.getAttribute('data-view'); /* NIC_USERS_ON_OPEN */ try{ if(v==='notes' && typeof populateNicUsers==='function'){ populateNicUsers(); } }catch(e){}for(var k=0;k<tabs.length;k++)tabs[k].classList.remove('active');this.classList.add('active');document.querySelectorAll('.view').forEach(function(s){s.classList.remove('active');});$('view-'+v).classList.add('active');if(v==='admin')loadDesks(); if(v==='notes'&&typeof teamLoad==='function')teamLoad();}); }
 
 /* ── full Karam audio-reactive binary ring (carriers 146.8010/219.9949/293.3723 Hz) ── */
 var KC=[{f:146.8010,g:0.55},{f:219.9949,g:0.30},{f:293.3723,g:0.22}];
