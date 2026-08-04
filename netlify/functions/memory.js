@@ -1,4 +1,4 @@
-// memory.js — automatic long-term memory for Karam and Nicolle.
+﻿// memory.js — automatic long-term memory for Karam and Nicolle.
 // Two layers: shared facts (both personas) + per-persona working notes.
 // Survives across sessions/projects/devices because it lives in Upstash, not the browser.
 const { cors, json, userFrom, readJSON, writeJSON } = require('./lib/auth');
@@ -81,7 +81,7 @@ exports.handler = async function (event) {
     const sys = 'You maintain long-term memory for an AI assistant working with an operator named Giorgos at Bionectech. '
       + 'From the NEW conversation, update two memory stores and return ONLY JSON: '
       + '{"shared":"...","notes":"..."}. '
-      + 'SHARED = durable facts true across all work: decisions made, project names and their state, people, preferences, key numbers, standing rules. Both assistants rely on it. '
+      + 'SHARED = durable facts true across all work: decisions made, project names and their state, people, preferences, key numbers, standing rules. ALSO KEEP: TOPICS DISCUSSED - every distinct subject the operator has raised in any project, even if no decision was reached and the work is unfinished, recorded as a one-line entry naming the subject, the project it arose in, and its current state (raised / in progress / blocked / answered). The operator moves between projects and expects any colleague to know a subject was raised elsewhere. Losing a topic because it was not yet a decision is a failure. Every colleague relies on this. '
       + 'NOTES = this assistant\'s own working context (' + personaName + '): in-progress tasks, what to do next, persona-specific reminders. '
       + 'Rules: MERGE with the previous values, do not drop still-relevant facts; remove only what is clearly outdated or corrected; keep both tight and factual; no chit-chat; '
       + 'SHARED under ' + MAX_SHARED + ' chars, NOTES under ' + MAX_NOTES + ' chars. If nothing new is worth keeping, return the previous values unchanged.';
