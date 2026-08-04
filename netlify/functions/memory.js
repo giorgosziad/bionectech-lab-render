@@ -1,4 +1,4 @@
-﻿// memory.js — automatic long-term memory for Karam and Nicolle.
+// memory.js — automatic long-term memory for Karam and Nicolle.
 // Two layers: shared facts (both personas) + per-persona working notes.
 // Survives across sessions/projects/devices because it lives in Upstash, not the browser.
 const { cors, json, userFrom, readJSON, writeJSON } = require('./lib/auth');
@@ -66,6 +66,56 @@ exports.handler = async function (event) {
     return json(200, { ok: true, cleared: true });
   }
 
+  // MEM_APPEND: the old update path asked the model to rewrite the ENTIRE shared memory
+  // on every call. At ~39k chars that exceeded 90s reliably, timed out, and on a partial
+  // merge it LOST content - memory shrank from 39001 to 35393 in one run. This path never
+  // rewrites: it extracts only what is NEW and appends it. Cost is constant regardless of
+  // how large memory has grown, so size stops being the constraint.
+  if (b.action === 'append') {
+    const convo = String(b.convo || '').slice(0, 24000);
+    if (!convo.trim()) return json(200, { ok: true, skipped: 'empty' });
+    const key = process.env.ANTHROPIC_API_KEY || '';
+    if (!key) return json(500, { error: 'Server missing ANTHROPIC_API_KEY.' });
+
+    let prev = '';
+    try { prev = (await readJSON(null, sharedKey, '')) || ''; } catch (e) { prev = ''; }
+
+    // The model sees only the NEW conversation and a short tail of memory for
+    // de-duplication - never the whole store. That is what keeps this fast.
+    const tail = prev.length > 3000 ? prev.slice(-3000) : prev;
+    const sysA = 'You extract durable facts for a shared team memory. Return ONLY new lines to APPEND - '
+      + 'never rewrite or repeat what already exists. One fact per line, each a short standalone statement. '
+      + 'Include: decisions, project names and state, people, key numbers, standing rules, and TOPICS RAISED '
+      + '(subject, which project it came from, and its state) even when unresolved. '
+      + 'If nothing in the new conversation is worth keeping, return the single word NONE. '
+      + 'No preamble, no JSON, no bullets - just the lines.';
+    const usrA = 'Recent memory (for de-duplication only, do NOT repeat these):\n' + (tail || '(empty)')
+      + '\n\nNEW conversation:\n' + convo
+      + '\n\nReturn only the new lines to append, or NONE.';
+
+    let addition = '';
+    try {
+      const r = await fetch(ANTHROPIC_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: CHEAP_MODEL, max_tokens: 1500, system: sysA, messages: [{ role: 'user', content: usrA }] })
+      });
+      const j = await r.json();
+      if (!r.ok) return json(200, { ok: false, error: (j && j.error && j.error.message) || ('HTTP ' + r.status) });
+      addition = ((j.content || []).filter(function (c) { return c.type === 'text'; }).map(function (c) { return c.text; }).join('')).trim();
+    } catch (e) {
+      return json(200, { ok: false, error: String((e && e.message) || e) });
+    }
+
+    if (!addition || /^none$/i.test(addition)) return json(200, { ok: true, appended: 0, shared: prev.length });
+
+    let merged = prev ? (prev.replace(/\s+$/, '') + '\n' + addition) : addition;
+    // If the cap is reached, drop from the FRONT - oldest facts age out, newest survive.
+    if (merged.length > MAX_SHARED) { merged = merged.slice(merged.length - MAX_SHARED); }
+    try { await writeJSON(null, sharedKey, merged); }
+    catch (e) { return json(200, { ok: false, error: 'write failed: ' + String((e && e.message) || e) }); }
+    return json(200, { ok: true, appended: addition.length, shared: merged.length });
+  }
   // UPDATE: fold new conversation into durable memory using the cheap brain.
   if (b.action === 'update') {
     const convo = String(b.convo || '').slice(0, 24000);

@@ -788,7 +788,7 @@ function maybeUpdateMemory(){
   var convo=since.map(function(t){return (t.role==='you'?'User':'Assistant')+': '+(t.text||'');}).join('\n').slice(0,24000);
   var pers=personaSel, proj=current, mark=all.length;
   _memUpdating=true;
-  api('memory',{method:'POST',body:JSON.stringify({action:'update',persona:pers,convo:convo})})
+  api('memory',{method:'POST',body:JSON.stringify({action:'append',persona:pers,convo:convo})})
   .then(function(r){ if(r&&r.ok&&r.data&&r.data.ok){ proj.memCount=mark; saveData(); } })
   .catch(function(){}).then(function(){ _memUpdating=false; });
 }
