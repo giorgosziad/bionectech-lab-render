@@ -687,6 +687,14 @@ function __mirrorNow(){
   }catch(e){}
 }
 function __mirrorRestore(){
+  /* MIRROR_RESTORE_DISABLED: this replayed a stale local snapshot over the server on
+     every load - a reload could roll a project back, and could re-add projects with old
+     turn counts. The server is the single source of truth. The mirror still WRITES, so
+     the data is still captured locally and can be recovered deliberately if ever needed,
+     but it will never again overwrite the server automatically. */
+  return;
+}
+function __mirrorRestore_DISABLED(){
   try{
     if(!_dataLoaded) return;
     var restored = 0;
