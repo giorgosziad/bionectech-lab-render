@@ -1,4 +1,4 @@
-// data.js — each desk's own projects + notes, private and server-enforced.
+﻿// data.js — each desk's own projects + notes, private and server-enforced.
 // GET            -> my desk's data
 // GET ?desk=NAME -> that desk's data (ADMIN ONLY: "the admin sees all")
 // POST {data}    -> save my desk's data
@@ -67,6 +67,8 @@ exports.handler = async function (event) {
         const oldT = (list[hit].turns || []).length;
         const newT = (p.turns || []).length;
         // more turns wins; equal turns, fresher stamp wins; otherwise KEEP what is stored
+        /* NEVER_SHRINK: a client copy with FEWER turns than the stored one is stale - it was read before the newest appends landed. Accepting it would erase them. Only ever grow. */
+        if (newT < oldT) { return json(200, { ok: true, ignored: 'stale', kept: oldT }); }
         if (newT > oldT || (newT === oldT && (p.updated || 0) >= (list[hit].updated || 0))) { list[hit] = p; }
       }
       const out = {
