@@ -679,7 +679,8 @@ function __mirrorNow(){
     catch(e){
       /* quota hit - keep the tail, which is the part at risk */
       try{
-        var trimmed = { id:current.id, name:current.name, updated:current.updated, turns:(current.turns||[]).slice(-40) };
+        /* MIRROR_TRIM_GUARD: quota hit - this copy is PARTIAL and must never stand in for a fuller server copy. */
+        var trimmed = { id:current.id, name:current.name, updated:current.updated, partial:true, fullCount:(current.turns||[]).length, turns:(current.turns||[]).slice(-40) };
         localStorage.setItem(k, JSON.stringify(trimmed));
       }catch(e2){}
     }
@@ -697,8 +698,8 @@ function __mirrorRestore(){
       if(!m || !m.id || !m.turns) continue;
       var found = null;
       for(var j=0;j<projects.length;j++){ if(projects[j].id === m.id){ found = projects[j]; break; } }
-      if(!found){ projects.push(m); restored++; continue; }
-      if((m.turns||[]).length > (found.turns||[]).length){
+      if(!found){ if(m.partial) continue; projects.push(m); restored++; continue; }
+      if(!m.partial && (m.turns||[]).length > (found.turns||[]).length){
         found.turns = m.turns;
         found.updated = m.updated || Date.now();
         restored++;
