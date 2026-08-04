@@ -22,6 +22,16 @@ exports.handler = async function (event) {
     return json(200, { ok: true, desk: target, data });
   }
 
+  /* SIZE_PROBE: writes test values of increasing size with the server's own credentials, so the storage limit is measured rather than guessed. */
+  if (event.httpMethod === 'GET' && (event.queryStringParameters || {}).sizeprobe) {
+    if (user.role !== 'admin') return json(403, { error: 'admin only' });
+    const out = [];
+    for (const kb of [1, 500, 2000, 11000]) {
+      try { await writeJSON(st, 'probe:' + kb, { pad: 'x'.repeat(kb * 1024) }); out.push(kb + 'KB: OK'); }
+      catch (e) { out.push(kb + 'KB: FAIL - ' + (e && e.message ? e.message : String(e))); }
+    }
+    return json(200, { probe: out });
+  }
   if (event.httpMethod === 'POST') {
     let b; try { b = JSON.parse(event.body || '{}'); } catch (e) { return json(400, { error: 'Body must be JSON.' }); }
     const incoming = b.data || {};
