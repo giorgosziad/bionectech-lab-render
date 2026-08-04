@@ -1,4 +1,4 @@
-﻿// chat.js — Anthropic proxy. Requires a valid session AND server-side time left.
+// chat.js — Anthropic proxy. Requires a valid session AND server-side time left.
 const { cors, json, userFrom, store, readJSON, writeJSON, todayKey } = require('./lib/auth');
 const AEGIS = require('./lib/aegis');
 const { valuesText } = require('./lib/values');
@@ -2093,7 +2093,7 @@ async function handleChat(event, user, res, onProgress) {
   if (lastMsg && Array.isArray(lastMsg.content)) {
     hasAttachment = lastMsg.content.some(function (blk) { return blk && (blk.type === 'document' || blk.type === 'image'); });
   }
-  const BUDGET = hasAttachment ? 950000 : INPUT_BUDGET_TOKENS; // Opus 4.8 has 1M context; allow big files
+  const BUDGET = hasAttachment ? 700000 : INPUT_BUDGET_TOKENS; // Opus 4.8 has 1M context; allow big files
   function approxTokens(m) {
     let chars = 0;
     const c = m && m.content;
