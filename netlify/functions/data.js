@@ -1,4 +1,4 @@
-// data.js — each desk's own projects + notes, private and server-enforced.
+﻿// data.js — each desk's own projects + notes, private and server-enforced.
 // GET            -> my desk's data
 // GET ?desk=NAME -> that desk's data (ADMIN ONLY: "the admin sees all")
 // POST {data}    -> save my desk's data
@@ -51,6 +51,10 @@ exports.handler = async function (event) {
       };
       await writeJSON(st, pkey, out);
       return json(200, { ok: true, partial: true, projects: out.projects.length });
+    }
+    /* STALE_CLIENT_GUARD: a current client sends {data:{project}} - ONE project, merged server-side. Only a client running pre-partial-write code sends {data:{projects:[...]}}, the whole archive, and that write overwrites newer turns with its stale snapshot. Refuse it and tell that client to reload. */
+    if (Array.isArray(incoming.projects)) {
+      return json(409, { error: 'This tab is running an outdated version and its save was refused to protect newer work. Please reload the page.', stale: true });
     }
     const safe = {
       projects: Array.isArray(incoming.projects) ? incoming.projects.slice(0, 500) : [],
