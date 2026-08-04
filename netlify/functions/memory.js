@@ -96,7 +96,7 @@ exports.handler = async function (event) {
       const r = await fetch(ANTHROPIC_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: CHEAP_MODEL, max_tokens: 4000, system: sys, messages: [{ role: 'user', content: usr }] })
+        body: JSON.stringify({ model: CHEAP_MODEL, max_tokens: 32000, system: sys, messages: [{ role: 'user', content: usr }] })
       });
       const j = await r.json();
       if (!r.ok) return json(200, { ok: false, error: (j && j.error && j.error.message) || ('HTTP ' + r.status) });
