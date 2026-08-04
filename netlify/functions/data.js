@@ -1,4 +1,4 @@
-﻿// data.js — each desk's own projects + notes, private and server-enforced.
+// data.js — each desk's own projects + notes, private and server-enforced.
 // GET            -> my desk's data
 // GET ?desk=NAME -> that desk's data (ADMIN ONLY: "the admin sees all")
 // POST {data}    -> save my desk's data
@@ -28,8 +28,28 @@ exports.handler = async function (event) {
       if (user.role !== 'admin') return json(403, { error: 'You can only see your own desk.' });
       target = asked; // admin viewing someone else
     }
-    const data = await readJSON(st, 'data:' + target.toLowerCase(), { projects: [], notes: [] });
-    return json(200, { ok: true, desk: target, data });
+
+    // PER_PROJECT_READ: assemble the desk from per-project keys, then fold in anything
+    // that still exists only in the legacy archive. A project present in both wins from
+    // the per-project key, because that is the one being written now.
+    const dkey = 'data:' + target.toLowerCase();
+    const legacy = await readJSON(st, dkey, { projects: [], notes: [] });
+    const idx = await readJSON(st, 'projidx:' + target.toLowerCase(), []);
+    const out = [];
+    const seen = {};
+    if (Array.isArray(idx)) {
+      for (const pid of idx) {
+        try {
+          const one = await readJSON(st, 'proj:' + target.toLowerCase() + ':' + pid, null);
+          if (one && one.id) { out.push(one); seen[one.id] = 1; }
+        } catch (e) {}
+      }
+    }
+    const legacyList = Array.isArray(legacy.projects) ? legacy.projects : [];
+    for (const p of legacyList) { if (p && p.id && !seen[p.id]) { out.push(p); seen[p.id] = 1; } }
+    let notes = await readJSON(st, 'notes:' + target.toLowerCase(), null);
+    if (!Array.isArray(notes)) notes = Array.isArray(legacy.notes) ? legacy.notes : [];
+    return json(200, { ok: true, desk: target, data: { projects: out, notes: notes } });
   }
 
   if (event.httpMethod === 'POST') {
@@ -68,7 +88,28 @@ exports.handler = async function (event) {
       return json(200, { ok: true, appended: !dup, turns: proj.turns.length });
       } catch (e) { console.log('[append] FAILED: ' + (e && e.message ? e.message : String(e)) + ' | ' + (e && e.stack ? e.stack : '')); return json(500, { error: String(e && e.message ? e.message : e) }); }
     }
+    // PER_PROJECT_KEYS: the archive under 'data:<desk>' grew past Upstash's 10,485,760
+    // byte request ceiling, so every write was refused and nothing had saved since the
+    // day it crossed. Each project now lives under its own key - a few hundred KB - so a
+    // write is never near the limit however large the Lab grows.
+    //
+    // Reads merge both sources: per-project keys first, then anything still only in the
+    // legacy archive. The legacy key is never deleted, so this is reversible.
     if (incoming && incoming.project && incoming.project.id) {
+      const pid = String(incoming.project.id);
+      const pkey = 'proj:' + user.desk.toLowerCase() + ':' + pid;
+      await writeJSON(st, pkey, incoming.project);
+      // Keep the index of known project ids so a read can find them all.
+      const ikey = 'projidx:' + user.desk.toLowerCase();
+      let idx = await readJSON(st, ikey, []);
+      if (!Array.isArray(idx)) idx = [];
+      if (idx.indexOf(pid) < 0) { idx.push(pid); await writeJSON(st, ikey, idx.slice(0, 500)); }
+      if (Array.isArray(incoming.notes)) {
+        try { await writeJSON(st, 'notes:' + user.desk.toLowerCase(), incoming.notes.slice(0, 1000)); } catch (e) {}
+      }
+      return json(200, { ok: true, key: 'per-project', turns: (incoming.project.turns || []).length });
+    }
+    if (false && incoming && incoming.project && incoming.project.id) {
       const pkey = 'data:' + user.desk.toLowerCase();
       const cur = await readJSON(st, pkey, { projects: [], notes: [] });
       const list = Array.isArray(cur.projects) ? cur.projects : [];
