@@ -445,6 +445,8 @@ window.addEventListener('load', function(){
   var tries=0;
   function retry(){ try{
     if(typeof _dataLoaded!=='undefined'&&_dataLoaded){ try{sessionStorage.removeItem('bnt_reload_n');}catch(e){} return; }
+    /* LOGIN_RETRY_GUARD: this loop reloaded the page every 8s on a 401. With nobody signed in that is always a 401, so the login screen reloaded under the operator mid-typing and the entry gate reappeared. Do nothing while the login screen is showing. */
+    try{ if(!TOKEN || ($('login') && $('login').style.display!=='none')) return; }catch(e){}
     tries++; if(tries>20) return;
     api('data',{method:'GET'}).then(function(r){
       if(r&&r.status===401){ try{sessionStorage.removeItem('bnt_token');}catch(e){} location.reload(); return; }
