@@ -671,6 +671,21 @@ $('delProj').addEventListener('click',function(){if(!current)return;if(!window.c
    A network write can be cancelled when the page dies; a localStorage write cannot. The server
    stays the source of truth - the mirror only ever restores turns the network lost. Additive. */
 function __mirrorKey(){ try{ return "bnt_mirror_" + (DESK||"desk") + "_" + (current && current.id ? current.id : "none"); }catch(e){ return "bnt_mirror_none"; } }
+/* APPEND_TURN client. A full-project save for a large project is megabytes and takes
+   seconds; a reload during that window loses the newest turns. This sends ONE turn -
+   a few KB - with keepalive, so the browser completes it even if the page is closing.
+   The normal debounced save still runs; this is the durable path that cannot be killed. */
+function __appendTurn(turn){
+  try{
+    if(!current || !current.id || !turn) return;
+    var h = { 'Content-Type': 'application/json' };
+    if (TOKEN) h['Authorization'] = 'Bearer ' + TOKEN;
+    var body = JSON.stringify({ data: { appendTo: current.id, turn: turn } });
+    var opts = { method:'POST', headers:h, body:body };
+    if (body.length <= 60000) opts.keepalive = true;   /* browser cap; a turn is far under it */
+    fetch('/.netlify/functions/data', opts).catch(function(){});
+  }catch(e){}
+}
 function __mirrorNow(){
   try{
     if(!current || !current.id) return;
@@ -721,8 +736,8 @@ function __mirrorRestore_DISABLED(){
     }
   }catch(e){}
 }
-function addTurn(role,text){current.turns=current.turns||[];current.turns.push({role:role,text:text,persona:(role!=='you'?personaSel:undefined),ts:Date.now()});current.updated=Date.now();renderTurns();renderProjects();saveData();__mirrorNow();}
-function addTurnA(role,text,aegis,model,persona,websearched,modelNote){current.turns=current.turns||[];var who=(role!=='you')?(persona||personaSel):undefined;var _turn={role:role,text:text,aegis:aegis||null,model:model||null,modelNote:modelNote||null,persona:who,websearched:!!websearched,ts:Date.now()};current.turns.push(_turn);current.updated=Date.now();renderTurns();renderProjects();saveData();__mirrorNow();if(role==='claude' && typeof text==='string' && text.indexOf('FILE_DELIVERY')>=0){ deliverFiles(_turn); } }
+function addTurn(role,text){current.turns=current.turns||[];current.turns.push({role:role,text:text,persona:(role!=='you'?personaSel:undefined),ts:Date.now()});current.updated=Date.now();renderTurns();renderProjects();saveData();__mirrorNow();__appendTurn(current.turns[current.turns.length-1]);}
+function addTurnA(role,text,aegis,model,persona,websearched,modelNote){current.turns=current.turns||[];var who=(role!=='you')?(persona||personaSel):undefined;var _turn={role:role,text:text,aegis:aegis||null,model:model||null,modelNote:modelNote||null,persona:who,websearched:!!websearched,ts:Date.now()};current.turns.push(_turn);current.updated=Date.now();renderTurns();renderProjects();saveData();__mirrorNow();__appendTurn(_turn);if(role==='claude' && typeof text==='string' && text.indexOf('FILE_DELIVERY')>=0){ deliverFiles(_turn); } }
 async function bigFileFlow(userTask, bigText, otherFiles, mode, temp){
   var task=userTask||'Review the attached document.';
   addTurn('you', task); $('send').disabled=true;

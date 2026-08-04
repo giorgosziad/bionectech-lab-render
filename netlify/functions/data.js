@@ -1,4 +1,4 @@
-﻿// data.js — each desk's own projects + notes, private and server-enforced.
+// data.js — each desk's own projects + notes, private and server-enforced.
 // GET            -> my desk's data
 // GET ?desk=NAME -> that desk's data (ADMIN ONLY: "the admin sees all")
 // POST {data}    -> save my desk's data
@@ -30,6 +30,31 @@ exports.handler = async function (event) {
     // replaced or appended, and the result is written back. NOTHING is ever deleted here.
     // The two-window merge that used to live in the browser now lives on the server, where
     // it belongs - a stale window can no longer clobber a fresher one.
+    // APPEND_TURN: the smallest possible durable write. A full-project save for a large
+    // project is megabytes and takes seconds - long enough that a reload kills it and the
+    // last turns are lost. This appends ONE turn, a few KB, so the write completes in
+    // milliseconds and survives page teardown via keepalive. Idempotent on turn ts+role
+    // so a retry can never double-post.
+    if (incoming && incoming.appendTo && incoming.turn) {
+      const akey = 'data:' + user.desk.toLowerCase();
+      const cur = await readJSON(st, akey, { projects: [], notes: [] });
+      const list = Array.isArray(cur.projects) ? cur.projects : [];
+      let hit = -1;
+      for (let i = 0; i < list.length; i++) {
+        if (list[i] && list[i].id === incoming.appendTo) { hit = i; break; }
+      }
+      if (hit < 0) return json(404, { error: 'Project not found for append.' });
+      const proj = list[hit];
+      proj.turns = Array.isArray(proj.turns) ? proj.turns : [];
+      const t = incoming.turn;
+      const dup = proj.turns.some(function (x) {
+        return x && x.ts === t.ts && x.role === t.role;
+      });
+      if (!dup) { proj.turns.push(t); }
+      proj.updated = Date.now();
+      await writeJSON(st, akey, { projects: list.slice(0, 500), notes: cur.notes || [], updated: Date.now() });
+      return json(200, { ok: true, appended: !dup, turns: proj.turns.length });
+    }
     if (incoming && incoming.project && incoming.project.id) {
       const pkey = 'data:' + user.desk.toLowerCase();
       const cur = await readJSON(st, pkey, { projects: [], notes: [] });
