@@ -1,4 +1,4 @@
-// data.js — each desk's own projects + notes, private and server-enforced.
+﻿// data.js — each desk's own projects + notes, private and server-enforced.
 // GET            -> my desk's data
 // GET ?desk=NAME -> that desk's data (ADMIN ONLY: "the admin sees all")
 // POST {data}    -> save my desk's data
@@ -84,7 +84,9 @@ exports.handler = async function (event) {
       });
       if (!dup) { proj.turns.push(t); }
       proj.updated = Date.now();
-      await writeJSON(st, akey, { projects: list.slice(0, 500), notes: cur.notes || [], updated: Date.now() });
+      /* APPEND_PER_PROJECT: this used to rewrite the whole archive, which exceeds the 10MB request ceiling and failed every time. Write only this project key. */
+      await writeJSON(st, 'proj:' + user.desk.toLowerCase() + ':' + proj.id, proj);
+      { const ik = 'projidx:' + user.desk.toLowerCase(); let ix = await readJSON(st, ik, []); if (!Array.isArray(ix)) ix = []; if (ix.indexOf(proj.id) < 0) { ix.push(proj.id); await writeJSON(st, ik, ix.slice(0, 500)); } }
       return json(200, { ok: true, appended: !dup, turns: proj.turns.length });
       } catch (e) { console.log('[append] FAILED: ' + (e && e.message ? e.message : String(e)) + ' | ' + (e && e.stack ? e.stack : '')); return json(500, { error: String(e && e.message ? e.message : e) }); }
     }
