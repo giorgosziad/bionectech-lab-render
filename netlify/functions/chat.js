@@ -2223,6 +2223,43 @@ async function handleChat(event, user, res, onProgress) {
   // Persistent memory (server-side, survives across sessions/projects/devices):
   //   shared facts both personas know + this persona's own working notes.
   const _deskKey = (user.desk || '').toLowerCase();
+/* MEM_RETRIEVAL: memory can now grow without bound, because a turn no longer carries all
+   of it. Every line is scored against the operator's actual question by term overlap; the
+   strongest matches are injected, plus the most recent lines so standing state is never
+   lost. NOTHING is deleted - the full store stays in Redis and every line stays reachable.
+   This is what makes a large memory usable: relevance per turn instead of everything. */
+function _memPick(store, query, budget) {
+  if (!store) return '';
+  var text = String(store);
+  if (text.length <= budget) return text;              /* small enough - send all of it */
+  var lines = text.split('\n').filter(function (l) { return l.trim().length > 0; });
+  var terms = String(query || '').toLowerCase().match(/[a-z0-9][a-z0-9\-\.]{2,}/g) || [];
+  var seen = {}, keys = [];
+  for (var t = 0; t < terms.length; t++) { if (!seen[terms[t]]) { seen[terms[t]] = 1; keys.push(terms[t]); } }
+  var scored = [];
+  for (var i = 0; i < lines.length; i++) {
+    var low = lines[i].toLowerCase(), s = 0;
+    for (var k = 0; k < keys.length; k++) { if (low.indexOf(keys[k]) >= 0) s++; }
+    scored.push({ i: i, l: lines[i], s: s });
+  }
+  /* strongest match first; ties break toward the newer line */
+  scored.sort(function (a, b) { return (b.s - a.s) || (b.i - a.i); });
+  var out = [], used = 0, chosen = {};
+  for (var n = 0; n < scored.length; n++) {
+    if (scored[n].s === 0) break;                      /* no term overlap - stop */
+    if (used + scored[n].l.length > budget * 0.7) break;
+    out.push(scored[n]); chosen[scored[n].i] = 1; used += scored[n].l.length;
+  }
+  /* fill the remainder with the most recent lines - standing state always travels */
+  for (var m = lines.length - 1; m >= 0 && used < budget; m--) {
+    if (chosen[m]) continue;
+    out.push({ i: m, l: lines[m], s: 0 }); chosen[m] = 1; used += lines[m].length;
+  }
+  out.sort(function (a, b) { return a.i - b.i; });     /* restore original order */
+  var picked = [];
+  for (var q = 0; q < out.length; q++) { picked.push(out[q].l); }
+  return picked.join('\n');
+}
   let _memShared = '', _memNotes = '';
   try { _memShared = (await readJSON(null, 'mem:shared:' + _deskKey, '')) || ''; } catch (e) { _memShared = ''; }
   try { _memNotes = (await readJSON(null, 'mem:notes:' + persona + ':' + _deskKey, '')) || ''; } catch (e) { _memNotes = ''; }
@@ -2244,7 +2281,7 @@ async function handleChat(event, user, res, onProgress) {
   const _notesOwner = PERSONA_NAMES[persona] || 'Karam';
   const MEMORY = ((_memShared || _memNotes))
     ? '\n\nPERSISTENT MEMORY (what you already know about the operator and Bionectech from past sessions - treat as established context, do not re-ask):'
-        + (_memShared ? '\nShared facts:\n' + _memShared : '')
+        + (_memShared ? '\nShared facts (the part of memory relevant to this turn):\n' + _memPick(_memShared, prompt, 24000) : '')
         + (_memNotes ? ('\nYour own working notes (' + _notesOwner + '):\n' + _memNotes) : '')
     : '';
   // NOTE: on web-search turns (b.web) the stored memory is intentionally NOT loaded into context,
