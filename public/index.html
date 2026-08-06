@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1521,6 +1521,8 @@ function extractFilesFromText(text){
     // find a filename token in the info line
     var fname=''; var toks=info.split(/\s+/);
     for(var t=toks.length-1;t>=0;t--){ if(/^[\w./-]+\.[A-Za-z0-9]{1,8}$/.test(toks[t])){ fname=toks[t].split('/').pop(); break; } }
+    /* FNAME_FALLBACK: a fence with no filename on the info line was DISCARDED silently - a complete file could be emitted and vanish with no error. Name it from the language tag instead so the delivery survives. */
+    if(!fname){ var _lang=(toks[0]||'').toLowerCase(); var _ext={html:'html',javascript:'js',js:'js',json:'json',css:'css',python:'py',markdown:'md',md:'md',sql:'sql',xml:'xml',yaml:'yml',sh:'sh',bash:'sh'}[_lang]; if(_ext && body && body.replace(/\s+/g,'').length > 200){ fname = 'delivered-' + (out.length+1) + '.' + _ext; } }
     if(!fname) continue;
     if(body.charAt(body.length-1)==='\n') body=body.slice(0,-1);
     if(!body || !body.replace(/\s+/g,'').length) continue;
