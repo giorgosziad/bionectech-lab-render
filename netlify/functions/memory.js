@@ -5,7 +5,7 @@ const { cors, json, userFrom, readJSON, writeJSON } = require('./lib/auth');
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const CHEAP_MODEL = 'claude-sonnet-4-6';  // sharper memory writer — better at keeping what matters
-const MAX_SHARED = 200000;  // larger durable memory — retains more across sessions
+const MAX_SHARED = 8000000;  // larger durable memory — retains more across sessions
 const MAX_NOTES = 20000;
 
 exports.handler = async function (event) {
