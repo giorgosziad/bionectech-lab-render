@@ -390,6 +390,7 @@ function fmt(min){min=Math.max(0,Math.round(min));var h=Math.floor(min/60),m=min
 
 var TOKEN='', ROLE='', DESK='';
 try{ TOKEN=sessionStorage.getItem('bnt_token')||''; ROLE=sessionStorage.getItem('bnt_role')||''; DESK=sessionStorage.getItem('bnt_desk')||''; }catch(e){}
+  try{ ENGINE_OK=(sessionStorage.getItem('bnt_engineok')==='1'); }catch(e){}
 
 function api(path,opts){opts=opts||{};opts.headers=Object.assign({'Content-Type':'application/json'},opts.headers||{});if(TOKEN)opts.headers['Authorization']='Bearer '+TOKEN;return fetch('/.netlify/functions/'+path,opts).then(function(r){return r.text().then(function(t){var j=null;try{j=JSON.parse(t);}catch(e){}return {ok:r.ok,status:r.status,data:j};});});}
 /* FLUSH-ON-EXIT GUARD - conversations are saved on every turn and flushed before the page dies. Additive only. */
@@ -484,6 +485,7 @@ function doLogin(){
     if(r.ok&&r.data&&r.data.token){
       TOKEN=r.data.token; ROLE=r.data.role; DESK=r.data.desk;
       try{ sessionStorage.setItem('bnt_token',TOKEN); sessionStorage.setItem('bnt_role',ROLE); sessionStorage.setItem('bnt_desk',DESK); }catch(e){}
+      try{ sessionStorage.setItem('bnt_engineok', (r.data && r.data.engine) ? '1' : '0'); ENGINE_OK=!!(r.data && r.data.engine); }catch(e){}
       showApp();
     } else { $('loginErr').textContent=(r.data&&r.data.error)||'Could not sign in.'; }
   }).catch(function(){ $('loginErr').textContent='Server not reachable. Is the site deployed?'; });
@@ -493,8 +495,8 @@ $('logoutBtn').addEventListener('click',function(){ try{ sessionStorage.clear();
 function showApp(){
   $('login').style.display='none'; $('app').style.display='block'; document.body.classList.add('in-app');
   $('who').textContent=DESK+(ROLE==='admin'?' · admin':'');
-  var ENGINE_DESKS = [];   /* superseded by the per-desk flag set in the Admin tab */   /* ENGINE_ALLOWLIST: named non-admin desks that may use the engine. The Admin tab stays admin-only. */
-  var _engOK = (ROLE==='admin') || (ENGINE_DESKS.indexOf(String(DESK||'').toLowerCase()) >= 0);
+  var ENGINE_DESKS = []; var ENGINE_OK=false;   /* superseded by the per-desk flag set in the Admin tab */   /* ENGINE_ALLOWLIST: named non-admin desks that may use the engine. The Admin tab stays admin-only. */
+  var _engOK = (ROLE==='admin') || ENGINE_OK;
   if(ROLE==='admin'){ $('adminTab').classList.remove('hide'); }
   if(!_engOK){ var er=$('engineRow'); if(er) er.style.display='none'; engineOn=false; try{ sessionStorage.setItem('bnt_engine','0'); }catch(e){} }
   loadData(); refreshMe(); startHeartbeat(); loadModels(); if(typeof teamLoad==='function') teamLoad();

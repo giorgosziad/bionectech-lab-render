@@ -51,5 +51,5 @@ exports.handler = async function (event) {
   if (rec.hash !== hashPw(b.password || '', rec.salt)) return json(401, { error: 'Wrong password for this desk.' });
   const role = rec.admin ? 'admin' : 'member';
   await rlReset(rlKey);
-  return json(200, { ok: true, token: sign({ desk: rec.name, role, exp }), desk: rec.name, role });
+  return json(200, { ok: true, token: sign({ desk: rec.name, role, exp }), desk: rec.name, role, engine: (rec.engine === true) });
 };
