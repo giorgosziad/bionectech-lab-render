@@ -61,6 +61,16 @@ exports.handler = async function (event) {
     return json(200, { ok: true });
   }
 
+  /* ENGINE_PER_DESK: engine access is a per-desk flag the owner sets from the Admin tab,
+     not a hardcoded list in the frontend. Stored on the desk record beside the time limit. */
+  if (action === 'setengine') {
+    const name = (b.name || '').toString().trim();
+    const rec = await readJSON(st, 'desk:' + name.toLowerCase(), null);
+    if (!rec) return json(404, { error: 'No such desk.' });
+    rec.engine = (b.engine === true);
+    await writeJSON(st, 'desk:' + name.toLowerCase(), rec);
+    return json(200, { ok: true, name: rec.name, engine: rec.engine });
+  }
   if (action === 'setlimit') {
     const name = (b.name || '').toString().trim();
     const rec = await readJSON(st, 'desk:' + name.toLowerCase(), null);

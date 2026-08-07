@@ -493,7 +493,7 @@ $('logoutBtn').addEventListener('click',function(){ try{ sessionStorage.clear();
 function showApp(){
   $('login').style.display='none'; $('app').style.display='block'; document.body.classList.add('in-app');
   $('who').textContent=DESK+(ROLE==='admin'?' · admin':'');
-  var ENGINE_DESKS = ['george'];   /* ENGINE_ALLOWLIST: named non-admin desks that may use the engine. The Admin tab stays admin-only. */
+  var ENGINE_DESKS = [];   /* superseded by the per-desk flag set in the Admin tab */   /* ENGINE_ALLOWLIST: named non-admin desks that may use the engine. The Admin tab stays admin-only. */
   var _engOK = (ROLE==='admin') || (ENGINE_DESKS.indexOf(String(DESK||'').toLowerCase()) >= 0);
   if(ROLE==='admin'){ $('adminTab').classList.remove('hide'); }
   if(!_engOK){ var er=$('engineRow'); if(er) er.style.display='none'; engineOn=false; try{ sessionStorage.setItem('bnt_engine','0'); }catch(e){} }
@@ -1236,6 +1236,7 @@ function loadDesks(){ api('admin',{method:'POST',body:JSON.stringify({action:'li
     var pw=document.createElement('input'); pw.type='text'; pw.placeholder='new password';
     var setpw=mk('Set password',function(){ if(!pw.value){toast('Type a password.');return;} adminDo({action:'setpw',name:d.name,password:pw.value},'Password changed for '+d.name); pw.value=''; });
     var hrs=document.createElement('input'); hrs.type='number'; hrs.className='num'; hrs.min='1'; hrs.placeholder='hrs'; hrs.value=d.unlimited?'':String(Math.round(d.limitMin/60));
+    var engb=mk((d.engine?'Engine: on':'Engine: off'),function(){ adminDo({action:'setengine',name:d.name,engine:!d.engine}, d.name+': engine '+(d.engine?'off':'on')); });
     var seth=mk('Set hours',function(){ var h=parseFloat(hrs.value); if(!(h>0)){toast('Enter hours.');return;} adminDo({action:'setlimit',name:d.name,limitMin:Math.round(h*60)},d.name+': '+h+'h/day'); });
     var unl=mk('Unlimited',function(){ adminDo({action:'setlimit',name:d.name,unlimited:true},d.name+': unlimited'); });
     var addt=mk('+1h today',function(){ adminDo({action:'addtime',name:d.name,minutes:60},'Added 1h to '+d.name); });
