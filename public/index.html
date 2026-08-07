@@ -493,7 +493,10 @@ $('logoutBtn').addEventListener('click',function(){ try{ sessionStorage.clear();
 function showApp(){
   $('login').style.display='none'; $('app').style.display='block'; document.body.classList.add('in-app');
   $('who').textContent=DESK+(ROLE==='admin'?' · admin':'');
-  if(ROLE==='admin'){ $('adminTab').classList.remove('hide'); } else { var er=$('engineRow'); if(er) er.style.display='none'; engineOn=false; try{ sessionStorage.setItem('bnt_engine','0'); }catch(e){} }
+  var ENGINE_DESKS = ['george'];   /* ENGINE_ALLOWLIST: named non-admin desks that may use the engine. The Admin tab stays admin-only. */
+  var _engOK = (ROLE==='admin') || (ENGINE_DESKS.indexOf(String(DESK||'').toLowerCase()) >= 0);
+  if(ROLE==='admin'){ $('adminTab').classList.remove('hide'); }
+  if(!_engOK){ var er=$('engineRow'); if(er) er.style.display='none'; engineOn=false; try{ sessionStorage.setItem('bnt_engine','0'); }catch(e){} }
   loadData(); refreshMe(); startHeartbeat(); loadModels(); if(typeof teamLoad==='function') teamLoad();
   if(typeof applyMailControls==='function') applyMailControls();
 }
