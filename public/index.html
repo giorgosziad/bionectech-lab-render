@@ -437,10 +437,11 @@ window.addEventListener('load', function(){
   function upd(){ try{
     var d=document.getElementById('bntStatusStrip')||mk();
     var ky=document.getElementById('personaKyros')?'KYROS OK':'KYROS MISSING';
+    var si=document.getElementById('personaSinan')?'SINAN OK':'SINAN MISSING';
     var ld=(typeof _dataLoaded!=='undefined'&&_dataLoaded)?'OK':'FAILED';
     var pc=(typeof projects!=='undefined'&&projects)?projects.length:'?';
     var dk=(typeof DESK!=='undefined'&&DESK)?DESK:'?';
-    d.textContent=BUILD+' | desk:'+dk+' | load:'+ld+' | projects:'+pc+' | '+ky;
+    d.textContent=BUILD+' | desk:'+dk+' | load:'+ld+' | projects:'+pc+' | '+ky+' | '+si;
   }catch(e){} }
   var tries=0;
   function retry(){ try{
