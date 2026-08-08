@@ -1,4 +1,4 @@
-// chat.js — Anthropic proxy. Requires a valid session AND server-side time left.
+﻿// chat.js — Anthropic proxy. Requires a valid session AND server-side time left.
 const { cors, json, userFrom, store, readJSON, writeJSON, todayKey } = require('./lib/auth');
 const AEGIS = require('./lib/aegis');
 const { valuesText } = require('./lib/values');
@@ -3167,6 +3167,7 @@ function _memPick(store, query, budget) {
   }
 
   function modelUnavailable(status, data) {
+    try { if (status === 403 || status === 400) { console.log('[CHAT-UPSTREAM] status=' + status + ' msg=' + JSON.stringify((data && data.error) || data).slice(0,600)); } } catch (e) {}
     const msg = (data && data.error && data.error.message) ? String(data.error.message).toLowerCase() : '';
     if (status === 404) return true;
     if (/(not available|does not have access|please use|suspended|not_found|unavailable|no access|invalid model|model)/.test(msg)) return true;
