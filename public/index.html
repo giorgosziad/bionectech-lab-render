@@ -946,7 +946,7 @@ function send(){
   var history=[];
   if(current.summary){ history.push({role:'user',text:'[Earlier conversation — running summary for context only, not a new request]\n'+current.summary}); history.push({role:'assistant',text:'Understood — I have the earlier context.'}); }
   /* HISTORY_CAP: a long project sent hundreds of turns as context and the request was refused upstream with a 403. Send at most the last 40 turns; the running summary above carries everything older. The project keeps every turn - only what is sent to the model is capped. */
-  _recent = _histPick(_recent, prompt, 120, 260000);
+  _recent = _histPick(_recent, prompt, 80, 140000);
   history=history.concat(_recent);
   /* Memory cap + running summary: send the last ~15-25 turns verbatim plus a compact summary of older
      ones. Keeps her smart and remembering the project, while cutting tokens and speeding every reply. */
