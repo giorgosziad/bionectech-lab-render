@@ -211,7 +211,7 @@ window.__FILE_LIBS = [
         <div class="lr"><span>Read aloud</span><button id="labRead" type="button">off</button><label><input id="labAuto" type="checkbox" style="width:auto"> auto</label></div>
         <div class="lr"><span>Mode</span><select id="mode"><option value="builder">Builder</option><option value="answer">Plain answer</option><option value="research">Research</option><option value="clinical">Clinical decision support</option><option value="imagine">Imagination</option></select></div>
         <div class="lr"><span>Imagine</span><input id="temp" type="range" min="0" max="1" step="0.05" value="1"><span id="tempV">1.0</span></div>
-        <div class="lr"><span>Assistant</span><button id="personaKaram" type="button">Karam</button><button id="personaNicolle" type="button">Nicolle</button><button id="personaKarim" type="button">Karim</button><button id="personaGiorgos" type="button">Giorgos</button><button id="personaGalen" type="button">Galen</button><button id="personaElias" type="button">Elias</button><button id="personaKostas" type="button">Kostas</button><button id="personaElena" type="button">Elena</button><button id="personaSolon" type="button">Solon</button><button id="personaNour" type="button">Nour</button><button id="personaKyros" type="button">Kyros</button><button id="personaSinan" type="button">Sinan</button><span class="g" style="font-size:10px;color:var(--soft)">Karam = engineering &middot; Nicolle = research &middot; Karim = quality &amp; gate &middot; Giorgos = founder standards &middot; Galen = clinical &middot; Elias = sales &middot; Kostas = capital &middot; Elena = customer success &middot; Solon = legal counsel &middot; Nour = people &amp; culture &middot; Kyros = capital &amp; negotiation</span></div>
+        <div class="lr"><span>Assistant</span><button id="personaKaram" type="button">Karam</button><button id="personaNicolle" type="button">Nicolle</button><button id="personaKarim" type="button">Karim</button><button id="personaGiorgos" type="button">Giorgos</button><button id="personaGalen" type="button">Galen</button><button id="personaElias" type="button">Elias</button><button id="personaKostas" type="button">Kostas</button><button id="personaElena" type="button">Elena</button><button id="personaSolon" type="button">Solon</button><button id="personaNour" type="button">Nour</button><button id="personaKyros" type="button">Kyros</button><button id="personaSinan" type="button">Sinan</button><button id="personaPlaton" type="button">Platon</button><span class="g" style="font-size:10px;color:var(--soft)">Karam = engineering &middot; Nicolle = research &middot; Karim = quality &amp; gate &middot; Giorgos = founder standards &middot; Galen = clinical &middot; Elias = sales &middot; Kostas = capital &middot; Elena = customer success &middot; Solon = legal counsel &middot; Nour = people &amp; culture &middot; Kyros = capital &amp; negotiation</span></div>
         <div class="lr"><span>Web search</span><button id="webBtn" type="button">off</button><span class="g" style="font-size:10px;color:var(--soft)">every colleague can search the live web</span></div>
         <div class="lr"><span>Connectors</span><button id="mcpBtn" type="button">off</button><span class="g" style="font-size:10px;color:var(--soft)">RxSmart &middot; BagPing &middot; OncoDefy &mdash; governed, audited MCPs</span></div>
         <div class="lr"><span>Fast</span><button id="fastBtn" type="button">off</button><span class="g" style="font-size:10px;color:var(--soft)">quicker replies (Haiku)</span></div>
@@ -241,7 +241,7 @@ window.__FILE_LIBS = [
         <button class="btn sm danger" id="delProj" type="button">Delete</button>
         <select id="model"><option value="auto">Latest (auto)</option><option value="claude-fable-5">Claude Fable 5</option><option value="claude-opus-4-8">Claude Opus 4.8</option><option value="claude-opus-4-7">Claude Opus 4.7</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-opus-4-5">Claude Opus 4.5</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option><option value="claude-sonnet-4-5">Claude Sonnet 4.5</option><option value="claude-opus-4-1">Claude Opus 4.1</option></select>
       </div>
-      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">TALKING TO: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="activeModel" style="color:var(--light-sky);letter-spacing:1px;font-size:11px;margin-left:6px"></span><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build LIBS-0030</span></div>
+      <div id="activeAssistant" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-family:'Courier New',monospace;font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);display:inline-block"></span><span id="activeAssistantName" style="color:var(--gold-soft);letter-spacing:1px">AT THE DESK: KARAM</span><button class="btn sm" id="assistantSwitch" type="button" style="font-size:10px;padding:2px 8px">switch</button><span id="activeModel" style="color:var(--light-sky);letter-spacing:1px;font-size:11px;margin-left:6px"></span><span id="buildStamp" style="margin-left:auto;font-size:10px;color:var(--soft);opacity:0.7">build LIBS-0030</span></div>
       <div class="log" id="log"></div>
       <div class="chips" id="chips"></div>
       <div class="row" style="margin-top:10px">
@@ -390,6 +390,7 @@ function fmt(min){min=Math.max(0,Math.round(min));var h=Math.floor(min/60),m=min
 
 var TOKEN='', ROLE='', DESK='';
 try{ TOKEN=sessionStorage.getItem('bnt_token')||''; ROLE=sessionStorage.getItem('bnt_role')||''; DESK=sessionStorage.getItem('bnt_desk')||''; }catch(e){}
+  try{ ENGINE_OK=(sessionStorage.getItem('bnt_engineok')==='1'); }catch(e){}
 
 function api(path,opts){opts=opts||{};opts.headers=Object.assign({'Content-Type':'application/json'},opts.headers||{});if(TOKEN)opts.headers['Authorization']='Bearer '+TOKEN;return fetch('/.netlify/functions/'+path,opts).then(function(r){return r.text().then(function(t){var j=null;try{j=JSON.parse(t);}catch(e){}return {ok:r.ok,status:r.status,data:j};});});}
 /* FLUSH-ON-EXIT GUARD - conversations are saved on every turn and flushed before the page dies. Additive only. */
@@ -436,12 +437,19 @@ window.addEventListener('load', function(){
     document.body.appendChild(d); return d; }
   function upd(){ try{
     var d=document.getElementById('bntStatusStrip')||mk();
-    var ky=document.getElementById('personaKyros')?'KYROS OK':'KYROS MISSING';
-    var si=document.getElementById('personaSinan')?'SINAN OK':'SINAN MISSING';
     var ld=(typeof _dataLoaded!=='undefined'&&_dataLoaded)?'OK':'FAILED';
     var pc=(typeof projects!=='undefined'&&projects)?projects.length:'?';
     var dk=(typeof DESK!=='undefined'&&DESK)?DESK:'?';
-    d.textContent=BUILD+' | desk:'+dk+' | load:'+ld+' | projects:'+pc+' | '+ky+' | '+si;
+    /* CLEAN_STRIP: a status bar, not a console dump. Healthy state names the Lab, the
+       desk and the project count. A problem still surfaces plainly, because a strip
+       reading FAILED is what caught the reload loop. The build tag moves to the hover
+       title - kept for diagnosis, invisible to a visitor. */
+    var _healthy = (ld === 'OK') && (pc !== '?') && (dk !== '?');
+    d.style.display = _healthy ? 'none' : 'block';
+    d.title = BUILD + '  desk:' + dk + '  load:' + ld + '  projects:' + pc;
+    d.textContent = _healthy
+      ? ''
+      : ('BIONECTECH AI LAB  ·  ' + (dk === '?' ? 'signed out' : 'connection issue - reload'));
   }catch(e){} }
   var tries=0;
   function retry(){ try{
@@ -484,6 +492,7 @@ function doLogin(){
     if(r.ok&&r.data&&r.data.token){
       TOKEN=r.data.token; ROLE=r.data.role; DESK=r.data.desk;
       try{ sessionStorage.setItem('bnt_token',TOKEN); sessionStorage.setItem('bnt_role',ROLE); sessionStorage.setItem('bnt_desk',DESK); }catch(e){}
+      try{ sessionStorage.setItem('bnt_engineok', (r.data && r.data.engine) ? '1' : '0'); ENGINE_OK=!!(r.data && r.data.engine); }catch(e){}
       showApp();
     } else { $('loginErr').textContent=(r.data&&r.data.error)||'Could not sign in.'; }
   }).catch(function(){ $('loginErr').textContent='Server not reachable. Is the site deployed?'; });
@@ -493,7 +502,10 @@ $('logoutBtn').addEventListener('click',function(){ try{ sessionStorage.clear();
 function showApp(){
   $('login').style.display='none'; $('app').style.display='block'; document.body.classList.add('in-app');
   $('who').textContent=DESK+(ROLE==='admin'?' · admin':'');
-  if(ROLE==='admin'){ $('adminTab').classList.remove('hide'); } else { var er=$('engineRow'); if(er) er.style.display='none'; engineOn=false; try{ sessionStorage.setItem('bnt_engine','0'); }catch(e){} }
+  var ENGINE_DESKS = []; var ENGINE_OK=false;   /* superseded by the per-desk flag set in the Admin tab */   /* ENGINE_ALLOWLIST: named non-admin desks that may use the engine. The Admin tab stays admin-only. */
+  var _engOK = (ROLE==='admin') || ENGINE_OK;
+  if(ROLE==='admin'){ $('adminTab').classList.remove('hide'); }
+  if(!_engOK){ var er=$('engineRow'); if(er) er.style.display='none'; engineOn=false; try{ sessionStorage.setItem('bnt_engine','0'); }catch(e){} }
   loadData(); refreshMe(); startHeartbeat(); loadModels(); if(typeof teamLoad==='function') teamLoad();
   if(typeof applyMailControls==='function') applyMailControls();
 }
@@ -636,7 +648,7 @@ function saveData(force){
     /* A DELETE or RENAME is an intentional overwrite — the operator meant it. Write it straight
        through, or a merge would helpfully resurrect the project they just deleted. */
     if(force){
-      /* FULL_ARCHIVE_GUARD */ projects.forEach(function(_pj){ api('data',{method:'POST',body:JSON.stringify({data:{project:_pj}})}); }); api('data',{method:'POST',body:JSON.stringify({data:{project:current,notes:notes}})});
+      api('data',{method:'POST',body:JSON.stringify({data:{projects:projects,notes:notes}})});
       return;
     }
     /* PARTIAL SAVE - the archive is now ~10MB. Shipping all of it on every turn queued the
@@ -656,13 +668,13 @@ function saveData(force){
       if(curId){                                          /* keep `current` pointing at the live object */
         for(var i=0;i<projects.length;i++){ if(projects[i].id === curId){ current = projects[i]; break; } }
       }
-      /* FULL_ARCHIVE_GUARD */ projects.forEach(function(_pj){ api('data',{method:'POST',body:JSON.stringify({data:{project:_pj}})}); }); api('data',{method:'POST',body:JSON.stringify({data:{project:current,notes:notes}})});
+      api('data',{method:'POST',body:JSON.stringify({data:{projects:projects,notes:notes}})});
     }).catch(function(){ /* unreachable -> write nothing. Silence is safer than loss. */ });
   }, 600);
 }
 function renderProjects(){ try{ if(current && current.id){ sessionStorage.setItem('bnt_project', current.id); localStorage.setItem('bnt_project', current.id); } }catch(e){} projects.sort(function(a,b){return (b.updated||0)-(a.updated||0);}); var s=$('project'); s.innerHTML=''; projects.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=p.name+' ('+(p.turns?p.turns.length:0)+')';if(current&&p.id===current.id)o.selected=true;s.appendChild(o);}); }
 function renderTurns(){ var log=$('log');log.innerHTML='';var t=current&&current.turns||[];if(!t.length){log.innerHTML='<div class="empty">No messages yet. Ask something below.</div>';return;}
-  t.forEach(function(turn){var d=document.createElement('div');d.className='turn '+(turn.role==='you'?'you':'claude');var w=document.createElement('div');w.className='who2';w.textContent=turn.role==='you'?'You':(turn.persona==='nicolle'?'Nicolle':turn.persona==='karim'?'Karim':turn.persona==='giorgos'?'Giorgos':turn.persona==='galen'?'Galen':turn.persona==='elias'?'Elias':turn.persona==='kostas'?'Kostas':turn.persona==='elena'?'Elena':turn.persona==='solon'?'Solon':turn.persona==='nour'?'Nour':turn.persona==='kyros'?'Kyros':turn.persona==='sinan'?'Sinan':'Karam');d.appendChild(w);var b=document.createElement('div');b.className='body';var parts=turn.text.split(/```/);for(var i=0;i<parts.length;i++){if(i%2===1){var pre=document.createElement('pre');pre.textContent=parts[i].replace(/^[a-zA-Z0-9_.-]*\n/,'');d.appendChild(pre);}else if(parts[i]){var sp=document.createElement('span');sp.textContent=parts[i];b.appendChild(sp);}}if(b.childNodes.length)d.appendChild(b);if(turn.role!=='you'&&turn.text&&turn.text!=='…'){var rb=document.createElement('button');rb.className='readbtn';rb.type='button';rb.textContent='Read aloud';rb.addEventListener('click',function(){speak(turn.text,turn.persona||'karam');});d.appendChild(rb);if(turn.model){var mt=document.createElement('span');mt.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--soft);margin-left:8px';mt.textContent=turn.model;d.appendChild(mt);}if(turn.modelNote){var mn=document.createElement('div');mn.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--gold-dim);margin-top:4px;opacity:.9';mn.textContent='\u26A0 '+turn.modelNote;d.appendChild(mn);}if(turn.aegis&&engineOn&&ROLE==='admin'){var ae=turn.aegis;var chip=document.createElement('div');chip.className='aegis '+(ae.status||'').toLowerCase();var act=ae.action+(ae.response_window?(' · '+ae.response_window):'');var tail=ae.built_in?(' · built-in · attest '+esc(ae.attest||'')):'';chip.innerHTML='<span class="dot"></span><b>'+ae.engine+' '+ae.version+'</b> · '+ae.status+' · '+esc(act)+' · input fidelity '+ae.fidelity+tail;d.appendChild(chip);}
+  t.forEach(function(turn){var d=document.createElement('div');d.className='turn '+(turn.role==='you'?'you':'claude');var w=document.createElement('div');w.className='who2';w.textContent=turn.role==='you'?'You':(turn.persona==='nicolle'?'Nicolle':turn.persona==='karim'?'Karim':turn.persona==='giorgos'?'Giorgos':turn.persona==='galen'?'Galen':turn.persona==='elias'?'Elias':turn.persona==='kostas'?'Kostas':turn.persona==='elena'?'Elena':turn.persona==='solon'?'Solon':turn.persona==='nour'?'Nour':turn.persona==='kyros'?'Kyros':turn.persona==='sinan'?'Sinan':turn.persona==='platon'?'Platon':'Karam');d.appendChild(w);var b=document.createElement('div');b.className='body';var parts=turn.text.split(/```/);for(var i=0;i<parts.length;i++){if(i%2===1){var pre=document.createElement('pre');pre.textContent=parts[i].replace(/^[a-zA-Z0-9_.-]*\n/,'');d.appendChild(pre);}else if(parts[i]){var sp=document.createElement('span');sp.textContent=parts[i];b.appendChild(sp);}}if(b.childNodes.length)d.appendChild(b);if(turn.role!=='you'&&turn.text&&turn.text!=='…'){var rb=document.createElement('button');rb.className='readbtn';rb.type='button';rb.textContent='Read aloud';rb.addEventListener('click',function(){speak(turn.text,turn.persona||'karam');});d.appendChild(rb);if(turn.model){var mt=document.createElement('span');mt.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--soft);margin-left:8px';mt.textContent=turn.model;d.appendChild(mt);}if(turn.modelNote){var mn=document.createElement('div');mn.style.cssText='font-family:\'Courier New\',monospace;font-size:10px;color:var(--gold-dim);margin-top:4px;opacity:.9';mn.textContent='\u26A0 '+turn.modelNote;d.appendChild(mn);}if(turn.aegis&&engineOn&&ROLE==='admin'){var ae=turn.aegis;var chip=document.createElement('div');chip.className='aegis '+(ae.status||'').toLowerCase();var act=ae.action+(ae.response_window?(' · '+ae.response_window):'');var tail=ae.built_in?(' · built-in · attest '+esc(ae.attest||'')):'';chip.innerHTML='<span class="dot"></span><b>'+ae.engine+' '+ae.version+'</b> · '+ae.status+' · '+esc(act)+' · input fidelity '+ae.fidelity+tail;d.appendChild(chip);}
     /* Downloadable files in Karam's reply: a Download button per file, plus Download as ZIP if many. */
     var _files=extractFilesFromText(turn.text);
     if(_files.length){ var fbar=document.createElement('div'); fbar.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center';
@@ -798,7 +810,7 @@ function maybeFoldSummary(){
   if(_folding||!current) return;
   var all=(current.turns||[]).filter(function(t){return t.text&&t.text!=='…'&&t.text.indexOf('[not delivered]')!==0;});
   current.sumCount=current.sumCount||0;
-  if(all.length - current.sumCount <= 25) return;            /* window small enough — nothing to fold */
+  if(all.length - current.sumCount <= 500) return;   /* fold later: colleague rulings were being summarised away before the gate could read them */            /* window small enough — nothing to fold */
   var foldTo=all.length-15;                                   /* keep the last 15 turns verbatim */
   var toFold=all.slice(current.sumCount, foldTo);
   if(!toFold.length) return;
@@ -812,7 +824,7 @@ function maybeFoldSummary(){
 function runBackground(payload, prompt){
   var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
   payload.jobId = jobId; payload.bg = true;
-  addTurn('claude','\u2026 '+(personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':personaSel==='solon'?'Solon':personaSel==='nour'?'Nour':personaSel==='kyros'?'Kyros':personaSel==='sinan'?'Sinan':'Karam')+' is working \u2014 0s \u2026');
+  addTurn('claude','\u2026 '+(personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':personaSel==='solon'?'Solon':personaSel==='nour'?'Nour':personaSel==='kyros'?'Kyros':personaSel==='sinan'?'Sinan':personaSel==='platon'?'Platon':'Karam')+' is working \u2014 0s \u2026');
   var _bgIdx = current.turns.length - 1;
   var _bgT0 = Date.now();
   window.__bgProgress = null;   /* fresh job, fresh truth */
@@ -832,7 +844,7 @@ function runBackground(payload, prompt){
      not a claim of knowledge. But the stages are real and they happen in that order. */
   var _bgTick = setInterval(function(){
     var secs = Math.round((Date.now() - _bgT0)/1000);
-    var who  = (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':personaSel==='solon'?'Solon':personaSel==='nour'?'Nour':personaSel==='kyros'?'Kyros':personaSel==='sinan'?'Sinan':'Karam');
+    var who  = (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':personaSel==='solon'?'Solon':personaSel==='nour'?'Nour':personaSel==='kyros'?'Kyros':personaSel==='sinan'?'Sinan':personaSel==='platon'?'Platon':'Karam');
     var nf   = (payload && payload.files && payload.files.length) || 0;
     var askedFile = /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|deck|slides|zip|deliver|download)\b/i.test(String(prompt||''));
     var rebuild   = nf > 0 && /\b(rebuild|rewrite|complete|full|whole|deliver)\b/i.test(String(prompt||''));
@@ -935,7 +947,7 @@ function send(){
   var history=[];
   if(current.summary){ history.push({role:'user',text:'[Earlier conversation — running summary for context only, not a new request]\n'+current.summary}); history.push({role:'assistant',text:'Understood — I have the earlier context.'}); }
   /* HISTORY_CAP: a long project sent hundreds of turns as context and the request was refused upstream with a 403. Send at most the last 40 turns; the running summary above carries everything older. The project keeps every turn - only what is sent to the model is capped. */
-  if(_recent.length > 40){ _recent = _recent.slice(-40); } /* CHAR_CAP: 40 turns of a dense project is ~195k chars and the request is refused. Trim from the front until the payload fits. */ var _cc=0; for(var _z=_recent.length-1;_z>=0;_z--){ _cc+=String(_recent[_z].text||'').length; if(_cc>60000){ _recent=_recent.slice(_z+1); break; } }
+  _recent = _histPick(_recent, prompt, 80, 140000);
   history=history.concat(_recent);
   /* Memory cap + running summary: send the last ~15-25 turns verbatim plus a compact summary of older
      ones. Keeps her smart and remembering the project, while cutting tokens and speeding every reply. */
@@ -1037,7 +1049,7 @@ function send(){
   try { var _tn = $('log').querySelectorAll('.turn'); var _lastT = _tn[_tn.length-1]; _liveEl = _lastT ? _lastT.querySelector('.body') : null; } catch(e){}
   var _tick = setInterval(function(){
     var secs = Math.round((Date.now() - _t0)/1000);
-    var label = '\u2026 ' + (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':personaSel==='solon'?'Solon':personaSel==='nour'?'Nour':personaSel==='kyros'?'Kyros':personaSel==='sinan'?'Sinan':'Karam')
+    var label = '\u2026 ' + (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':personaSel==='solon'?'Solon':personaSel==='nour'?'Nour':personaSel==='kyros'?'Kyros':personaSel==='sinan'?'Sinan':personaSel==='platon'?'Platon':'Karam')
               + ' is working \u2014 ' + secs + 's \u2026';
     if(_liveEl){ _liveEl.textContent = label; }
     else { var t=current.turns[_sIdx]; if(t){ t.text = label; renderTurns(); } }
@@ -1233,6 +1245,7 @@ function loadDesks(){ api('admin',{method:'POST',body:JSON.stringify({action:'li
     var pw=document.createElement('input'); pw.type='text'; pw.placeholder='new password';
     var setpw=mk('Set password',function(){ if(!pw.value){toast('Type a password.');return;} adminDo({action:'setpw',name:d.name,password:pw.value},'Password changed for '+d.name); pw.value=''; });
     var hrs=document.createElement('input'); hrs.type='number'; hrs.className='num'; hrs.min='1'; hrs.placeholder='hrs'; hrs.value=d.unlimited?'':String(Math.round(d.limitMin/60));
+    var engb=mk((d.engine?'Engine: on':'Engine: off'),function(){ adminDo({action:'setengine',name:d.name,engine:!d.engine}, d.name+': engine '+(d.engine?'off':'on')); });
     var seth=mk('Set hours',function(){ var h=parseFloat(hrs.value); if(!(h>0)){toast('Enter hours.');return;} adminDo({action:'setlimit',name:d.name,limitMin:Math.round(h*60)},d.name+': '+h+'h/day'); });
     var unl=mk('Unlimited',function(){ adminDo({action:'setlimit',name:d.name,unlimited:true},d.name+': unlimited'); });
     var addt=mk('+1h today',function(){ adminDo({action:'addtime',name:d.name,minutes:60},'Added 1h to '+d.name); });
@@ -1351,7 +1364,7 @@ var webOn=false; try{ webOn=sessionStorage.getItem('bnt_web')==='1'; }catch(e){}
 var fastOn=false; try{ fastOn=sessionStorage.getItem('bnt_fast')==='1'; }catch(e){}
 var smartOn=false; try{ smartOn=sessionStorage.getItem('bnt_smart')==='1'; }catch(e){}
 var personaSel='karam'; try{ personaSel=sessionStorage.getItem('bnt_persona')||'karam'; }catch(e){}
-function paintPersona(){ var k=$('personaKaram'), n=$('personaNicolle'); if(k) k.style.opacity=personaSel==='karam'?'1':'0.5'; if(n) n.style.opacity=personaSel==='nicolle'?'1':'0.5'; var m=$('personaKarim'); if(m) m.style.opacity=personaSel==='karim'?'1':'0.5'; var d=$('personaGiorgos'); if(d) d.style.opacity=personaSel==='giorgos'?'1':'0.5'; var g=$('personaGalen'); if(g) g.style.opacity=personaSel==='galen'?'1':'0.5'; var a=$('personaElias'); if(a) a.style.opacity=personaSel==='elias'?'1':'0.5'; var st=$('personaKostas'); if(st) st.style.opacity=personaSel==='kostas'?'1':'0.5'; var el=$('personaElena'); if(el) el.style.opacity=personaSel==='elena'?'1':'0.5'; var so=$('personaSolon'); if(so) so.style.opacity=personaSel==='solon'?'1':'0.5'; var no=$('personaNour'); if(no) no.style.opacity=personaSel==='nour'?'1':'0.5'; var ky=$('personaKyros'); if(ky) ky.style.opacity=personaSel==='kyros'?'1':'0.5'; var nm=$('activeAssistantName'); if(nm) nm.textContent='TALKING TO: '+(personaSel==='nicolle'?'NICOLLE':personaSel==='karim'?'KARIM':personaSel==='giorgos'?'GIORGOS':personaSel==='galen'?'GALEN':personaSel==='elias'?'ELIAS':personaSel==='kostas'?'KOSTAS':personaSel==='elena'?'ELENA':personaSel==='solon'?'SOLON':personaSel==='nour'?'NOUR':personaSel==='kyros'?'KYROS':personaSel==='sinan'?'SINAN':'KARAM'); }
+function paintPersona(){ var k=$('personaKaram'), n=$('personaNicolle'); if(k) k.style.opacity=personaSel==='karam'?'1':'0.5'; if(n) n.style.opacity=personaSel==='nicolle'?'1':'0.5'; var m=$('personaKarim'); if(m) m.style.opacity=personaSel==='karim'?'1':'0.5'; var d=$('personaGiorgos'); if(d) d.style.opacity=personaSel==='giorgos'?'1':'0.5'; var g=$('personaGalen'); if(g) g.style.opacity=personaSel==='galen'?'1':'0.5'; var a=$('personaElias'); if(a) a.style.opacity=personaSel==='elias'?'1':'0.5'; var st=$('personaKostas'); if(st) st.style.opacity=personaSel==='kostas'?'1':'0.5'; var el=$('personaElena'); if(el) el.style.opacity=personaSel==='elena'?'1':'0.5'; var so=$('personaSolon'); if(so) so.style.opacity=personaSel==='solon'?'1':'0.5'; var no=$('personaNour'); if(no) no.style.opacity=personaSel==='nour'?'1':'0.5'; var ky=$('personaKyros'); if(ky) ky.style.opacity=personaSel==='kyros'?'1':'0.5'; var nm=$('activeAssistantName'); if(nm) nm.textContent='AT THE DESK: '+(personaSel==='nicolle'?'NICOLLE':personaSel==='karim'?'KARIM':personaSel==='giorgos'?'GIORGOS':personaSel==='galen'?'GALEN':personaSel==='elias'?'ELIAS':personaSel==='kostas'?'KOSTAS':personaSel==='elena'?'ELENA':personaSel==='solon'?'SOLON':personaSel==='nour'?'NOUR':personaSel==='kyros'?'KYROS':personaSel==='sinan'?'SINAN':personaSel==='platon'?'PLATON':'KARAM'); }
 var _pk=$('personaKaram'); if(_pk) _pk.addEventListener('click',function(){ personaSel='karam'; try{sessionStorage.setItem('bnt_persona','karam');}catch(e){} paintPersona(); toast('Karam is active.'); });
 var _pn=$('personaNicolle'); if(_pn) _pn.addEventListener('click',function(){ if(!nicolleOK()){ toast('Nicolle is controlled by the owner.'); return; } personaSel='nicolle'; try{sessionStorage.setItem('bnt_persona','nicolle');}catch(e){} paintPersona(); toast('Nicolle is active — your assistant for notes, minutes & emails.'); });
 var _pm=$('personaKarim'); if(_pm) _pm.addEventListener('click',function(){ personaSel='karim'; try{sessionStorage.setItem('bnt_persona','karim');}catch(e){} paintPersona(); toast('Karim is active - oversight and quality gate.'); });
@@ -1362,10 +1375,11 @@ var _pel=$('personaElena'); if(_pel) _pel.addEventListener('click',function(){ p
 var _pg=$('personaGalen'); if(_pg) _pg.addEventListener('click',function(){ personaSel='galen'; try{sessionStorage.setItem('bnt_persona','galen');}catch(e){} paintPersona(); toast('Galen is active - clinical colleague.'); });
 var _pso=$('personaSolon'); if(_pso) _pso.addEventListener('click',function(){ personaSel='solon'; try{sessionStorage.setItem('bnt_persona','solon');}catch(e){} paintPersona(); toast('Solon is active - legal counsel.'); });
 var _pno=$('personaNour'); if(_pno) _pno.addEventListener('click',function(){ personaSel='nour'; try{sessionStorage.setItem('bnt_persona','nour');}catch(e){} paintPersona(); toast('Nour is active - people and culture.'); });
-var _psi=$('personaSinan'); if(_psi) _psi.addEventListener('click',function(){ personaSel='sinan'; try{sessionStorage.setItem('bnt_persona','sinan');}catch(e){} paintPersona(); toast('Sinan is active - structural and systems engineering.'); });
+var _ppl=$('personaPlaton'); if(_ppl) _ppl.addEventListener('click',function(){ personaSel='platon'; try{sessionStorage.setItem('bnt_persona','platon');}catch(e){} paintPersona(); toast('Platon is active - app and platform development.'); });
+      var _psi=$('personaSinan'); if(_psi) _psi.addEventListener('click',function(){ personaSel='sinan'; try{sessionStorage.setItem('bnt_persona','sinan');}catch(e){} paintPersona(); toast('Sinan is active - structural and systems engineering.'); });
       var _pky=$('personaKyros'); if(_pky) _pky.addEventListener('click',function(){ personaSel='kyros'; try{sessionStorage.setItem('bnt_persona','kyros');}catch(e){} paintPersona(); toast('Kyros is active - capital and negotiation.'); });
 paintPersona();
-var _asw=$('assistantSwitch'); if(_asw) _asw.addEventListener('click',function(){ personaSel=(personaSel==='karam'?'nicolle':personaSel==='nicolle'?'karim':personaSel==='karim'?'giorgos':personaSel==='giorgos'?'galen':personaSel==='galen'?'elias':personaSel==='elias'?'kostas':personaSel==='kostas'?'elena':personaSel==='elena'?'solon':personaSel==='solon'?'nour':personaSel==='nour'?'kyros':personaSel==='kyros'?'sinan':'karam'); if(personaSel==='nicolle'&&typeof nicolleOK==='function'&&!nicolleOK()){ personaSel='karim'; } try{sessionStorage.setItem('bnt_persona',personaSel);}catch(e){} paintPersona(); toast(personaSel==='nicolle'?'Nicolle is active.':personaSel==='karim'?'Karim is active - oversight and quality gate.':personaSel==='giorgos'?'Giorgos is active - founder standards.':personaSel==='galen'?'Galen is active - clinical colleague.':personaSel==='elias'?'Elias is active - sales & marketing.':personaSel==='kostas'?'Kostas is active - capital & finance.':personaSel==='solon'?'Solon is active - legal counsel.':personaSel==='nour'?'Nour is active - people and culture.':personaSel==='kyros'?'Kyros is active - capital and negotiation.':personaSel==='sinan'?'Sinan is active - structural and systems engineering.':'Karam is active.'); });
+var _asw=$('assistantSwitch'); if(_asw) _asw.addEventListener('click',function(){ personaSel=(personaSel==='karam'?'nicolle':personaSel==='nicolle'?'karim':personaSel==='karim'?'giorgos':personaSel==='giorgos'?'galen':personaSel==='galen'?'elias':personaSel==='elias'?'kostas':personaSel==='kostas'?'elena':personaSel==='elena'?'solon':personaSel==='solon'?'nour':personaSel==='nour'?'kyros':personaSel==='kyros'?'sinan':personaSel==='sinan'?'platon':'karam'); if(personaSel==='nicolle'&&typeof nicolleOK==='function'&&!nicolleOK()){ personaSel='karim'; } try{sessionStorage.setItem('bnt_persona',personaSel);}catch(e){} paintPersona(); toast(personaSel==='nicolle'?'Nicolle is active.':personaSel==='karim'?'Karim is active - oversight and quality gate.':personaSel==='giorgos'?'Giorgos is active - founder standards.':personaSel==='galen'?'Galen is active - clinical colleague.':personaSel==='elias'?'Elias is active - sales & marketing.':personaSel==='kostas'?'Kostas is active - capital & finance.':personaSel==='solon'?'Solon is active - legal counsel.':personaSel==='nour'?'Nour is active - people and culture.':personaSel==='kyros'?'Kyros is active - capital and negotiation.':personaSel==='sinan'?'Sinan is active - structural and systems engineering.':personaSel==='platon'?'Platon is active - app and platform development.':'Karam is active.'); });
 function paintWeb(){ var b=$('webBtn'); if(b) b.textContent=webOn?'on':'off'; }
 var mcpOn=false; try{ mcpOn=sessionStorage.getItem('bnt_mcp')==='1'; }catch(e){}
 function paintMcp(){ var b=$('mcpBtn'); if(b) b.textContent=mcpOn?'on':'off'; }
@@ -1953,6 +1967,43 @@ function buildDesignedPptx(specText, fileName){
     toast('PowerPoint build failed: ' + (e && e.message ? e.message : 'unknown'));
   });
 }
+/* HIST_RETRIEVAL: a long project cannot send every recent turn - the request exceeds the
+   model's context and the API refuses it. Sending only the newest N loses older turns the
+   operator still needs. This scores every unfolded turn against the current question and
+   sends the strongest matches PLUS the newest turns, so a project can grow without limit
+   and a colleague can still be asked about work from hundreds of turns ago. Nothing is
+   deleted - the project keeps every turn; only what travels in one request is chosen. */
+function _histPick(turns, query, maxTurns, maxChars){
+  if(!turns || turns.length <= maxTurns) return turns;
+  var terms = String(query||'').toLowerCase().match(/[a-z0-9][a-z0-9\-\.]{2,}/g) || [];
+  var seen = {}, keys = [];
+  for(var t=0;t<terms.length;t++){ if(!seen[terms[t]]){ seen[terms[t]]=1; keys.push(terms[t]); } }
+  var scored = [];
+  for(var i=0;i<turns.length;i++){
+    var low = String(turns[i].text||'').toLowerCase(), s = 0;
+    for(var k=0;k<keys.length;k++){ if(low.indexOf(keys[k])>=0) s++; }
+    scored.push({ i:i, t:turns[i], s:s });
+  }
+  var chosen = {}, out = [], chars = 0;
+  /* the newest turns always travel - the immediate thread must stay intact */
+  var keepRecent = Math.min(30, turns.length);
+  for(var r=turns.length-keepRecent; r<turns.length; r++){
+    chosen[r] = 1; chars += String(turns[r].text||'').length;
+  }
+  /* then the strongest matches from everything older, newest first on ties */
+  scored.sort(function(a,b){ return (b.s - a.s) || (b.i - a.i); });
+  for(var n=0;n<scored.length;n++){
+    if(Object.keys(chosen).length >= maxTurns) break;
+    if(scored[n].s === 0) break;
+    if(chosen[scored[n].i]) continue;
+    var len = String(scored[n].t.text||'').length;
+    if(chars + len > maxChars) continue;
+    chosen[scored[n].i] = 1; chars += len;
+  }
+  var idx = Object.keys(chosen).map(Number).sort(function(a,b){ return a-b; });
+  for(var q=0;q<idx.length;q++){ out.push(turns[idx[q]]); }
+  return out;
+}
 function printHtmlToPdf(html, name){
   try{
     var ifr=document.createElement('iframe');
@@ -2002,7 +2053,7 @@ function _sizeGate(f){
     f.kb = kb;
   }
 }
-function renderChips(){ var c=$('chips'); if(!c) return; c.innerHTML=''; if(workingFile){ var wf=document.createElement('span'); wf.className='chip'; wf.style.cssText='background:rgba(255,214,0,0.15);border:1px solid var(--gold)'; wf.appendChild(document.createTextNode('Working with Karam: '+(workingFile.name||'file'))); var wx=document.createElement('b'); wx.textContent='x'; wx.title='Stop working on this file'; wx.addEventListener('click',function(){ workingFile=null; renderChips(); toast('Closed the working file. Back to normal chat.'); }); wf.appendChild(wx); c.appendChild(wf); } pending.forEach(function(fl,i){ var sp=document.createElement('span'); sp.className='chip'; if(fl.tooBig){ sp.style.borderColor='var(--err)'; sp.style.color='var(--err)'; } sp.appendChild(document.createTextNode((fl.name||'file') + (fl.kb?(' \u00b7 '+fl.kb+'KB'):'') + (fl.tooBig?' \u26A0 too big to rewrite whole':''))); var x=document.createElement('b'); x.textContent='x'; x.addEventListener('click',function(){ pending.splice(i,1); renderChips(); }); sp.appendChild(x); c.appendChild(sp); }); }
+function renderChips(){ var c=$('chips'); if(!c) return; c.innerHTML=''; if(workingFile){ var wf=document.createElement('span'); wf.className='chip'; wf.style.cssText='background:rgba(255,214,0,0.15);border:1px solid var(--gold)'; wf.appendChild(document.createTextNode('Working with Karam: '+(workingFile.name||'file'))); var wx=document.createElement('b'); wx.textContent='x'; wx.title='Stop working on this file'; wx.addEventListener('click',function(){ workingFile=null; renderChips(); toast('Closed the working file. Back to normal chat.'); }); wf.appendChild(wx); c.appendChild(wf); } pending.forEach(function(fl,i){ var sp=document.createElement('span'); sp.className='chip'; if(fl.tooBig){ sp.style.borderColor='var(--err)'; sp.style.color='var(--err)'; } sp.appendChild(document.createTextNode((fl.name||'file') + (fl.kb?(' · '+fl.kb+'KB'):'') + (fl.tooBig?' \u26A0 too big to rewrite whole':''))); var x=document.createElement('b'); x.textContent='x'; x.addEventListener('click',function(){ pending.splice(i,1); renderChips(); }); sp.appendChild(x); c.appendChild(sp); }); }
 
 // ===== OFFICE FILE TEXT EXTRACTION (docx/xlsx/pptx are ZIP+XML; crack open with unzip()) =====
 function _xmlText(xml){ // strip tags, decode the common entities, collapse whitespace
@@ -2105,7 +2156,7 @@ async function processIncoming(files){ for(var i=0;i<files.length;i++){ var file
     if(fl){
       pending.push(fl); renderChips();
       var _kb = fl.text ? Math.round(fl.text.length/1024) : (fl.data ? Math.round(fl.data.length*0.75/1024) : 0);
-      toast('Attached: ' + (fl.name||'file') + (_kb ? (' \u00b7 ' + _kb + 'KB') : ''));
+      toast('Attached: ' + (fl.name||'file') + (_kb ? (' · ' + _kb + 'KB') : ''));
     } else {
       toast('\u26A0 ' + (file.name||'That file') + ' could not be read \u2014 it was NOT attached.');
     }
@@ -2443,7 +2494,7 @@ async function buildPdf(f){
 function buildPdfLegacy(f){
     if(!window.jspdf||!window.jspdf.jsPDF) throw new Error('the PDF library did not load (check your connection and retry)');
     var doc=new window.jspdf.jsPDF();
-    function _asciiPdf(s){ if(typeof s!=='string') s=String(s||''); var map={'\u2192':'->','\u2190':'<-','\u2194':'<->','\u2794':'->','\u279c':'->','\u21d2':'=>','\u2014':'-','\u2013':'-','\u2212':'-','\u00b7':'-','\u2022':'-','\u25aa':'-','\u25cf':'-','\u2018':"'",'\u2019':"'",'\u201c':'"','\u201d':'"','\u2026':'...','\u00a0':' ','\u2039':'<','\u203a':'>','\u00ab':'<<','\u00bb':'>>'}; s=s.replace(/[\u2192\u2190\u2194\u2794\u279c\u21d2\u2014\u2013\u2212\u00b7\u2022\u25aa\u25cf\u2018\u2019\u201c\u201d\u2026\u00a0\u2039\u203a\u00ab\u00bb]/g,function(ch){return map[ch]||' ';}); s=s.replace(/[^\x00-\xFF]/g,' '); return s; }
+    function _asciiPdf(s){ if(typeof s!=='string') s=String(s||''); var map={'\u2192':'->','\u2190':'<-','\u2194':'<->','\u2794':'->','\u279c':'->','\u21d2':'=>','\u2014':'-','\u2013':'-','\u2212':'-','·':'-','\u2022':'-','\u25aa':'-','\u25cf':'-','\u2018':"'",'\u2019':"'",'\u201c':'"','\u201d':'"','\u2026':'...','\u00a0':' ','\u2039':'<','\u203a':'>','\u00ab':'<<','\u00bb':'>>'}; s=s.replace(/[\u2192\u2190\u2194\u2794\u279c\u21d2\u2014\u2013\u2212·\u2022\u25aa\u25cf\u2018\u2019\u201c\u201d\u2026\u00a0\u2039\u203a\u00ab\u00bb]/g,function(ch){return map[ch]||' ';}); s=s.replace(/[^\x00-\xFF]/g,' '); return s; }
     var text = Array.isArray(f.content)?f.content.map(function(b){return typeof b==='string'?b:(b.text||'');}).join('\n') : String(f.content||'');
     text=_asciiPdf(text);
     var lines=doc.splitTextToSize(text,180); var y=15;
