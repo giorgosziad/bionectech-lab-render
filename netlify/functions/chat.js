@@ -3032,7 +3032,7 @@ function _memPick(store, query, budget) {
   const _notesOwner = PERSONA_NAMES[persona] || 'Karam';
   const MEMORY = ((_memShared || _memNotes))
     ? '\n\nPERSISTENT MEMORY (what you already know about the operator and Bionectech from past sessions - treat as established context, do not re-ask):'
-        + (_memShared ? '\nShared facts (the part of memory relevant to this turn):\n' + _memPick(_memShared, prompt, 24000) : '')
+        + (_memShared ? '\nShared facts (the part of memory relevant to this turn):\n' + _memPick(_memShared, prompt, 12000) : '')
         + (_memNotes ? ('\nYour own working notes (' + _notesOwner + '):\n' + _memNotes) : '')
     : '';
   // NOTE: on web-search turns (b.web) the stored memory is intentionally NOT loaded into context,
