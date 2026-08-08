@@ -447,7 +447,7 @@ window.addEventListener('load', function(){
     var _healthy = (ld === 'OK') && (pc !== '?') && (dk !== '?');
     d.title = BUILD + '  desk:' + dk + '  load:' + ld + '  projects:' + pc;
     d.textContent = _healthy
-      ? ('BIONECTECH AI LAB  ·  ' + dk + '  ·  ' + pc + ' projects')
+      ? 'BIONECTECH AI LAB'
       : ('BIONECTECH AI LAB  ·  ' + (dk === '?' ? 'signed out' : 'connection issue - reload'));
   }catch(e){} }
   var tries=0;
