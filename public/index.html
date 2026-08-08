@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -758,7 +758,18 @@ function __mirrorRestore_DISABLED(){
     }
   }catch(e){}
 }
-function addTurn(role,text){current.turns=current.turns||[];current.turns.push({role:role,text:text,persona:(role!=='you'?personaSel:undefined),ts:Date.now()});current.updated=Date.now();renderTurns();renderProjects();saveData();__mirrorNow();__appendTurn(current.turns[current.turns.length-1]);}
+function _scrubShell(t){
+  if(!t) return t;
+  var s = String(t);
+  s = s.replace(/[ \t]*\+[ \t]*CategoryInfo[^\r\n]*/g, '');
+  s = s.replace(/[ \t]*\+[ \t]*FullyQualifiedErrorId[^\r\n]*/g, '');
+  s = s.replace(/[ \t]*At line:\d+ char:\d+[^\r\n]*/g, '');
+  s = s.replace(/[ \t]*\+[ \t]*~+[^\r\n]*/g, '');
+  s = s.replace(/[ \t]*\+ [^\r\n]{0,120}\.\.\.[ \t]*$/gm, '');
+  s = s.replace(/\n{3,}/g, '\n\n');
+  return s;
+}
+function addTurn(role,text){ text=_scrubShell(text);current.turns=current.turns||[];current.turns.push({role:role,text:text,persona:(role!=='you'?personaSel:undefined),ts:Date.now()});current.updated=Date.now();renderTurns();renderProjects();saveData();__mirrorNow();__appendTurn(current.turns[current.turns.length-1]);}
 function addTurnA(role,text,aegis,model,persona,websearched,modelNote){current.turns=current.turns||[];var who=(role!=='you')?(persona||personaSel):undefined;var _turn={role:role,text:text,aegis:aegis||null,model:model||null,modelNote:modelNote||null,persona:who,websearched:!!websearched,ts:Date.now()};current.turns.push(_turn);current.updated=Date.now();renderTurns();renderProjects();saveData();__mirrorNow();__appendTurn(_turn);if(role==='claude' && typeof text==='string' && text.indexOf('FILE_DELIVERY')>=0){ deliverFiles(_turn); } }
 async function bigFileFlow(userTask, bigText, otherFiles, mode, temp){
   var task=userTask||'Review the attached document.';
