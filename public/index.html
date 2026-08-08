@@ -447,8 +447,8 @@ window.addEventListener('load', function(){
     var _healthy = (ld === 'OK') && (pc !== '?') && (dk !== '?');
     d.title = BUILD + '  desk:' + dk + '  load:' + ld + '  projects:' + pc;
     d.textContent = _healthy
-      ? ('BIONECTECH AI LAB  \u00b7  ' + dk + '  \u00b7  ' + pc + ' projects')
-      : ('BIONECTECH AI LAB  \u00b7  ' + (dk === '?' ? 'signed out' : 'connection issue - reload'));
+      ? ('BIONECTECH AI LAB  ·  ' + dk + '  ·  ' + pc + ' projects')
+      : ('BIONECTECH AI LAB  ·  ' + (dk === '?' ? 'signed out' : 'connection issue - reload'));
   }catch(e){} }
   var tries=0;
   function retry(){ try{
@@ -2052,7 +2052,7 @@ function _sizeGate(f){
     f.kb = kb;
   }
 }
-function renderChips(){ var c=$('chips'); if(!c) return; c.innerHTML=''; if(workingFile){ var wf=document.createElement('span'); wf.className='chip'; wf.style.cssText='background:rgba(255,214,0,0.15);border:1px solid var(--gold)'; wf.appendChild(document.createTextNode('Working with Karam: '+(workingFile.name||'file'))); var wx=document.createElement('b'); wx.textContent='x'; wx.title='Stop working on this file'; wx.addEventListener('click',function(){ workingFile=null; renderChips(); toast('Closed the working file. Back to normal chat.'); }); wf.appendChild(wx); c.appendChild(wf); } pending.forEach(function(fl,i){ var sp=document.createElement('span'); sp.className='chip'; if(fl.tooBig){ sp.style.borderColor='var(--err)'; sp.style.color='var(--err)'; } sp.appendChild(document.createTextNode((fl.name||'file') + (fl.kb?(' \u00b7 '+fl.kb+'KB'):'') + (fl.tooBig?' \u26A0 too big to rewrite whole':''))); var x=document.createElement('b'); x.textContent='x'; x.addEventListener('click',function(){ pending.splice(i,1); renderChips(); }); sp.appendChild(x); c.appendChild(sp); }); }
+function renderChips(){ var c=$('chips'); if(!c) return; c.innerHTML=''; if(workingFile){ var wf=document.createElement('span'); wf.className='chip'; wf.style.cssText='background:rgba(255,214,0,0.15);border:1px solid var(--gold)'; wf.appendChild(document.createTextNode('Working with Karam: '+(workingFile.name||'file'))); var wx=document.createElement('b'); wx.textContent='x'; wx.title='Stop working on this file'; wx.addEventListener('click',function(){ workingFile=null; renderChips(); toast('Closed the working file. Back to normal chat.'); }); wf.appendChild(wx); c.appendChild(wf); } pending.forEach(function(fl,i){ var sp=document.createElement('span'); sp.className='chip'; if(fl.tooBig){ sp.style.borderColor='var(--err)'; sp.style.color='var(--err)'; } sp.appendChild(document.createTextNode((fl.name||'file') + (fl.kb?(' · '+fl.kb+'KB'):'') + (fl.tooBig?' \u26A0 too big to rewrite whole':''))); var x=document.createElement('b'); x.textContent='x'; x.addEventListener('click',function(){ pending.splice(i,1); renderChips(); }); sp.appendChild(x); c.appendChild(sp); }); }
 
 // ===== OFFICE FILE TEXT EXTRACTION (docx/xlsx/pptx are ZIP+XML; crack open with unzip()) =====
 function _xmlText(xml){ // strip tags, decode the common entities, collapse whitespace
@@ -2155,7 +2155,7 @@ async function processIncoming(files){ for(var i=0;i<files.length;i++){ var file
     if(fl){
       pending.push(fl); renderChips();
       var _kb = fl.text ? Math.round(fl.text.length/1024) : (fl.data ? Math.round(fl.data.length*0.75/1024) : 0);
-      toast('Attached: ' + (fl.name||'file') + (_kb ? (' \u00b7 ' + _kb + 'KB') : ''));
+      toast('Attached: ' + (fl.name||'file') + (_kb ? (' · ' + _kb + 'KB') : ''));
     } else {
       toast('\u26A0 ' + (file.name||'That file') + ' could not be read \u2014 it was NOT attached.');
     }
@@ -2493,7 +2493,7 @@ async function buildPdf(f){
 function buildPdfLegacy(f){
     if(!window.jspdf||!window.jspdf.jsPDF) throw new Error('the PDF library did not load (check your connection and retry)');
     var doc=new window.jspdf.jsPDF();
-    function _asciiPdf(s){ if(typeof s!=='string') s=String(s||''); var map={'\u2192':'->','\u2190':'<-','\u2194':'<->','\u2794':'->','\u279c':'->','\u21d2':'=>','\u2014':'-','\u2013':'-','\u2212':'-','\u00b7':'-','\u2022':'-','\u25aa':'-','\u25cf':'-','\u2018':"'",'\u2019':"'",'\u201c':'"','\u201d':'"','\u2026':'...','\u00a0':' ','\u2039':'<','\u203a':'>','\u00ab':'<<','\u00bb':'>>'}; s=s.replace(/[\u2192\u2190\u2194\u2794\u279c\u21d2\u2014\u2013\u2212\u00b7\u2022\u25aa\u25cf\u2018\u2019\u201c\u201d\u2026\u00a0\u2039\u203a\u00ab\u00bb]/g,function(ch){return map[ch]||' ';}); s=s.replace(/[^\x00-\xFF]/g,' '); return s; }
+    function _asciiPdf(s){ if(typeof s!=='string') s=String(s||''); var map={'\u2192':'->','\u2190':'<-','\u2194':'<->','\u2794':'->','\u279c':'->','\u21d2':'=>','\u2014':'-','\u2013':'-','\u2212':'-','·':'-','\u2022':'-','\u25aa':'-','\u25cf':'-','\u2018':"'",'\u2019':"'",'\u201c':'"','\u201d':'"','\u2026':'...','\u00a0':' ','\u2039':'<','\u203a':'>','\u00ab':'<<','\u00bb':'>>'}; s=s.replace(/[\u2192\u2190\u2194\u2794\u279c\u21d2\u2014\u2013\u2212·\u2022\u25aa\u25cf\u2018\u2019\u201c\u201d\u2026\u00a0\u2039\u203a\u00ab\u00bb]/g,function(ch){return map[ch]||' ';}); s=s.replace(/[^\x00-\xFF]/g,' '); return s; }
     var text = Array.isArray(f.content)?f.content.map(function(b){return typeof b==='string'?b:(b.text||'');}).join('\n') : String(f.content||'');
     text=_asciiPdf(text);
     var lines=doc.splitTextToSize(text,180); var y=15;
