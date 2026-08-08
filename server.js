@@ -1,4 +1,4 @@
-﻿// Bionectech AI Lab — Render Node server (Express adapter for Netlify-style functions).
+// Bionectech AI Lab — Render Node server (Express adapter for Netlify-style functions).
 //
 // Heavy chat jobs run to completion and return directly — no job-storage, no polling.
 // Each Netlify function exports `handler(event)`; we translate an Express (req,res) into
@@ -72,7 +72,7 @@ async function runHandler(handler, req, res) {
 const FUNCTIONS = [
   'chat', 'chat-result', 'login', 'me', 'data', 'memory',
   'team', 'admin', 'lessons', 'models', 'engine', 'fetchurl',
-  'sendmail', 'unlock', 'render', 'flux-sense', 'creative-gen'
+  'sendmail', 'unlock', 'render', 'flux-sense', 'creative-gen', 'chat-background'
 ];
 
 FUNCTIONS.forEach(function (name) {
