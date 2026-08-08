@@ -439,10 +439,11 @@ window.addEventListener('load', function(){
     var d=document.getElementById('bntStatusStrip')||mk();
     var ky=document.getElementById('personaKyros')?'KYROS OK':'KYROS MISSING';
     var si=document.getElementById('personaSinan')?'SINAN OK':'SINAN MISSING';
+    var pl=document.getElementById('personaPlaton')?'PLATON OK':'PLATON MISSING';
     var ld=(typeof _dataLoaded!=='undefined'&&_dataLoaded)?'OK':'FAILED';
     var pc=(typeof projects!=='undefined'&&projects)?projects.length:'?';
     var dk=(typeof DESK!=='undefined'&&DESK)?DESK:'?';
-    d.textContent=BUILD+' | desk:'+dk+' | load:'+ld+' | projects:'+pc+' | '+ky+' | '+si;
+    d.textContent=BUILD+' | desk:'+dk+' | load:'+ld+' | projects:'+pc+' | '+ky+' | '+si+' | '+pl;
   }catch(e){} }
   var tries=0;
   function retry(){ try{
