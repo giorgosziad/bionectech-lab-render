@@ -437,13 +437,18 @@ window.addEventListener('load', function(){
     document.body.appendChild(d); return d; }
   function upd(){ try{
     var d=document.getElementById('bntStatusStrip')||mk();
-    var ky=document.getElementById('personaKyros')?'KYROS OK':'KYROS MISSING';
-    var si=document.getElementById('personaSinan')?'SINAN OK':'SINAN MISSING';
-    var pl=document.getElementById('personaPlaton')?'PLATON OK':'PLATON MISSING';
     var ld=(typeof _dataLoaded!=='undefined'&&_dataLoaded)?'OK':'FAILED';
     var pc=(typeof projects!=='undefined'&&projects)?projects.length:'?';
     var dk=(typeof DESK!=='undefined'&&DESK)?DESK:'?';
-    d.textContent=BUILD+' | desk:'+dk+' | load:'+ld+' | projects:'+pc+' | '+ky+' | '+si+' | '+pl;
+    /* CLEAN_STRIP: a status bar, not a console dump. Healthy state names the Lab, the
+       desk and the project count. A problem still surfaces plainly, because a strip
+       reading FAILED is what caught the reload loop. The build tag moves to the hover
+       title - kept for diagnosis, invisible to a visitor. */
+    var _healthy = (ld === 'OK') && (pc !== '?') && (dk !== '?');
+    d.title = BUILD + '  desk:' + dk + '  load:' + ld + '  projects:' + pc;
+    d.textContent = _healthy
+      ? ('BIONECTECH AI LAB  \u00b7  ' + dk + '  \u00b7  ' + pc + ' projects')
+      : ('BIONECTECH AI LAB  \u00b7  ' + (dk === '?' ? 'signed out' : 'connection issue - reload'));
   }catch(e){} }
   var tries=0;
   function retry(){ try{
