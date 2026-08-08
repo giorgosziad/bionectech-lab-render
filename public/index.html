@@ -804,7 +804,7 @@ function maybeFoldSummary(){
   if(_folding||!current) return;
   var all=(current.turns||[]).filter(function(t){return t.text&&t.text!=='…'&&t.text.indexOf('[not delivered]')!==0;});
   current.sumCount=current.sumCount||0;
-  if(all.length - current.sumCount <= 25) return;            /* window small enough — nothing to fold */
+  if(all.length - current.sumCount <= 500) return;   /* fold later: colleague rulings were being summarised away before the gate could read them */            /* window small enough — nothing to fold */
   var foldTo=all.length-15;                                   /* keep the last 15 turns verbatim */
   var toFold=all.slice(current.sumCount, foldTo);
   if(!toFold.length) return;
