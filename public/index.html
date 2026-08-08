@@ -648,7 +648,7 @@ function saveData(force){
     /* A DELETE or RENAME is an intentional overwrite — the operator meant it. Write it straight
        through, or a merge would helpfully resurrect the project they just deleted. */
     if(force){
-      api('data',{method:'POST',body:JSON.stringify({data:{projects:projects,notes:notes}})});
+      /* FULL_ARCHIVE_GUARD: the whole archive is now 18MB and exceeds the store's 10MB request ceiling, so a full write is refused and NOTHING saves. Send each project on its own key instead - the server merges. */ projects.forEach(function(_pj){ api('data',{method:'POST',body:JSON.stringify({data:{project:_pj}})}); }); api('data',{method:'POST',body:JSON.stringify({data:{project:current,notes:notes}})});
       return;
     }
     /* PARTIAL SAVE - the archive is now ~10MB. Shipping all of it on every turn queued the
@@ -668,7 +668,7 @@ function saveData(force){
       if(curId){                                          /* keep `current` pointing at the live object */
         for(var i=0;i<projects.length;i++){ if(projects[i].id === curId){ current = projects[i]; break; } }
       }
-      api('data',{method:'POST',body:JSON.stringify({data:{projects:projects,notes:notes}})});
+      /* FULL_ARCHIVE_GUARD: the whole archive is now 18MB and exceeds the store's 10MB request ceiling, so a full write is refused and NOTHING saves. Send each project on its own key instead - the server merges. */ projects.forEach(function(_pj){ api('data',{method:'POST',body:JSON.stringify({data:{project:_pj}})}); }); api('data',{method:'POST',body:JSON.stringify({data:{project:current,notes:notes}})});
     }).catch(function(){ /* unreachable -> write nothing. Silence is safer than loss. */ });
   }, 600);
 }
