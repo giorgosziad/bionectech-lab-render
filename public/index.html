@@ -863,16 +863,32 @@ function runBackground(payload, prompt){
     /* PREFER THE TRUTH. The server streams from Anthropic and reports what is ACTUALLY happening —
        the model it called, and the real token count as it writes. Use that when we have it. Only fall
        back to the time-based estimate in the first second, before the first progress report lands. */
+    /* LIVE_PULSE: self-driven. The previous indicator only moved when the server sent
+       a progress report, so a dead job froze mid-word and looked busy forever. This one
+       advances on elapsed time and only SHARPENS when a report arrives - so it is never
+       stale, and past the usual window it says plainly that this is taking longer than
+       normal rather than pretending. A dead job must not look alive. */
     var pr = window.__bgProgress;
-    if(pr && pr.stage){
-      if(pr.stage === 'searching')      stage = 'searching the web';
-      else if(pr.stage === 'thinking')  stage = pr.model + ' is thinking' + (pr.waited ? (' \u2014 ' + pr.waited + 's') : '') + ' (it reasons before it writes)';
-      else if(pr.stage === 'writing')   stage = 'writing \u2014 ' + pr.tokens.toLocaleString() + ' tokens so far';
-      else if(pr.stage === 'calling')   stage = 'connecting to ' + pr.model + (pr.waited ? (' \u2014 ' + pr.waited + 's (a big file takes a moment to start)') : '');
-      else if(pr.stage === 'done')      stage = 'delivering the answer \u2014 ' + pr.tokens.toLocaleString() + ' tokens';
-      else                              stage = pr.stage;
-    } else if(nf && secs < 20)          stage = 'reading your ' + nf + ' file' + (nf>1?'s':'');
-    else                                stage = 'connecting to Claude';
+    var _pulse = ['gathering the thread', 'weighing it', 'working it through',
+                  'shaping the answer', 'putting it in order'];
+    var _slow = secs > 150;
+    if (pr && pr.stage) {
+      if (pr.stage === 'searching')      stage = 'combing the wires';
+      else if (pr.stage === 'thinking')  stage = (pr.model || 'the model') + ' is turning it over' + (pr.waited ? (' — ' + pr.waited + 's') : '');
+      else if (pr.stage === 'writing')   stage = 'setting it down — ' + pr.tokens.toLocaleString() + ' words in';
+      else if (pr.stage === 'calling')   stage = 'rousing ' + (pr.model || 'the model');
+      else if (pr.stage === 'done')      stage = 'carrying it back — ' + pr.tokens.toLocaleString() + ' words';
+      else                               stage = pr.stage;
+      /* Even with a report, if nothing has changed for a long while, say so. */
+      if (_slow) stage = stage + '  (longer than usual — still holding)';
+    } else if (nf && secs < 20) {
+      stage = 'taking in your ' + nf + ' file' + (nf > 1 ? 's' : '');
+    } else if (_slow) {
+      stage = 'still holding — this is longer than usual';
+    } else {
+      /* No report yet: advance on our own clock so the line always moves. */
+      stage = _pulse[Math.min(_pulse.length - 1, Math.floor(secs / 12))];
+    }
     var mins = Math.floor(secs/60), rem = secs % 60;
     var t = mins ? (mins + 'm ' + rem + 's') : (secs + 's');
     var lbl = '\u2026 ' + who + ' \u2014 ' + t + ' \u2014 ' + stage + ' \u2026';
