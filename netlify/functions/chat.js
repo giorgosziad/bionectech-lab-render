@@ -3489,6 +3489,9 @@ function _memPick(store, query, budget) {
     _searchRan = true;
     content.unshift({ type: 'text', text: 'Web search is available to you this turn via your web_search tool. When the question needs current or factual information, actually search the web: form precise queries, check more than one angle, cross-check across sources and prefer authoritative ones, separate solid well-supported facts from weak single-source claims, note conflicts or gaps, and cite the sources inline. Do not claim you lack web access — you have it right now.' });
   }
+  /* HISTORY_SHED (1 of 2): retain the raw history so the give-up path can try
+     again with less of it instead of failing the turn outright. */
+  var _shedRaw = Array.isArray(history) ? history.slice() : [];
   let messages = sanitizeHistory(history, persona).concat([{ role: 'user', content }]);
 
   // Memory windowing: keep the project's full history stored client-side, but only
@@ -4105,6 +4108,62 @@ function _memPick(store, query, budget) {
     break; // a real error (rate limit / auth / server) — stop and report it
   }
 
+  /* HISTORY_SHED (2 of 2): a single stored turn can be refused upstream. Because
+     history travels with every request, that one turn then refuses EVERY later turn
+     and the whole project dies until a human finds and deletes it. Empty history has
+     never been refused. So before giving up, halve the history and try again, down to
+     none. The turn lands, and the log names what was shed - an invisible poisoning
+     becomes a recorded event. Only sheds on a refusal history could plausibly cause;
+     an auth or rate-limit failure is reported immediately as before. */
+  if (text === null && lastErr &&
+      (lastErr.status === 403 || lastErr.status === 400 || lastErr.status === 413) &&
+      _shedRaw.length > 0) {
+    var _shedModel = (lastErr && lastErr.triedModel) || candidates[0];
+    var _shedKeep = Math.floor(_shedRaw.length / 2);
+    for (var _sTry = 0; _sTry < 8 && text === null; _sTry++) {
+      var _shedHist = _shedKeep > 0 ? _shedRaw.slice(_shedRaw.length - _shedKeep) : [];
+      console.log('[HIST-SHED] refused (status ' + lastErr.status + ') with ' +
+                  _shedRaw.length + ' turns; retrying with ' + _shedHist.length +
+                  '. upstream: ' + String((lastErr && lastErr.error) || '').slice(0, 200));
+      try {
+        var _shedBody = {
+          model: _shedModel,
+          max_tokens: Math.min(maxTokens, maxOutFor(_shedModel)),
+          system: [
+            { type: 'text', text: _sysStatic, cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: _sysDynamic }
+          ],
+          messages: sanitizeHistory(_shedHist, persona).concat([{ role: 'user', content }])
+        };
+        var _shedRes = await fetch(ANTHROPIC_URL, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': key,
+                     'anthropic-version': '2023-06-01' },
+          body: JSON.stringify(_shedBody)
+        });
+        var _shedData = await _shedRes.json();
+        if (_shedRes.ok && _shedData && Array.isArray(_shedData.content)) {
+          var _shedText = _shedData.content.map(function (blk) {
+            return (blk && blk.type === 'text' && blk.text) ? blk.text : '';
+          }).join('').trim();
+          if (_shedText && _shedText.length > 1) {
+            console.log('[HIST-SHED] recovered with ' + _shedHist.length + ' of ' +
+                        _shedRaw.length + ' turns after ' + (_sTry + 1) + ' shed(s).');
+            text = _shedText;
+            data = _shedData;
+            _modelFailures.push('History was shed to ' + _shedHist.length + ' turns: a stored turn in this project is being refused upstream. Run the poison scan when convenient.');
+            break;
+          }
+        } else if (_shedData && _shedData.error && _shedData.error.message) {
+          lastErr = { status: _shedRes.status, error: _shedData.error.message, triedModel: _shedModel };
+        }
+      } catch (e) {
+        console.log('[HIST-SHED] retry threw: ' + ((e && e.message) || e));
+      }
+      if (_shedHist.length === 0) break;   /* already tried with none - stop */
+      _shedKeep = Math.floor(_shedKeep / 2);
+    }
+  }
   if (text === null) {
     return json((lastErr && lastErr.status) || 502, { error: (lastErr && lastErr.error) || 'No available model could be reached.' });
   }
