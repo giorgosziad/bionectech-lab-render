@@ -2970,7 +2970,23 @@ async function handleChat(event, user, res, onProgress) {
 
   let b; try { b = JSON.parse(event.body || '{}'); } catch (e) { return json(400, { error: 'Body must be JSON.' }); }
   const prompt = (b.prompt || '').toString().trim();
-  const history = Array.isArray(b.history) ? b.history : [];
+    /* SERVER_HISTORY_GUARD: the client can send any amount of history - a stale tab, a huge
+     project, a big paste. Past a point the upstream API refuses the request and the turn dies
+     with no useful error. Trim here, where no browser state can bypass it: keep the NEWEST
+     turns within a safe character budget. A project may now grow without limit. */
+  let history = Array.isArray(b.history) ? b.history : [];
+  {
+    const HIST_BUDGET = 120000;
+    let _hc = 0, _cut = 0;
+    for (let i = history.length - 1; i >= 0; i--) {
+      _hc += String((history[i] && history[i].text) || '').length;
+      if (_hc > HIST_BUDGET) { _cut = i + 1; break; }
+    }
+    if (_cut > 0) {
+      console.log('[HIST-GUARD] trimmed ' + _cut + ' of ' + history.length + ' turns, ' + _hc + ' chars seen');
+      history = history.slice(_cut);
+    }
+  }
   const files = Array.isArray(b.files) ? b.files : [];
   const reqModel = (b.model || '').toString();
   // Ordered candidate models: latest-first, with automatic fallback so a model
