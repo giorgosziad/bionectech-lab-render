@@ -2,7 +2,7 @@
 // for a signed session token. Passwords are checked against hashes in storage.
 const { cors, json, sign, newSalt, hashPw, store, readJSON, writeJSON, rlHit, rlReset, clientIp } = require('./lib/auth');
 
-const SESSION_HOURS = 12;
+const SESSION_HOURS = 720;
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors, body: '' };
