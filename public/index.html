@@ -447,10 +447,38 @@ window.addEventListener('load', function(){
     var _healthy = (ld === 'OK') && (pc !== '?') && (dk !== '?');
     d.style.display = 'block';
     d.title = BUILD + '  desk:' + dk + '  load:' + ld + '  projects:' + pc;
-    d.textContent = _healthy
-      ? ('BIONECTECH AI LAB  |  AT THE DESK: ' + personaSel.toUpperCase())
-      : ('BIONECTECH AI LAB  ·  ' + (dk === '?' ? 'signed out' : 'connection issue - reload'));
-  }catch(e){} }
+    /* STRIP_SWITCHER: the persona button row has twice failed to show a newly added
+   persona while its markup sat correct in the served page. The strip draws
+   reliably, so the switcher lives here instead - built in JS, appended to the
+   strip, and driven by ONE array. Persona sixteen is one entry, not nine anchors. */
+d.innerHTML = '';
+    var _lab = document.createElement('span');
+    _lab.textContent = 'BIONECTECH AI LAB  |  AT THE DESK: ';
+    d.appendChild(_lab);
+    var _sel = document.createElement('select');
+    _sel.id = 'stripPersona';
+    _sel.style.cssText = 'background:#052744;color:#FFD600;border:1px solid #FFD600;font:11px monospace;margin-left:2px;padding:0 2px';
+    var _desks = ['karam','nicolle','karim','giorgos','galen','elias','kostas','elena','solon','nour','kyros','sinan','platon','hanno','fotis'];
+    for (var _q = 0; _q < _desks.length; _q++) {
+      var _o = document.createElement('option');
+      _o.value = _desks[_q];
+      _o.textContent = _desks[_q].toUpperCase();
+      if (_desks[_q] === personaSel) _o.selected = true;
+      _sel.appendChild(_o);
+    }
+    _sel.addEventListener('change', function () {
+      personaSel = _sel.value;
+      try { sessionStorage.setItem('bnt_persona', personaSel); } catch (e) {}
+      try { paintPersona(); } catch (e) {}
+      try { toast(personaSel.toUpperCase() + ' is at the desk.'); } catch (e) {}
+    });
+    d.appendChild(_sel);
+    if (!_healthy) {
+      var _w = document.createElement('span');
+      _w.textContent = '   (' + (dk === '?' ? 'signed out' : 'connection issue - reload') + ')';
+      d.appendChild(_w);
+    }
+    }catch(e){} }
   var tries=0;
   function retry(){ try{
     if(typeof _dataLoaded!=='undefined'&&_dataLoaded){ try{sessionStorage.removeItem('bnt_reload_n');}catch(e){} return; }
