@@ -445,10 +445,10 @@ window.addEventListener('load', function(){
        reading FAILED is what caught the reload loop. The build tag moves to the hover
        title - kept for diagnosis, invisible to a visitor. */
     var _healthy = (ld === 'OK') && (pc !== '?') && (dk !== '?');
-    d.style.display = _healthy ? 'none' : 'block';
+    d.style.display = 'block';
     d.title = BUILD + '  desk:' + dk + '  load:' + ld + '  projects:' + pc;
     d.textContent = _healthy
-      ? ''
+      ? ('BIONECTECH AI LAB  |  AT THE DESK: ' + personaSel.toUpperCase())
       : ('BIONECTECH AI LAB  ·  ' + (dk === '?' ? 'signed out' : 'connection issue - reload'));
   }catch(e){} }
   var tries=0;
