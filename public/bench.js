@@ -275,6 +275,40 @@ async function capture(o){
   render(); select(rec.seq);
   return rec;
 }
+/* __ROBOT_RECEIPT_R2__  robot-receipt: separate family on the SAME chain,
+   discriminated by key set only. Two clocks, never merged, never backfilled.
+   state_basis is ALWAYS "ATTESTED"; missing attestation -> DENIED_BY_DESIGN
+   withheld row with a reason, NEVER a null-basis reading row. */
+async function captureRobot(o){
+  o=o||{};
+  var prev=CHAIN.length?CHAIN[CHAIN.length-1].hash:'';
+  var attested = (o.machineState!==undefined && o.machineState!==null
+                  && o.tRobot!==undefined && o.tRobot!==null
+                  && o.transportProtocol);
+  var rec={seq:CHAIN.length,ts:Date.now(),
+    instrument:o.instrument||'robot',
+    desk:o.desk||'fotis',
+    threshold:(o.threshold!==undefined?o.threshold:null),
+    grade:o.grade||'REPORTED',
+    capability:(o.capability||'AVAILABLE'),
+    t_bench:Date.now(),
+    t_robot:(attested?o.tRobot:null),
+    t_robot_form:(attested?(o.tRobotForm||'epoch-ms'):'absent'),
+    transport:{protocol:(o.transportProtocol||'')},
+    machine:{state:(attested?o.machineState:null), state_basis:'ATTESTED'},
+    withheld:!attested,
+    prev:prev};
+  if(!attested) rec.note='DENIED_BY_DESIGN: robot attestation precondition not met'
+    + (o.transportProtocol?'':' (transport.protocol)')
+    + ((o.tRobot!==undefined&&o.tRobot!==null)?'':' (t_robot)')
+    + ((o.machineState!==undefined&&o.machineState!==null)?'':' (machine.state)');
+  else if(o.note) rec.note=o.note;
+  if(attested && rec.capability==='AVAILABLE') rec.reading=o.reading;
+  rec.hash=await sha256(canonical(rec));
+  writeChain(rec);
+  render(); select(rec.seq);
+  return rec;
+}
 async function verifyChain(){
   var prev='';
   for(var i=0;i<CHAIN.length;i++){
@@ -290,14 +324,15 @@ async function verifyChain(){
 /* three (four) honest counts — a reading, a structural withhold, an unsupported
    platform gap, and a user denial are FOUR different facts; never flatten them. */
 function chainCounts(){
-  var read=0,wh=0,unsup=0,den=0;
+  var read=0,wh=0,unsup=0,den=0,robot=0;
   CHAIN.forEach(function(r){
+    if('t_robot_form' in r) robot++;
     if(r.capability==='UNSUPPORTED') unsup++;
     else if(r.capability==='DENIED') den++;
     else if(r.withheld) wh++;
     else read++;
   });
-  return 'Counts: '+read+' read \u00b7 '+wh+' withheld \u00b7 '+unsup+' unsupported-on-device \u00b7 '+den+' denied.';
+  return 'Counts: '+read+' read \u00b7 '+wh+' withheld \u00b7 '+unsup+' unsupported-on-device \u00b7 '+den+' denied \u00b7 '+robot+' robot.';
 }
 
 /* ---- notices: cleared UNCONDITIONALLY, honoured at the computed result --- */
@@ -309,7 +344,9 @@ function resetBadgeForSelection(){
   applyBadge(b,r);
 }
 function applyBadge(b,r){
-  if(r.capability==='UNSUPPORTED'){b.className='bench-badge warn';b.textContent='unsupported';}
+  if('t_robot_form' in r && r.withheld){b.className='bench-badge warn';b.textContent='robot denied';}
+  else if('t_robot_form' in r){b.className='bench-badge ok';b.textContent='robot '+r.grade;}
+  else if(r.capability==='UNSUPPORTED'){b.className='bench-badge warn';b.textContent='unsupported';}
   else if(r.capability==='DENIED'){b.className='bench-badge warn';b.textContent='denied';}
   else if(r.withheld){b.className='bench-badge warn';b.textContent='reading withheld';}
   else{b.className='bench-badge ok';b.textContent=r.grade;}
@@ -318,11 +355,13 @@ function applyBadge(b,r){
 /* ---- render ------------------------------------------------------------- */
 function fmtTs(t){return new Date(t).toISOString().replace('T',' ').slice(0,19)+'Z';}
 function capLabel(r){
+  if('t_robot_form' in r) return r.withheld?'robot denied':('robot '+r.grade);
   if(r.capability==='UNSUPPORTED') return 'unsupported';
   if(r.capability==='DENIED') return 'denied';
   return r.withheld?'withheld':r.grade;
 }
 function railState(r){
+  if('t_robot_form' in r) return r.withheld?'broken':'ok';
   return r.capability!=='AVAILABLE' ? 'broken' : (r.withheld?'withheld':'ok');
 }
 function render(){
