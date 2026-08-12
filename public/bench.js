@@ -1,11 +1,24 @@
 /* ============================================================================
-   BENCH — self-installing, one paste point. Build 4: white body text.
+   BENCH — self-installing, one paste point. Build 5: tab-clear + font grid.
    INSTALL: add ONE line as the LAST script before </body> in public/index.html,
    AFTER the shell's own scripts (tab loop, personaSel, paintPersona, $('ask')):
        <script src="bench.js"></script>
    Nothing else in the host is edited.
 
-   BUILD-4 NOTE, FOR THE RECORD: all Bench body text is var(--white,#fff) by
+   BUILD-5 NOTES, FOR THE RECORD:
+   (a) TAB CLEAR — the shell's tab handler loops over a STATIC NodeList captured
+       at load; it can never remove .active from the Bench button it doesn't
+       know about. Bench therefore listens on the shell's own tabs and clears
+       itself when any of them is clicked. Additive; shell handlers untouched.
+       Invariant: after any tab click, exactly ONE .tab carries .active.
+   (b) FONT GRID — Lab rule now encoded: serif = body copy at 15px or a heading
+       at 16px+; EVERY label, control, meta line and list row is mono. Serif at
+       14px or below is always wrong in this shell. Bench now conforms:
+       .bench-btn mono 11px, .bench-sub mono 12px, .bench-empty mono 13px,
+       .bench-cap-seam mono 12px, .bench-title serif 16px, .bench-detail-seam
+       serif 16px, select.bench-select mono 12px.
+
+   BUILD-4 NOTE, STILL IN FORCE: all Bench body text is var(--white,#fff) by
    OPERATOR DECISION. This is DELIBERATELY brighter than every other Lab panel
    (which uses --mute for body copy). Do NOT "correct" it back to --mute/--soft.
    Meaning-through-colour is preserved: .bench-detail-seam stays --light-sky
@@ -26,8 +39,10 @@
                    Rejected. The install-time TEXT grep above is the fail-loud complement.)
      Seam 3 HAND : composer $('ask'); persona personaSel='<id>' + sessionStorage 'bnt_persona'
                    + paintPersona(). NEVER send().
-     Seam 4 SURF : Bench binds its OWN tab click; shell's for-loop over a static NodeList
-                   ran at load, so an appended button is otherwise dead.
+     Seam 4 SURF : Bench binds its OWN tab click (shell's for-loop over a static
+                   NodeList ran at load, so an appended button is otherwise dead)
+                   AND clears itself on the shell tabs' clicks (the mirror defect:
+                   the shell cannot clear a tab it doesn't know about).
 
    STYLING: reuses the shell's own tokens/classes. NO web fonts (Georgia + Courier New).
    The Bench tab is class="tab" only — the SHELL paints idle and .active; Bench writes
@@ -59,16 +74,16 @@ function activateBench(){
 }
 
 /* ---- 1) inject styles. NO .tab rules (shell owns the tab). NO web fonts. -- */
-/* BUILD 4: body text is var(--white,#fff) per operator decision — brighter
-   than the Lab's --mute body copy elsewhere; deliberate, do not revert.
-   Severity/heading colours untouched. Sizes are the Lab's — 15px buttons,
-   12px mono tabs/selects, 11px eyebrows. Serif = Georgia, mono = Courier New. */
+/* BUILD 4 (in force): body text is var(--white,#fff) per operator decision —
+   brighter than the Lab's --mute body copy elsewhere; deliberate, do not revert.
+   BUILD 5 font grid: serif ONLY at 15px body / 16px+ headings; everything
+   else mono. Severity/heading colours untouched. */
 var css = ''
 + '#view-bench{color:var(--white,#fff);font-family:var(--serif,Georgia,"Times New Roman",serif);}'
 + '.bench-head{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line,#1f3a5c);margin-bottom:14px;}'
-+ '.bench-title{font-family:var(--serif,Georgia,serif);font-weight:700;font-size:18px;letter-spacing:.3px;color:var(--light-sky,#5fb3e8);display:flex;align-items:center;gap:9px;}'
++ '.bench-title{font-family:var(--serif,Georgia,serif);font-weight:700;font-size:16px;letter-spacing:.3px;color:var(--light-sky,#5fb3e8);display:flex;align-items:center;gap:9px;}'
 + '.bench-title svg{width:20px;height:20px;flex:none;}'
-+ '.bench-sub{font-family:var(--serif,Georgia,serif);font-weight:400;color:var(--white,#fff);font-size:12px;}'
++ '.bench-sub{font-family:var(--mono,"Courier New",monospace);font-weight:400;color:var(--white,#fff);font-size:12px;}'
 + '.bench-build{margin-left:auto;font-family:var(--mono,"Courier New",monospace);font-size:12px;color:var(--white,#fff);letter-spacing:.4px;}'
 + '.bench-body{display:grid;grid-template-columns:300px 1fr;gap:0;min-height:320px;border:1px solid var(--line,#1f3a5c);border-radius:8px;overflow:hidden;}'
 + '@media(max-width:820px){.bench-body{grid-template-columns:1fr;}}'
@@ -81,9 +96,9 @@ var css = ''
 + '.bench-cap[data-state="withheld"] .bench-cap-dot{background:var(--gold-dim,#d9b65a);}'
 + '.bench-cap[data-state="broken"] .bench-cap-dot{background:var(--err,#ff8a8a);}'
 + '.bench-cap-main{min-width:0;flex:1;}'
-+ '.bench-cap-seam{font-family:var(--serif,Georgia,serif);font-size:14px;font-weight:700;color:var(--white,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
++ '.bench-cap-seam{font-family:var(--mono,"Courier New",monospace);font-size:12px;font-weight:700;color:var(--white,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
 + '.bench-cap-meta{font-family:var(--mono,"Courier New",monospace);font-size:11px;color:var(--white,#fff);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
-+ '.bench-empty{padding:26px 18px;text-align:center;color:var(--white,#fff);font-size:13px;}'
++ '.bench-empty{padding:26px 18px;text-align:center;color:var(--white,#fff);font-family:var(--mono,"Courier New",monospace);font-size:13px;}'
 + '.bench-empty svg{width:34px;height:34px;stroke:var(--line2,#25406a);fill:none;stroke-width:1.6;margin-bottom:10px;}'
 + '.bench-detail{padding:16px 18px;overflow-y:auto;min-width:0;}'
 + '.bench-detail-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}'
@@ -91,7 +106,7 @@ var css = ''
 + '.bench-badge.ok{color:var(--live,#7CFC00);border-color:var(--live,#7CFC00);background:rgba(124,252,0,.10);}'
 + '.bench-badge.warn{color:var(--gold-dim,#d9b65a);border-color:var(--gold-dim,#d9b65a);background:rgba(217,182,90,.10);}'
 + '.bench-badge.bad{color:var(--err,#ff8a8a);border-color:var(--err,#ff8a8a);background:rgba(255,138,138,.10);}'
-+ '.bench-detail-seam{font-family:var(--serif,Georgia,serif);font-weight:700;font-size:18px;letter-spacing:.2px;color:var(--light-sky,#5fb3e8);}'
++ '.bench-detail-seam{font-family:var(--serif,Georgia,serif);font-weight:700;font-size:16px;letter-spacing:.2px;color:var(--light-sky,#5fb3e8);}'
 + '.bench-field{margin-bottom:13px;}'
 + '.bench-eyebrow{font-family:var(--mono,"Courier New",monospace);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--white,#fff);margin-bottom:5px;}'
 + '.bench-hash{font-family:var(--mono,"Courier New",monospace);font-size:12px;color:var(--white,#fff);word-break:break-all;background:var(--navy-deep,#0d1c33);border:1px solid var(--line2,#25406a);border-radius:7px;padding:9px 11px;}'
@@ -99,15 +114,14 @@ var css = ''
 + '.bench-handoff{margin-top:16px;padding-top:15px;border-top:1px solid var(--line,#1f3a5c);}'
 + '.bench-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}'
 + '.bench-select-wrap{flex:1;min-width:180px;}'
-+ 'select.bench-select,textarea.bench-input,input.bench-input{width:100%;background:var(--navy-deep,#0d1c33);color:var(--white,#fff);border:1px solid var(--line,#1f3a5c);border-radius:7px;padding:9px 11px;font-family:var(--serif,Georgia,serif);font-size:12px;box-sizing:border-box;}'
-+ 'textarea.bench-input{min-height:70px;resize:vertical;font-family:var(--mono,"Courier New",monospace);}'
-+ 'input.bench-input{font-family:var(--mono,"Courier New",monospace);}'
++ 'select.bench-select,textarea.bench-input,input.bench-input{width:100%;background:var(--navy-deep,#0d1c33);color:var(--white,#fff);border:1px solid var(--line,#1f3a5c);border-radius:7px;padding:9px 11px;font-family:var(--mono,"Courier New",monospace);font-size:12px;box-sizing:border-box;}'
++ 'textarea.bench-input{min-height:70px;resize:vertical;}'
 + 'select.bench-select:focus,textarea.bench-input:focus,input.bench-input:focus{outline:none;border-color:var(--sky,#0099E6);}'
 + '.bench-cta{background:var(--gold,#FFD600);color:var(--ink,#0a1628);border:none;border-radius:7px;padding:9px 16px;font-weight:700;font-size:15px;cursor:pointer;white-space:nowrap;transition:filter .15s ease,transform .05s ease;}'
 + '.bench-cta:hover{filter:brightness(1.05);}'
 + '.bench-cta:active{transform:translateY(1px);}'
 + '.bench-cta:disabled{background:var(--line,#1f3a5c);color:var(--soft,#6b8caf);cursor:not-allowed;}'
-+ '.bench-btn{background:transparent;color:var(--white,#fff);border:1px solid var(--line,#1f3a5c);border-radius:8px;padding:8px 14px;font-family:var(--serif,Georgia,serif);font-weight:700;font-size:15px;cursor:pointer;transition:border-color .15s ease,color .15s ease;}'
++ '.bench-btn{background:transparent;color:var(--white,#fff);border:1px solid var(--line,#1f3a5c);border-radius:8px;padding:8px 14px;font-family:var(--mono,"Courier New",monospace);font-weight:700;font-size:11px;cursor:pointer;transition:border-color .15s ease,color .15s ease;}'
 + '.bench-btn:hover{border-color:var(--sky,#0099E6);color:var(--light-sky,#5fb3e8);}'
 + '.bench-notice{padding:9px 12px;border-radius:7px;font-size:12px;margin-top:12px;border:1px solid transparent;display:flex;gap:8px;align-items:flex-start;}'
 + '.bench-notice[hidden]{display:none;}'   /* SEAM-1 FIX: honour hidden at the computed result */
@@ -206,6 +220,19 @@ view.innerHTML =
 viewsParent.appendChild(view);
 
 benchTab.addEventListener('click', activateBench);
+
+/* ---- SEAM 4, MIRROR DEFECT FIX (Build 5): the shell's tab handler loops
+   over a static NodeList captured before this button existed — it can never
+   remove .active from the Bench tab. Listen on the shell's own tabs and clear
+   Bench when any of them is clicked. Additive: shell handlers untouched.
+   Invariant: after any tab click, exactly one .tab carries .active. -------- */
+document.querySelectorAll('.tab[data-view]').forEach(function(t){
+  if(t === benchTab) return;
+  t.addEventListener('click', function(){
+    benchTab.classList.remove('active');
+    var v = $('view-bench'); if(v) v.classList.remove('active');
+  });
+});
 
 /* ============================================================================
    SESSION LEDGER (Seam 2) — memory only. STRUCTURAL enforcement:
