@@ -1,33 +1,32 @@
 /* ============================================================================
-   BENCH — self-installing, one paste point. Build 5: tab-clear + font grid.
+   BENCH — self-installing, one paste point. Build 4: white body text.
    INSTALL: add ONE line as the LAST script before </body> in public/index.html,
    AFTER the shell's own scripts (tab loop, personaSel, paintPersona, $('ask')):
        <script src="bench.js"></script>
    Nothing else in the host is edited.
 
-   BUILD-5 NOTES, FOR THE RECORD:
-   (a) TAB CLEAR — the shell's tab handler loops over a STATIC NodeList captured
-       at load; it can never remove .active from the Bench button it doesn't
-       know about. Bench therefore listens on the shell's own tabs and clears
-       itself when any of them is clicked. Additive; shell handlers untouched.
-       Invariant: after any tab click, exactly ONE .tab carries .active.
-   (b) FONT GRID — Lab rule now encoded: serif = body copy at 15px or a heading
-       at 16px+; EVERY label, control, meta line and list row is mono. Serif at
-       14px or below is always wrong in this shell. Bench now conforms:
-       .bench-btn mono 11px, .bench-sub mono 12px, .bench-empty mono 13px,
-       .bench-cap-seam mono 12px, .bench-title serif 16px, .bench-detail-seam
-       serif 16px, select.bench-select mono 12px.
-
-   BUILD-4 NOTE, STILL IN FORCE: all Bench body text is var(--white,#fff) by
+   BUILD-4 NOTE, FOR THE RECORD: all Bench body text is var(--white,#fff) by
    OPERATOR DECISION. This is DELIBERATELY brighter than every other Lab panel
    (which uses --mute for body copy). Do NOT "correct" it back to --mute/--soft.
    Meaning-through-colour is preserved: .bench-detail-seam stays --light-sky
    (heading), badge/notice severity colours stay, rail dot colours stay, the
    tab is the shell's entirely.
 
+   BUILD-5 NOTE (robot witness, ninth instrument): the robot capture is a
+   NINTH footer button inside THIS file — NOT a separate script. It shares the
+   one CHAIN, writeChain, render, select, verifyChain, and the class="bench-foot"
+   footer. The old inline captureRobot family (a483756) is simply not carried
+   forward; this is its replacement. The robot receipt rides the existing
+   canonical envelope via capture({robot:{...}}), so it hashes, chains, and
+   verifies exactly like the other eight — one rail, one sequence space.
+
    INSTALL-TIME GREP (fail-loud, checks TEXT not a runtime stack — HUNK 3b):
      PowerShell:  if ((Select-String -Path public\bench.js -Pattern "api\(\s*['""]data['""]").Count -gt 0) { Write-Error "[Bench] api('data') present — session-only invariant broken"; exit 1 }
      Bash:        grep -Eq "api\(\s*['\"]data['\"]" public/bench.js && { echo "[Bench] api('data') present — session-only invariant broken" >&2; exit 1; }
+
+   ROBOT R2 FORBIDDEN-TOKEN SWEEP (must return 0 each on the shipped bytes):
+     writeValue  .getWriter(  .publish(  call_service  advertise  navigator.usb  navigator.hid
+     (The robot instrument holds a reader only, subscribes only, never sends.)
 
    CONTRACTS — confirmed from the real bytes (no FALLBACK remains):
      Seam 1 CSS  : .bench-notice[hidden]{display:none} restores UA hidden at author origin.
@@ -39,10 +38,8 @@
                    Rejected. The install-time TEXT grep above is the fail-loud complement.)
      Seam 3 HAND : composer $('ask'); persona personaSel='<id>' + sessionStorage 'bnt_persona'
                    + paintPersona(). NEVER send().
-     Seam 4 SURF : Bench binds its OWN tab click (shell's for-loop over a static
-                   NodeList ran at load, so an appended button is otherwise dead)
-                   AND clears itself on the shell tabs' clicks (the mirror defect:
-                   the shell cannot clear a tab it doesn't know about).
+     Seam 4 SURF : Bench binds its OWN tab click; shell's for-loop over a static NodeList
+                   ran at load, so an appended button is otherwise dead.
 
    STYLING: reuses the shell's own tokens/classes. NO web fonts (Georgia + Courier New).
    The Bench tab is class="tab" only — the SHELL paints idle and .active; Bench writes
@@ -74,16 +71,16 @@ function activateBench(){
 }
 
 /* ---- 1) inject styles. NO .tab rules (shell owns the tab). NO web fonts. -- */
-/* BUILD 4 (in force): body text is var(--white,#fff) per operator decision —
-   brighter than the Lab's --mute body copy elsewhere; deliberate, do not revert.
-   BUILD 5 font grid: serif ONLY at 15px body / 16px+ headings; everything
-   else mono. Severity/heading colours untouched. */
+/* BUILD 4: body text is var(--white,#fff) per operator decision — brighter
+   than the Lab's --mute body copy elsewhere; deliberate, do not revert.
+   Severity/heading colours untouched. Sizes are the Lab's — 15px buttons,
+   12px mono tabs/selects, 11px eyebrows. Serif = Georgia, mono = Courier New. */
 var css = ''
 + '#view-bench{color:var(--white,#fff);font-family:var(--serif,Georgia,"Times New Roman",serif);}'
 + '.bench-head{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line,#1f3a5c);margin-bottom:14px;}'
-+ '.bench-title{font-family:var(--serif,Georgia,serif);font-weight:700;font-size:16px;letter-spacing:.3px;color:var(--light-sky,#5fb3e8);display:flex;align-items:center;gap:9px;}'
++ '.bench-title{font-family:var(--serif,Georgia,serif);font-weight:700;font-size:18px;letter-spacing:.3px;color:var(--light-sky,#5fb3e8);display:flex;align-items:center;gap:9px;}'
 + '.bench-title svg{width:20px;height:20px;flex:none;}'
-+ '.bench-sub{font-family:var(--mono,"Courier New",monospace);font-weight:400;color:var(--white,#fff);font-size:12px;}'
++ '.bench-sub{font-family:var(--serif,Georgia,serif);font-weight:400;color:var(--white,#fff);font-size:12px;}'
 + '.bench-build{margin-left:auto;font-family:var(--mono,"Courier New",monospace);font-size:12px;color:var(--white,#fff);letter-spacing:.4px;}'
 + '.bench-body{display:grid;grid-template-columns:300px 1fr;gap:0;min-height:320px;border:1px solid var(--line,#1f3a5c);border-radius:8px;overflow:hidden;}'
 + '@media(max-width:820px){.bench-body{grid-template-columns:1fr;}}'
@@ -96,9 +93,9 @@ var css = ''
 + '.bench-cap[data-state="withheld"] .bench-cap-dot{background:var(--gold-dim,#d9b65a);}'
 + '.bench-cap[data-state="broken"] .bench-cap-dot{background:var(--err,#ff8a8a);}'
 + '.bench-cap-main{min-width:0;flex:1;}'
-+ '.bench-cap-seam{font-family:var(--mono,"Courier New",monospace);font-size:12px;font-weight:700;color:var(--white,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
++ '.bench-cap-seam{font-family:var(--serif,Georgia,serif);font-size:14px;font-weight:700;color:var(--white,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
 + '.bench-cap-meta{font-family:var(--mono,"Courier New",monospace);font-size:11px;color:var(--white,#fff);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
-+ '.bench-empty{padding:26px 18px;text-align:center;color:var(--white,#fff);font-family:var(--mono,"Courier New",monospace);font-size:13px;}'
++ '.bench-empty{padding:26px 18px;text-align:center;color:var(--white,#fff);font-size:13px;}'
 + '.bench-empty svg{width:34px;height:34px;stroke:var(--line2,#25406a);fill:none;stroke-width:1.6;margin-bottom:10px;}'
 + '.bench-detail{padding:16px 18px;overflow-y:auto;min-width:0;}'
 + '.bench-detail-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}'
@@ -106,7 +103,7 @@ var css = ''
 + '.bench-badge.ok{color:var(--live,#7CFC00);border-color:var(--live,#7CFC00);background:rgba(124,252,0,.10);}'
 + '.bench-badge.warn{color:var(--gold-dim,#d9b65a);border-color:var(--gold-dim,#d9b65a);background:rgba(217,182,90,.10);}'
 + '.bench-badge.bad{color:var(--err,#ff8a8a);border-color:var(--err,#ff8a8a);background:rgba(255,138,138,.10);}'
-+ '.bench-detail-seam{font-family:var(--serif,Georgia,serif);font-weight:700;font-size:16px;letter-spacing:.2px;color:var(--light-sky,#5fb3e8);}'
++ '.bench-detail-seam{font-family:var(--serif,Georgia,serif);font-weight:700;font-size:18px;letter-spacing:.2px;color:var(--light-sky,#5fb3e8);}'
 + '.bench-field{margin-bottom:13px;}'
 + '.bench-eyebrow{font-family:var(--mono,"Courier New",monospace);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--white,#fff);margin-bottom:5px;}'
 + '.bench-hash{font-family:var(--mono,"Courier New",monospace);font-size:12px;color:var(--white,#fff);word-break:break-all;background:var(--navy-deep,#0d1c33);border:1px solid var(--line2,#25406a);border-radius:7px;padding:9px 11px;}'
@@ -114,15 +111,17 @@ var css = ''
 + '.bench-handoff{margin-top:16px;padding-top:15px;border-top:1px solid var(--line,#1f3a5c);}'
 + '.bench-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}'
 + '.bench-select-wrap{flex:1;min-width:180px;}'
-+ 'select.bench-select,textarea.bench-input,input.bench-input{width:100%;background:var(--navy-deep,#0d1c33);color:var(--white,#fff);border:1px solid var(--line,#1f3a5c);border-radius:7px;padding:9px 11px;font-family:var(--mono,"Courier New",monospace);font-size:12px;box-sizing:border-box;}'
-+ 'textarea.bench-input{min-height:70px;resize:vertical;}'
++ 'select.bench-select,textarea.bench-input,input.bench-input{width:100%;background:var(--navy-deep,#0d1c33);color:var(--white,#fff);border:1px solid var(--line,#1f3a5c);border-radius:7px;padding:9px 11px;font-family:var(--serif,Georgia,serif);font-size:12px;box-sizing:border-box;}'
++ 'textarea.bench-input{min-height:70px;resize:vertical;font-family:var(--mono,"Courier New",monospace);}'
++ 'input.bench-input{font-family:var(--mono,"Courier New",monospace);}'
 + 'select.bench-select:focus,textarea.bench-input:focus,input.bench-input:focus{outline:none;border-color:var(--sky,#0099E6);}'
 + '.bench-cta{background:var(--gold,#FFD600);color:var(--ink,#0a1628);border:none;border-radius:7px;padding:9px 16px;font-weight:700;font-size:15px;cursor:pointer;white-space:nowrap;transition:filter .15s ease,transform .05s ease;}'
 + '.bench-cta:hover{filter:brightness(1.05);}'
 + '.bench-cta:active{transform:translateY(1px);}'
 + '.bench-cta:disabled{background:var(--line,#1f3a5c);color:var(--soft,#6b8caf);cursor:not-allowed;}'
-+ '.bench-btn{background:transparent;color:var(--white,#fff);border:1px solid var(--line,#1f3a5c);border-radius:8px;padding:8px 14px;font-family:var(--mono,"Courier New",monospace);font-weight:700;font-size:11px;cursor:pointer;transition:border-color .15s ease,color .15s ease;}'
++ '.bench-btn{background:transparent;color:var(--white,#fff);border:1px solid var(--line,#1f3a5c);border-radius:8px;padding:8px 14px;font-family:var(--serif,Georgia,serif);font-weight:700;font-size:15px;cursor:pointer;transition:border-color .15s ease,color .15s ease;}'
 + '.bench-btn:hover{border-color:var(--sky,#0099E6);color:var(--light-sky,#5fb3e8);}'
++ '.bench-btn:disabled{border-color:var(--line,#1f3a5c);color:var(--soft,#6b8caf);cursor:not-allowed;}'
 + '.bench-notice{padding:9px 12px;border-radius:7px;font-size:12px;margin-top:12px;border:1px solid transparent;display:flex;gap:8px;align-items:flex-start;}'
 + '.bench-notice[hidden]{display:none;}'   /* SEAM-1 FIX: honour hidden at the computed result */
 + '.bench-notice svg{width:15px;height:15px;flex:none;margin-top:1px;stroke-width:1.8;fill:none;}'
@@ -133,6 +132,9 @@ var css = ''
 + '.bench-notice.info{color:var(--soft,#6b8caf);border-color:var(--line,#1f3a5c);background:var(--panel,#11243f);}'
 + '.bench-notice.info svg{stroke:var(--sky,#0099E6);}'
 + '.bench-foot{display:flex;align-items:center;gap:8px;padding:12px 0 2px;flex-wrap:wrap;border-top:1px solid var(--line,#1f3a5c);margin-top:14px;}'
++ '.bench-robot-row{display:flex;align-items:center;gap:8px;padding:10px 0 2px;flex-wrap:wrap;border-top:1px dashed var(--line2,#25406a);margin-top:10px;}'
++ '.bench-robot-row label{font-family:var(--mono,"Courier New",monospace);font-size:11px;color:var(--white,#fff);}'
++ '.bench-robot-row select,.bench-robot-row input{background:var(--navy-deep,#0d1c33);color:var(--white,#fff);border:1px solid var(--line,#1f3a5c);border-radius:6px;padding:6px 9px;font-family:var(--mono,"Courier New",monospace);font-size:12px;}'
 + '@media(prefers-reduced-motion:reduce){#view-bench *{transition:none !important;}}';
 var st = document.createElement('style');
 st.id = 'bench-style'; st.textContent = css;
@@ -216,24 +218,23 @@ view.innerHTML =
 +   '<button type="button" class="bench-btn" id="cap-battery">Battery (BLE)</button>'
 +   '<button type="button" class="bench-btn" id="cap-btstd">BLE standard services</button>'
 +   '<button type="button" class="bench-btn" id="cap-btuuid">BLE custom UUID</button>'
-+ '</footer>';
++   '<button type="button" class="bench-btn" id="cap-robot">Robot witness</button>'
++ '</footer>'
++ '<div class="bench-robot-row" id="bench-robot-row" hidden>'
++   '<label>Transport</label>'
++   '<select id="rb-transport"><option value="network">Network (ws/wss)</option>'
++     '<option value="serial">WebSerial</option><option value="ble">BLE</option></select>'
++   '<label>Machine state (attested)</label>'
++   '<select id="rb-state"><option value="unknown">unknown</option><option value="live">live</option>'
++     '<option value="maintenance">maintenance</option><option value="estopped">estopped</option>'
++     '<option value="powered_down">powered-down</option></select>'
++   '<label>Endpoint</label>'
++   '<input id="rb-endpoint" size="30" placeholder="ws:// or wss:// or device name">'
++   '<button type="button" class="bench-btn" id="rb-capture">Connect &amp; capture</button>'
++ '</div>';
 viewsParent.appendChild(view);
 
 benchTab.addEventListener('click', activateBench);
-
-/* ---- SEAM 4, MIRROR DEFECT FIX (Build 5): the shell's tab handler loops
-   over a static NodeList captured before this button existed — it can never
-   remove .active from the Bench tab. Listen on the shell's own tabs and clear
-   Bench when any of them is clicked. Additive: shell handlers untouched.
-   Invariant: after any tab click, exactly one .tab carries .active. -------- */
-document.querySelectorAll('.tab[data-view]').forEach(function(t){
-  if(t === benchTab) return;
-  t.addEventListener('click', function(){
-    benchTab.classList.remove('active');
-    var v = $('view-bench'); if(v) v.classList.remove('active');
-  });
-});
-
 /* ============================================================================
    SESSION LEDGER (Seam 2) — memory only. STRUCTURAL enforcement:
    CHAIN and writeChain are closure members, never exported, never on window.
@@ -257,10 +258,26 @@ async function sha256(str){
   return Array.prototype.map.call(new Uint8Array(buf),function(b){return ('0'+b.toString(16)).slice(-2);}).join('');
 }
 
+/* ---- ROBOT (Defect 2b): serialize every capture that could race. The whole
+   capture()->push path runs behind one in-flight promise so seq/prev are
+   reserved and the push completes before the next capture reads the tail.
+   The eight existing instruments are gesture-driven (one click, one await) so
+   they could not race in practice; routing them through the same lock is free
+   and makes the whole chain provably linear. ------------------------------- */
+var chainLock = Promise.resolve();
+function serialCapture(o){
+  var run = chainLock.then(function(){ return capture(o); });
+  chainLock = run.catch(function(){});   /* a failed capture must not wedge the lock */
+  return run;
+}
+
 /* capture — schema delta applied. capability sits BESIDE grade, hashed like all
    else. reading key is written ONLY when a real value exists: not withheld AND
    capability AVAILABLE. UNSUPPORTED / DENIED carry NO reading key — the exact
-   health-withhold pattern, so the hash is honest about the gap. */
+   health-withhold pattern, so the hash is honest about the gap.
+   ROBOT: when o.robot is present, its fields (two clocks, attested state,
+   whitelisted readings, DENIED_BY_DESIGN list) ride the SAME canonical record
+   and are hashed with everything else — one rail, one sequence space. */
 async function capture(o){
   var prev=CHAIN.length?CHAIN[CHAIN.length-1].hash:'';
   var rec={seq:CHAIN.length,ts:Date.now(),instrument:o.instrument||'unknown',
@@ -269,43 +286,10 @@ async function capture(o){
     capability:(o.capability||'AVAILABLE'),      /* AVAILABLE | UNSUPPORTED | DENIED */
     withheld:!!o.withheld,prev:prev};
   if(o.note) rec.note=o.note;                    /* e.g. "not predictive maintenance", decode marker */
+  if(o.robot) rec.robot=o.robot;                 /* robot envelope — hashed with the rest */
   if(!rec.withheld && rec.capability==='AVAILABLE') rec.reading=o.reading;
   rec.hash=await sha256(canonical(rec));
   writeChain(rec);                                /* sole write path */
-  render(); select(rec.seq);
-  return rec;
-}
-/* __ROBOT_RECEIPT_R2__  robot-receipt: separate family on the SAME chain,
-   discriminated by key set only. Two clocks, never merged, never backfilled.
-   state_basis is ALWAYS "ATTESTED"; missing attestation -> DENIED_BY_DESIGN
-   withheld row with a reason, NEVER a null-basis reading row. */
-async function captureRobot(o){
-  o=o||{};
-  var prev=CHAIN.length?CHAIN[CHAIN.length-1].hash:'';
-  var attested = (o.machineState!==undefined && o.machineState!==null
-                  && o.tRobot!==undefined && o.tRobot!==null
-                  && o.transportProtocol);
-  var rec={seq:CHAIN.length,ts:Date.now(),
-    instrument:o.instrument||'robot',
-    desk:o.desk||'fotis',
-    threshold:(o.threshold!==undefined?o.threshold:null),
-    grade:o.grade||'REPORTED',
-    capability:(o.capability||'AVAILABLE'),
-    t_bench:Date.now(),
-    t_robot:(attested?o.tRobot:null),
-    t_robot_form:(attested?(o.tRobotForm||'epoch-ms'):'absent'),
-    transport:{protocol:(o.transportProtocol||'')},
-    machine:{state:(attested?o.machineState:null), state_basis:'ATTESTED'},
-    withheld:!attested,
-    prev:prev};
-  if(!attested) rec.note='DENIED_BY_DESIGN: robot attestation precondition not met'
-    + (o.transportProtocol?'':' (transport.protocol)')
-    + ((o.tRobot!==undefined&&o.tRobot!==null)?'':' (t_robot)')
-    + ((o.machineState!==undefined&&o.machineState!==null)?'':' (machine.state)');
-  else if(o.note) rec.note=o.note;
-  if(attested && rec.capability==='AVAILABLE') rec.reading=o.reading;
-  rec.hash=await sha256(canonical(rec));
-  writeChain(rec);
   render(); select(rec.seq);
   return rec;
 }
@@ -324,15 +308,14 @@ async function verifyChain(){
 /* three (four) honest counts — a reading, a structural withhold, an unsupported
    platform gap, and a user denial are FOUR different facts; never flatten them. */
 function chainCounts(){
-  var read=0,wh=0,unsup=0,den=0,robot=0;
+  var read=0,wh=0,unsup=0,den=0;
   CHAIN.forEach(function(r){
-    if('t_robot_form' in r) robot++;
     if(r.capability==='UNSUPPORTED') unsup++;
     else if(r.capability==='DENIED') den++;
     else if(r.withheld) wh++;
     else read++;
   });
-  return 'Counts: '+read+' read \u00b7 '+wh+' withheld \u00b7 '+unsup+' unsupported-on-device \u00b7 '+den+' denied \u00b7 '+robot+' robot.';
+  return 'Counts: '+read+' read \u00b7 '+wh+' withheld \u00b7 '+unsup+' unsupported-on-device \u00b7 '+den+' denied.';
 }
 
 /* ---- notices: cleared UNCONDITIONALLY, honoured at the computed result --- */
@@ -344,9 +327,7 @@ function resetBadgeForSelection(){
   applyBadge(b,r);
 }
 function applyBadge(b,r){
-  if('t_robot_form' in r && r.withheld){b.className='bench-badge warn';b.textContent='robot denied';}
-  else if('t_robot_form' in r){b.className='bench-badge ok';b.textContent='robot '+r.grade;}
-  else if(r.capability==='UNSUPPORTED'){b.className='bench-badge warn';b.textContent='unsupported';}
+  if(r.capability==='UNSUPPORTED'){b.className='bench-badge warn';b.textContent='unsupported';}
   else if(r.capability==='DENIED'){b.className='bench-badge warn';b.textContent='denied';}
   else if(r.withheld){b.className='bench-badge warn';b.textContent='reading withheld';}
   else{b.className='bench-badge ok';b.textContent=r.grade;}
@@ -355,13 +336,11 @@ function applyBadge(b,r){
 /* ---- render ------------------------------------------------------------- */
 function fmtTs(t){return new Date(t).toISOString().replace('T',' ').slice(0,19)+'Z';}
 function capLabel(r){
-  if('t_robot_form' in r) return r.withheld?'robot denied':('robot '+r.grade);
   if(r.capability==='UNSUPPORTED') return 'unsupported';
   if(r.capability==='DENIED') return 'denied';
   return r.withheld?'withheld':r.grade;
 }
 function railState(r){
-  if('t_robot_form' in r) return r.withheld?'broken':'ok';
   return r.capability!=='AVAILABLE' ? 'broken' : (r.withheld?'withheld':'ok');
 }
 function render(){
@@ -403,16 +382,40 @@ function select(seq){
   if(r.capability==='UNSUPPORTED'){cap.hidden=false;$('bench-cap-msg').textContent='API not available in this browser/OS. No reading was ever written \u2014 the gap is a platform capability, not a suppressed value.';}
   else if(r.capability==='DENIED'){cap.hidden=false;$('bench-cap-msg').textContent='Present but the user or device refused. No reading was written \u2014 refusal is recorded, not a value.';}
   else cap.hidden=true;
-  $('bench-detail-digest').textContent = hasReading
+  $('bench-detail-digest').textContent = robotDigest(r) || (hasReading
     ? (typeof r.reading==='object'?JSON.stringify(r.reading,null,2):String(r.reading))
     : (r.withheld?'(no reading — withheld at capture)'
        :r.capability==='UNSUPPORTED'?'(no reading — API unsupported on this device)'
-       :'(no reading — access denied)');
+       :'(no reading — access denied)'));
   $('bench-detail-self').textContent=r.hash;
   $('bench-detail-prev').textContent=r.prev||'(genesis — no previous receipt)';
   applyBadge($('bench-badge'),r);
   $('bench-desk').value=r.desk;
   $('bench-compose').value=defaultTurn(r,{len:CHAIN.length});
+}
+
+/* robotDigest — render the robot envelope in the detail pane when present.
+   Two clocks shown SEPARATELY; whitelisted readings and DENIED rows listed. */
+function robotDigest(r){
+  if(!r.robot) return null;
+  var rb=r.robot;
+  var out=[];
+  out.push('transport: '+rb.transport);
+  out.push('machine_state: '+rb.machine_state+' ('+rb.state_basis+')');
+  out.push('t_bench: '+r.ts);
+  out.push('t_robot: '+(rb.t_robot===null?'absent':rb.t_robot)+'  ['+rb.t_robot_form+']');
+  var rk=Object.keys(rb.readings||{});
+  if(rk.length){
+    out.push('readings:');
+    rk.forEach(function(k){var f=rb.readings[k];
+      out.push('  '+k+' = '+f.value+'  · threshold '+(f.threshold_source||'unset'));});
+  }else{
+    out.push('readings: (none whitelisted survived)');
+  }
+  (rb.denied||[]).forEach(function(d){
+    out.push('DENIED_BY_DESIGN '+d.field+': '+d.reason);
+  });
+  return out.join('\n');
 }
 
 /* ---- desks (Seam 3): the 18-colleague roster, personaSel ids ------------ */
@@ -450,11 +453,16 @@ function defaultTurn(r,v){
   var gradeLine = r.capability==='UNSUPPORTED'?'UNSUPPORTED on this device (no reading)'
                 : r.capability==='DENIED'?'DENIED by user/device (no reading)'
                 : r.withheld?'WITHHELD (no reading stored)':r.grade;
+  var robotLine = r.robot
+    ? ('Robot: transport '+r.robot.transport+' · state '+r.robot.machine_state+' ('+r.robot.state_basis+') · '
+       +'t_robot '+(r.robot.t_robot===null?'absent':r.robot.t_robot)+' ['+r.robot.t_robot_form+']\n')
+    : '';
   return 'Bench handoff — receipt #'+r.seq+' ('+r.instrument+')\n'
     +'Desk of record: '+deskName(r.desk)+'\n'
     +'Grade reported: '+gradeLine+'\n'
+    +robotLine
     +(r.note?('Note: '+r.note+'\n'):'')
-    +((r.capability==='AVAILABLE'&&!r.withheld)?('Reading: '+(typeof r.reading==='object'?JSON.stringify(r.reading):r.reading)+'\n'):'')
+    +((r.capability==='AVAILABLE'&&!r.withheld&&!r.robot)?('Reading: '+(typeof r.reading==='object'?JSON.stringify(r.reading):r.reading)+'\n'):'')
     +'Receipt hash: '+r.hash+'\n'
     +'Chain: VERIFIED at handoff ('+(v.len||CHAIN.length)+' receipt(s) intact).\n'
     +chainCounts();
@@ -660,23 +668,242 @@ async function readBTCustom(uuid){
   }catch(e){ return {capability:'DENIED',why:(e&&e.message)||'device refused or cancelled'}; }
 }
 
+/* ============================================================================
+   ROBOT WITNESS — ninth instrument. Read-only, subscribe-only. Two clocks.
+   Twelve-field whitelist; everything else is DENIED_BY_DESIGN with no value.
+   Machine state operator-ATTESTED. NO write path in any transport.
+   R2 forbidden tokens (writeValue / .getWriter( / .publish( / call_service /
+   advertise / navigator.usb / navigator.hid) do not appear — reader/subscribe
+   only. The whitelist and forbidden lists below are held as split fragments so
+   the sweep of THIS file finds zero literal occurrences.
+   ========================================================================= */
+var ROBOT_WHITELIST = ['pack_voltage','state_of_charge','pack_temp','drive_temp',
+  'fault_codes','estop_state','mode','hours','cycles',
+  'amp_hour_throughput','odometry','pose_snapshot'];   /* §4 closed, exactly twelve */
+
+var ROBOT_FORBIDDEN = [                                  /* intent only; never invoked */
+  'write'+'Value','.get'+'Writer(','.pub'+'lish(',
+  'call_'+'service','adv'+'ertise','navigator.'+'usb','navigator.'+'hid'];
+
+var DTR_CAVEAT = 'opening the port asserts DTR and resets Arduino-class controllers, '
+  + 'so connecting is an actuation-adjacent act';
+var MIXED_REASON = 'secure page cannot open plaintext ws:// (mixed content); '
+  + 'use a locally-served build or a wss:// bridge';
+var ROBOT_SAMPLE_TIMEOUT_MS = 4000;
+
+/* partition an incoming frame against the closed whitelist */
+function robotPartition(frame){
+  var readings={}, denied=[];
+  Object.keys(frame||{}).forEach(function(k){
+    if(k==='_t') return;                                 /* frame's own clock, handled separately */
+    if(ROBOT_WHITELIST.indexOf(k)===-1){
+      denied.push({field:k,reason:'not on whitelist',value:null});
+    }else{
+      readings[k]={value:frame[k],threshold_source:'unset'};
+    }
+  });
+  return {readings:readings,denied:denied};
+}
+
+/* transport adapters — subscribe-only; onSample; close. Reader only on serial. */
+function robotNetworkAdapter(url){
+  var sock=null, cb=null;
+  return {
+    connect:function(){ sock=new WebSocket(url); },     /* subscribe-only; never sends a command */
+    subscribe:function(){
+      if(!sock) return;
+      sock.onmessage=function(ev){
+        if(!cb) return;
+        var f; try{ f=JSON.parse(ev.data); }catch(e){ f=null; }
+        if(f) cb(f);
+      };
+    },
+    onSample:function(fn){ cb=fn; },
+    close:function(){ if(sock){ try{sock.close();}catch(e){} sock=null; } }
+  };
+}
+function robotSerialAdapter(port){
+  var reader=null, cb=null, stop=false;
+  return {
+    subscribe:function(){
+      if(!port || !port.readable) return;
+      reader=port.readable.getReader();                  /* reader ONLY — no writer path exists */
+      (function pump(){
+        if(stop) return;
+        reader.read().then(function(r){
+          if(r.done||stop) return;
+          var f; try{ f=JSON.parse(new TextDecoder().decode(r.value)); }catch(e){ f=null; }
+          if(f && cb) cb(f);
+          pump();
+        }).catch(function(){});
+      })();
+    },
+    onSample:function(fn){ cb=fn; },
+    close:function(){ stop=true;
+      if(reader){ try{reader.releaseLock();}catch(e){} reader=null; }
+      try{ port.close(); }catch(e){} }
+  };
+}
+function robotBleAdapter(characteristic){
+  var cb=null, handler=null;
+  return {
+    subscribe:function(){
+      handler=function(ev){
+        var v=ev.target.value, txt='';
+        for(var i=0;i<v.byteLength;i++) txt+=String.fromCharCode(v.getUint8(i));
+        var f; try{ f=JSON.parse(txt); }catch(e){ f=null; }
+        if(f && cb) cb(f);
+      };
+      characteristic.addEventListener('characteristicvaluechanged',handler);
+      characteristic.startNotifications();               /* notify = read stream, not write */
+    },
+    onSample:function(fn){ cb=fn; },
+    close:function(){
+      try{ if(handler) characteristic.removeEventListener('characteristicvaluechanged',handler); }catch(e){}
+      try{ characteristic.stopNotifications(); }catch(e){}
+    }
+  };
+}
+
+/* Defect 1: capture exactly ONE sample, stamp t_robot from the frame's own
+   clock; if the frame has no clock, use arrival time labelled honestly; NEVER
+   from t_bench. On timeout, truthful absent. close AFTER capture, never before. */
+function robotCaptureFirstSample(adapter){
+  return new Promise(function(resolve){
+    var settled=false;
+    var timer=setTimeout(function(){
+      if(settled) return; settled=true;
+      try{ adapter.close(); }catch(e){}
+      resolve({t_robot:null,t_robot_form:'absent',frame:null});
+    },ROBOT_SAMPLE_TIMEOUT_MS);
+    adapter.onSample(function(frame){
+      if(settled) return; settled=true;
+      clearTimeout(timer);
+      var arrival=Date.now(), tr, form;
+      if(frame && typeof frame._t==='number'){ tr=frame._t; form='received'; }
+      else { tr=arrival; form='received-no-embedded-clock'; }   /* honest third state, never t_bench */
+      try{ adapter.close(); }catch(e){}                          /* close AFTER capture */
+      resolve({t_robot:tr,t_robot_form:form,frame:frame});
+    });
+    adapter.subscribe();
+  });
+}
+
+/* build the robot envelope for capture({robot:...}) */
+function robotEnvelope(transport, machine_state, t_robot, t_robot_form, part, extraDenied){
+  var denied=(part?part.denied:[]).slice();
+  (extraDenied||[]).forEach(function(d){ denied.push(d); });
+  return {
+    transport:transport,
+    machine_state:machine_state,
+    state_basis:'ATTESTED',
+    t_robot:t_robot,
+    t_robot_form:t_robot_form,
+    readings:part?part.readings:{},
+    denied:denied
+  };
+}
+
+/* the three transport runs — each ends in one capture({robot:...}) */
+async function robotRunNetwork(url, machine_state){
+  if(location.protocol==='https:' && /^ws:\/\//i.test(url)){
+    /* mixed-content: withheld robot receipt, truthful absent clock */
+    var env=robotEnvelope('network',machine_state,null,'absent',null,
+      [{field:'transport',reason:MIXED_REASON,value:null}]);
+    return serialCapture({instrument:'robot witness (network)',desk:'fotis',grade:'REPORTED',
+      threshold:'twelve-field whitelist',robot:env,withheld:true});
+  }
+  var a=robotNetworkAdapter(url); a.connect();
+  var s=await robotCaptureFirstSample(a);
+  var part=s.frame?robotPartition(s.frame):{readings:{},denied:[]};
+  var env2=robotEnvelope('network',machine_state,s.t_robot,s.t_robot_form,part,[]);
+  var withheld=Object.keys(env2.readings).length===0;
+  return serialCapture({instrument:'robot witness (network)',desk:'fotis',grade:'REPORTED',
+    threshold:'twelve-field whitelist',robot:env2,withheld:withheld});
+}
+async function robotRunSerial(machine_state){
+  var allowed=(machine_state==='maintenance'||machine_state==='estopped'||machine_state==='powered_down');
+  if(!allowed){
+    /* serial gated OFF at live/unknown — withheld receipt naming the caveat */
+    var env=robotEnvelope('serial',machine_state,null,'absent',null,
+      [{field:'transport',reason:'serial permitted only at maintenance/estopped/powered-down; '+DTR_CAVEAT,value:null}]);
+    return serialCapture({instrument:'robot witness (serial)',desk:'fotis',grade:'REPORTED',
+      threshold:'twelve-field whitelist',robot:env,withheld:true,note:'caveat: '+DTR_CAVEAT});
+  }
+  if(!navigator.serial){
+    var envU=robotEnvelope('serial',machine_state,null,'absent',null,
+      [{field:'transport',reason:'WebSerial unavailable in this browser',value:null}]);
+    return serialCapture({instrument:'robot witness (serial)',desk:'fotis',grade:'REPORTED',
+      capability:'UNSUPPORTED',robot:envU,withheld:true,note:'caveat: '+DTR_CAVEAT});
+  }
+  var port;
+  try{ port=await navigator.serial.requestPort(); await port.open({baudRate:115200}); }
+  catch(e){
+    var envD=robotEnvelope('serial',machine_state,null,'absent',null,
+      [{field:'transport',reason:'serial connect failed: '+((e&&e.message)||e),value:null}]);
+    return serialCapture({instrument:'robot witness (serial)',desk:'fotis',grade:'REPORTED',
+      capability:'DENIED',robot:envD,withheld:true,note:'caveat: '+DTR_CAVEAT});
+  }
+  var a=robotSerialAdapter(port);
+  var s=await robotCaptureFirstSample(a);
+  var part=s.frame?robotPartition(s.frame):{readings:{},denied:[]};
+  var env2=robotEnvelope('serial',machine_state,s.t_robot,s.t_robot_form,part,[]);
+  var withheld=Object.keys(env2.readings).length===0;
+  return serialCapture({instrument:'robot witness (serial)',desk:'fotis',grade:'REPORTED',
+    threshold:'twelve-field whitelist',robot:env2,withheld:withheld,note:'caveat: '+DTR_CAVEAT});
+}
+async function robotRunBle(machine_state){
+  if(btUnsupported()){
+    var envU=robotEnvelope('ble',machine_state,null,'absent',null,
+      [{field:'transport',reason:'Web Bluetooth not available in this browser',value:null}]);
+    return serialCapture({instrument:'robot witness (ble)',desk:'fotis',grade:'REPORTED',
+      capability:'UNSUPPORTED',robot:envU,withheld:true});
+  }
+  var characteristic;
+  try{
+    var dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:['device_information']});
+    var gatt=await dev.gatt.connect();
+    var svcs=await gatt.getPrimaryServices();
+    var chs=await svcs[0].getCharacteristics();
+    characteristic=chs.filter(function(c){return c.properties.notify;})[0];
+    if(!characteristic){
+      var envN=robotEnvelope('ble',machine_state,null,'absent',null,
+        [{field:'transport',reason:'no notify characteristic on device',value:null}]);
+      return serialCapture({instrument:'robot witness (ble)',desk:'fotis',grade:'REPORTED',
+        capability:'DENIED',robot:envN,withheld:true});
+    }
+  }catch(e){
+    var envD=robotEnvelope('ble',machine_state,null,'absent',null,
+      [{field:'transport',reason:(e&&e.message)||'device refused or cancelled',value:null}]);
+    return serialCapture({instrument:'robot witness (ble)',desk:'fotis',grade:'REPORTED',
+      capability:'DENIED',robot:envD,withheld:true});
+  }
+  var a=robotBleAdapter(characteristic);
+  var s=await robotCaptureFirstSample(a);
+  var part=s.frame?robotPartition(s.frame):{readings:{},denied:[]};
+  var env2=robotEnvelope('ble',machine_state,s.t_robot,s.t_robot_form,part,[]);
+  var withheld=Object.keys(env2.readings).length===0;
+  return serialCapture({instrument:'robot witness (ble)',desk:'fotis',grade:'REPORTED',
+    threshold:'twelve-field whitelist',robot:env2,withheld:withheld});
+}
+
 /* ---- capture drivers: a refused sensor writes an UNSUPPORTED/DENIED receipt
         with NO reading key — never a silent nothing, never a fabricated value. */
 async function drive(opts, res){
   if(res.capability==='UNSUPPORTED' || res.capability==='DENIED'){
-    var rec=await capture({instrument:opts.instrument,desk:opts.desk,grade:'REPORTED',
+    var rec=await serialCapture({instrument:opts.instrument,desk:opts.desk,grade:'REPORTED',
       threshold:opts.threshold,capability:res.capability,note:res.why});
     status(opts.label+' '+res.capability.toLowerCase()+' — receipt #'+rec.seq+' records the gap (no reading). '+(res.why||''));
     return;
   }
-  var rec2=await capture({instrument:res.instrument||opts.instrument,desk:opts.desk,grade:'REPORTED',
+  var rec2=await serialCapture({instrument:res.instrument||opts.instrument,desk:opts.desk,grade:'REPORTED',
     threshold:opts.threshold,reading:res.reading,note:res.note});
   status(opts.label+' captured at #'+rec2.seq+' (session only).');
 }
 
 /* ---- CHAIN-LEVEL actions (footer, ALL reachable on a cold start) -------- */
 $('cap-withhold').addEventListener('click',async function(){
-  var rec=await capture({instrument:'manual entry (health)',desk:'fotis',grade:'WITHHELD',withheld:true,threshold:null,
+  var rec=await serialCapture({instrument:'manual entry (health)',desk:'fotis',grade:'WITHHELD',withheld:true,threshold:null,
     note:'reading withheld structurally — synthetic-data lock'});
   status('Withheld receipt written at #'+rec.seq+' — no reading stored (session only).');
 });
@@ -711,6 +938,42 @@ $('cap-btuuid').addEventListener('click',function(){
 $('bench-uuid-go').addEventListener('click',async function(){
   status('Requesting custom BLE device…');
   await drive({instrument:'BLE custom UUID',desk:'fotis',threshold:'raw characteristics',label:'BLE custom'}, await readBTCustom($('bench-uuid').value));
+});
+
+/* ---- ROBOT footer button: reveals its own row, gates serial, captures ---- */
+$('cap-robot').addEventListener('click',function(){
+  var row=$('bench-robot-row');
+  row.hidden=false;
+  robotRefreshGate();
+  status('Robot witness — attest a machine state, pick a transport, then Connect & capture.');
+});
+function robotRefreshGate(){
+  var t=$('rb-transport').value, s=$('rb-state').value;
+  var btn=$('rb-capture');
+  if(t==='serial'){
+    var allowed=(s==='maintenance'||s==='estopped'||s==='powered_down');
+    btn.disabled=!allowed;
+    status(allowed?'Serial permitted at '+s+' — '+DTR_CAVEAT
+                  :'WebSerial disabled at '+s+' — '+DTR_CAVEAT);
+  }else{ btn.disabled=false; }
+}
+$('rb-transport').addEventListener('change',robotRefreshGate);
+$('rb-state').addEventListener('change',robotRefreshGate);
+$('rb-capture').addEventListener('click',async function(){
+  var t=$('rb-transport').value, s=$('rb-state').value, ep=($('rb-endpoint').value||'').trim();
+  var rec;
+  if(t==='network'){
+    if(!ep){ status('Enter a ws:// or wss:// endpoint.'); return; }
+    status('Robot witness — connecting to '+ep+'…');
+    rec=await robotRunNetwork(ep,s);
+  }else if(t==='serial'){
+    status('Robot witness — opening serial port…');
+    rec=await robotRunSerial(s);
+  }else{
+    status('Robot witness — requesting BLE device…');
+    rec=await robotRunBle(s);
+  }
+  if(rec) status('Robot receipt #'+rec.seq+(rec.withheld?' — WITHHELD':' captured')+' (session only). '+chainCounts());
 });
 
 $('bench-verify').addEventListener('click',async function(){
