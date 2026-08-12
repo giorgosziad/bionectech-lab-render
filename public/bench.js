@@ -1,10 +1,16 @@
 /* ============================================================================
-   BENCH — self-installing, one paste point. Build 3: capability schema +
-   six instruments + Lab-style corrections.
+   BENCH — self-installing, one paste point. Build 4: white body text.
    INSTALL: add ONE line as the LAST script before </body> in public/index.html,
    AFTER the shell's own scripts (tab loop, personaSel, paintPersona, $('ask')):
        <script src="bench.js"></script>
    Nothing else in the host is edited.
+
+   BUILD-4 NOTE, FOR THE RECORD: all Bench body text is var(--white,#fff) by
+   OPERATOR DECISION. This is DELIBERATELY brighter than every other Lab panel
+   (which uses --mute for body copy). Do NOT "correct" it back to --mute/--soft.
+   Meaning-through-colour is preserved: .bench-detail-seam stays --light-sky
+   (heading), badge/notice severity colours stay, rail dot colours stay, the
+   tab is the shell's entirely.
 
    INSTALL-TIME GREP (fail-loud, checks TEXT not a runtime stack — HUNK 3b):
      PowerShell:  if ((Select-String -Path public\bench.js -Pattern "api\(\s*['""]data['""]").Count -gt 0) { Write-Error "[Bench] api('data') present — session-only invariant broken"; exit 1 }
@@ -53,16 +59,17 @@ function activateBench(){
 }
 
 /* ---- 1) inject styles. NO .tab rules (shell owns the tab). NO web fonts. -- */
-/* Only the tokens/classes the shell doesn't already provide are declared;
-   sizes are the Lab's — 15px buttons, 12px mono tabs/selects, 11px eyebrows.
-   Serif = Georgia, mono = Courier New, straight from :root. */
+/* BUILD 4: body text is var(--white,#fff) per operator decision — brighter
+   than the Lab's --mute body copy elsewhere; deliberate, do not revert.
+   Severity/heading colours untouched. Sizes are the Lab's — 15px buttons,
+   12px mono tabs/selects, 11px eyebrows. Serif = Georgia, mono = Courier New. */
 var css = ''
-+ '#view-bench{color:var(--mute,#a8c4e0);font-family:var(--serif,Georgia,"Times New Roman",serif);}'
++ '#view-bench{color:var(--white,#fff);font-family:var(--serif,Georgia,"Times New Roman",serif);}'
 + '.bench-head{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line,#1f3a5c);margin-bottom:14px;}'
 + '.bench-title{font-family:var(--serif,Georgia,serif);font-weight:700;font-size:18px;letter-spacing:.3px;color:var(--light-sky,#5fb3e8);display:flex;align-items:center;gap:9px;}'
 + '.bench-title svg{width:20px;height:20px;flex:none;}'
-+ '.bench-sub{font-family:var(--serif,Georgia,serif);font-weight:400;color:var(--soft,#6b8caf);font-size:12px;}'
-+ '.bench-build{margin-left:auto;font-family:var(--mono,"Courier New",monospace);font-size:12px;color:var(--soft,#6b8caf);letter-spacing:.4px;}'
++ '.bench-sub{font-family:var(--serif,Georgia,serif);font-weight:400;color:var(--white,#fff);font-size:12px;}'
++ '.bench-build{margin-left:auto;font-family:var(--mono,"Courier New",monospace);font-size:12px;color:var(--white,#fff);letter-spacing:.4px;}'
 + '.bench-body{display:grid;grid-template-columns:300px 1fr;gap:0;min-height:320px;border:1px solid var(--line,#1f3a5c);border-radius:8px;overflow:hidden;}'
 + '@media(max-width:820px){.bench-body{grid-template-columns:1fr;}}'
 + '.bench-rail{border-right:1px solid var(--line,#1f3a5c);background:var(--ink,#0a1628);display:flex;flex-direction:column;min-width:0;}'
@@ -74,9 +81,9 @@ var css = ''
 + '.bench-cap[data-state="withheld"] .bench-cap-dot{background:var(--gold-dim,#d9b65a);}'
 + '.bench-cap[data-state="broken"] .bench-cap-dot{background:var(--err,#ff8a8a);}'
 + '.bench-cap-main{min-width:0;flex:1;}'
-+ '.bench-cap-seam{font-family:var(--serif,Georgia,serif);font-size:14px;font-weight:700;color:var(--mute,#a8c4e0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
-+ '.bench-cap-meta{font-family:var(--mono,"Courier New",monospace);font-size:11px;color:var(--soft,#6b8caf);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
-+ '.bench-empty{padding:26px 18px;text-align:center;color:var(--soft,#6b8caf);font-size:13px;}'
++ '.bench-cap-seam{font-family:var(--serif,Georgia,serif);font-size:14px;font-weight:700;color:var(--white,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
++ '.bench-cap-meta{font-family:var(--mono,"Courier New",monospace);font-size:11px;color:var(--white,#fff);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
++ '.bench-empty{padding:26px 18px;text-align:center;color:var(--white,#fff);font-size:13px;}'
 + '.bench-empty svg{width:34px;height:34px;stroke:var(--line2,#25406a);fill:none;stroke-width:1.6;margin-bottom:10px;}'
 + '.bench-detail{padding:16px 18px;overflow-y:auto;min-width:0;}'
 + '.bench-detail-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}'
@@ -86,13 +93,13 @@ var css = ''
 + '.bench-badge.bad{color:var(--err,#ff8a8a);border-color:var(--err,#ff8a8a);background:rgba(255,138,138,.10);}'
 + '.bench-detail-seam{font-family:var(--serif,Georgia,serif);font-weight:700;font-size:18px;letter-spacing:.2px;color:var(--light-sky,#5fb3e8);}'
 + '.bench-field{margin-bottom:13px;}'
-+ '.bench-eyebrow{font-family:var(--mono,"Courier New",monospace);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--soft,#6b8caf);margin-bottom:5px;}'
-+ '.bench-hash{font-family:var(--mono,"Courier New",monospace);font-size:12px;color:var(--soft,#6b8caf);word-break:break-all;background:var(--navy-deep,#0d1c33);border:1px solid var(--line2,#25406a);border-radius:7px;padding:9px 11px;}'
-+ '.bench-digest{font-family:var(--mono,"Courier New",monospace);font-size:12px;color:var(--mute,#a8c4e0);background:var(--navy-deep,#0d1c33);border:1px solid var(--line2,#25406a);border-radius:7px;padding:11px 12px;white-space:pre-wrap;max-height:200px;overflow:auto;}'
++ '.bench-eyebrow{font-family:var(--mono,"Courier New",monospace);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--white,#fff);margin-bottom:5px;}'
++ '.bench-hash{font-family:var(--mono,"Courier New",monospace);font-size:12px;color:var(--white,#fff);word-break:break-all;background:var(--navy-deep,#0d1c33);border:1px solid var(--line2,#25406a);border-radius:7px;padding:9px 11px;}'
++ '.bench-digest{font-family:var(--mono,"Courier New",monospace);font-size:12px;color:var(--white,#fff);background:var(--navy-deep,#0d1c33);border:1px solid var(--line2,#25406a);border-radius:7px;padding:11px 12px;white-space:pre-wrap;max-height:200px;overflow:auto;}'
 + '.bench-handoff{margin-top:16px;padding-top:15px;border-top:1px solid var(--line,#1f3a5c);}'
 + '.bench-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}'
 + '.bench-select-wrap{flex:1;min-width:180px;}'
-+ 'select.bench-select,textarea.bench-input,input.bench-input{width:100%;background:var(--navy-deep,#0d1c33);color:var(--mute,#a8c4e0);border:1px solid var(--line,#1f3a5c);border-radius:7px;padding:9px 11px;font-family:var(--serif,Georgia,serif);font-size:12px;box-sizing:border-box;}'
++ 'select.bench-select,textarea.bench-input,input.bench-input{width:100%;background:var(--navy-deep,#0d1c33);color:var(--white,#fff);border:1px solid var(--line,#1f3a5c);border-radius:7px;padding:9px 11px;font-family:var(--serif,Georgia,serif);font-size:12px;box-sizing:border-box;}'
 + 'textarea.bench-input{min-height:70px;resize:vertical;font-family:var(--mono,"Courier New",monospace);}'
 + 'input.bench-input{font-family:var(--mono,"Courier New",monospace);}'
 + 'select.bench-select:focus,textarea.bench-input:focus,input.bench-input:focus{outline:none;border-color:var(--sky,#0099E6);}'
@@ -100,7 +107,7 @@ var css = ''
 + '.bench-cta:hover{filter:brightness(1.05);}'
 + '.bench-cta:active{transform:translateY(1px);}'
 + '.bench-cta:disabled{background:var(--line,#1f3a5c);color:var(--soft,#6b8caf);cursor:not-allowed;}'
-+ '.bench-btn{background:transparent;color:var(--mute,#a8c4e0);border:1px solid var(--line,#1f3a5c);border-radius:8px;padding:8px 14px;font-family:var(--serif,Georgia,serif);font-weight:700;font-size:15px;cursor:pointer;transition:border-color .15s ease,color .15s ease;}'
++ '.bench-btn{background:transparent;color:var(--white,#fff);border:1px solid var(--line,#1f3a5c);border-radius:8px;padding:8px 14px;font-family:var(--serif,Georgia,serif);font-weight:700;font-size:15px;cursor:pointer;transition:border-color .15s ease,color .15s ease;}'
 + '.bench-btn:hover{border-color:var(--sky,#0099E6);color:var(--light-sky,#5fb3e8);}'
 + '.bench-notice{padding:9px 12px;border-radius:7px;font-size:12px;margin-top:12px;border:1px solid transparent;display:flex;gap:8px;align-items:flex-start;}'
 + '.bench-notice[hidden]{display:none;}'   /* SEAM-1 FIX: honour hidden at the computed result */
@@ -150,7 +157,7 @@ view.innerHTML =
 +       '<div class="bench-empty" id="bench-empty">'
 +         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/><circle cx="19" cy="17" r="2.4"/></svg>'
 +         '<div>No receipts yet this session.</div>'
-+         '<div style="font-size:12px;color:var(--soft,#6b8caf);margin-top:5px;">Capture a reading with the footer instruments. Receipts live in memory for this session and leave by handoff \u2014 they are not saved into the project.</div>'
++         '<div style="font-size:12px;color:var(--white,#fff);margin-top:5px;">Capture a reading with the footer instruments. Receipts live in memory for this session and leave by handoff \u2014 they are not saved into the project.</div>'
 +       '</div>'
 +     '</div>'
 +   '</div>'
@@ -204,7 +211,7 @@ benchTab.addEventListener('click', activateBench);
    SESSION LEDGER (Seam 2) — memory only. STRUCTURAL enforcement:
    CHAIN and writeChain are closure members, never exported, never on window.
    Nothing outside this IIFE holds a reference, so no external code can route
-   the chain into api('data') — there is no referent to route.
+   the chain into a persist call — there is no referent to route.
    ========================================================================= */
 var CHAIN=[];
 var selected=-1;
