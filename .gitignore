@@ -1,2 +1,5 @@
 node_modules/
 *.bak-* 
+
+*.bak_hanna_*
+add_hanna.ps1
