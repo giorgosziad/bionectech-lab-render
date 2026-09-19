@@ -5141,11 +5141,6 @@ function _fileIncomplete(txt) {
 //  themselves. This is a compliance early-warning system, not a style guide.
 // ══════════════════════════════════════════════════════════════════════════════════════════════
 const CANONICAL = [
-  { id:'brief-001', verified:'2026-09-19', verify_by:'permanent', source:'operator standing brief 2026-09-19', body:'Live Lab runs on bionectech-lab-render (Render), never the Netlify twin.' },
-  { id:'brief-002', verified:'2026-09-19', verify_by:'permanent', source:'operator standing brief 2026-09-19', body:'BAA and zero-data-retention are executed under the Bionectech company org.' },
-  { id:'brief-003', verified:'2026-09-19', verify_by:'permanent', source:'operator standing brief 2026-09-19', body:'Brand: no emoji anywhere, SVG icons only; Sky #0099E6, Deep Sky #006BB5, Yellow #FFD600.' },
-  { id:'brief-004', verified:'2026-09-19', verify_by:'permanent', source:'operator standing brief 2026-09-19', body:'OncoDefy and RxSmart are separate products - never confuse them.' },
-  { id:'brief-005', verified:'2026-09-19', verify_by:'permanent', source:'operator standing brief 2026-09-19', body:'HANNA is the craft/fit desk; HANNO is the Copy Gate - they are different personas.' },
   // ── REGULATORY — the line that cannot drift ────────────────────────────────────────────────
   { id:'reg-001', verified:'2026-06-04', verify_by:'2026-12-01', source:'FDA Pre-Sub Q182168/S001/A002',
     body:'THE FIXED REGULATORY LINE, verbatim, on every surface: Bionectech clinical decision-support platforms are "non-device CDS under Section 520(o)(1)(E)". NEVER write approved, cleared, authorized, FDA-reviewed, FDA-recognized, or "meets FDA standards" - every one of those is the SAME violation, not a milder one. Every recommendation routes through a licensed clinician.' },
