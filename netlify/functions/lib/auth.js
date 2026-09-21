@@ -69,67 +69,17 @@ async function redis(cmd) {
   throw lastErr;
 }
 async function store() { return {}; } // kept so existing call sites work unchanged
-
-// BNT_CHUNKED_STORAGE: Upstash's REST API bounds how much one SET request can
-// carry. A big Karam reply (a full HTML file, or two) can exceed it; the single
-// SET throws, the job's final write never lands, and the browser polls forever.
-// Fix: any value whose JSON is larger than CHUNK_MAX is written as N smaller
-// SETs under key:c0..cN-1, with a tiny manifest under the real key. Reads detect
-// the manifest and stitch the parts back. Small values (every session / user /
-// desk / rate-limit record) are written EXACTLY as before -- single SET, same
-// key, same format -- so nothing else in the system changes. The token signing
-// and verifying above is untouched.
-const CHUNK_MAX = 300000;              // chars of JSON per part -- safe under the REST request limit
-const CHUNK_TAG = '__bnt_chunked__';
-async function _readAssembled(key) {
-  // Returns the raw JSON string for `key`, reassembling chunks if needed, or null.
-  const head = await redis(['GET', key]);
-  if (head === null || head === undefined) return null;
-  let meta = null;
-  try { meta = JSON.parse(head); } catch (e) { return head; }        // not JSON we wrote -- hand back as-is
-  if (!meta || meta[CHUNK_TAG] !== true) return head;                // ordinary value -- return unchanged
-  let s = '';
-  for (let i = 0; i < meta.n; i++) {
-    const part = await redis(['GET', key + ':c' + i]);
-    if (part === null || part === undefined) throw new Error('chunk ' + i + '/' + meta.n + ' missing for ' + key);
-    s += part;
-  }
-  return s;
-}
 async function readJSONStrict(_st, key, fallback) {
-  const s = await _readAssembled(key);          // throws on timeout/abort/missing-chunk - deliberate
-  if (s === null) return fallback;
-  return JSON.parse(s);
-}
-async function readJSON(_st, key, fallback) {
-  try { const s = await _readAssembled(key); return (s === null) ? fallback : JSON.parse(s); }
+  const v = await redis(['GET', key]);          // throws on timeout/abort - deliberate
+  if (v === null || v === undefined) return fallback;
+  return JSON.parse(v);
+}async function readJSON(_st, key, fallback) {
+  try { const v = await redis(['GET', key]); return (v === null || v === undefined) ? fallback : JSON.parse(v); }
   catch (e) { return fallback; }
 }
-async function writeJSON(_st, key, value) {
-  const s = JSON.stringify(value);
-  if (s.length <= CHUNK_MAX) { await redis(['SET', key, s]); return; }  // small values: identical to before
-  const n = Math.ceil(s.length / CHUNK_MAX);
-  for (let i = 0; i < n; i++) {                                          // write parts first...
-    await redis(['SET', key + ':c' + i, s.slice(i * CHUNK_MAX, (i + 1) * CHUNK_MAX)]);
-  }
-  await redis(['SET', key, JSON.stringify({ [CHUNK_TAG]: true, n: n, len: s.length })]); // ...then the manifest last
-}
-async function del(key) {
-  try {
-    let n = 0;
-    try { const head = await redis(['GET', key]); if (head) { const m = JSON.parse(head); if (m && m[CHUNK_TAG] === true) n = m.n; } } catch (e) {}
-    await redis(['DEL', key]);
-    for (let i = 0; i < n; i++) { try { await redis(['DEL', key + ':c' + i]); } catch (e) {} }
-  } catch (e) {}
-}
-async function expire(key, seconds) {
-  try {
-    await redis(['EXPIRE', key, seconds]);
-    let n = 0;
-    try { const head = await redis(['GET', key]); if (head) { const m = JSON.parse(head); if (m && m[CHUNK_TAG] === true) n = m.n; } } catch (e) {}
-    for (let i = 0; i < n; i++) { try { await redis(['EXPIRE', key + ':c' + i, seconds]); } catch (e) {} }
-  } catch (e) {}
-}
+async function writeJSON(_st, key, value) { await redis(['SET', key, JSON.stringify(value)]); }
+async function del(key) { try { await redis(['DEL', key]); } catch (e) {} }
+async function expire(key, seconds) { try { await redis(['EXPIRE', key, seconds]); } catch (e) {} }
 function todayKey() { const d = new Date(); return d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1) + '-' + d.getUTCDate(); }
 // Brute-force guard: counts attempts in a rolling window. Returns the new count.
 async function rlHit(key, windowSec) {
