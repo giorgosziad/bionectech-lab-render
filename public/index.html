@@ -914,8 +914,8 @@ function runBackground(payload, prompt){
     } else if (_slow) {
       stage = 'still holding — this is longer than usual';
     } else {
-      /* No report yet: advance on our own clock so the line always moves. */
-      stage = _pulse[Math.min(_pulse.length - 1, Math.floor(secs / 12))];
+      /* HONEST: no report from backend. Do NOT invent progress. */
+      stage = (secs > 90) ? ('no word back from the engine in ' + secs + 's - it may have stalled') : 'waiting for the engine to report';
     }
     var mins = Math.floor(secs/60), rem = secs % 60;
     var t = mins ? (mins + 'm ' + rem + 's') : (secs + 's');
