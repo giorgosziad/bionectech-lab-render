@@ -900,28 +900,27 @@ function runBackground(payload, prompt){
     var _pulse = ['gathering the thread', 'weighing it', 'working it through',
                   'shaping the answer', 'putting it in order'];
     var _slow = secs > 150;
+    /* CONCEPT CHANGE (calm heartbeat, not a stopwatch): the counting elapsed-time
+       number and the "longer than usual" escalation read as a stall/alarm, so
+       neither is shown. Real backend progress still speaks; with none, a gently
+       rotating calm phrase shows life without any number. */
     if (pr && pr.stage) {
       if (pr.stage === 'searching')      stage = 'combing the wires';
-      else if (pr.stage === 'thinking')  stage = (pr.model || 'the model') + ' is turning it over' + (pr.waited ? (' — ' + pr.waited + 's') : '');
-      else if (pr.stage === 'writing')   stage = 'setting it down — ' + pr.tokens.toLocaleString() + ' words in';
+      else if (pr.stage === 'thinking')  stage = (pr.model || 'the model') + ' is turning it over';
+      else if (pr.stage === 'writing')   stage = 'setting it down \u2014 ' + pr.tokens.toLocaleString() + ' words in';
       else if (pr.stage === 'calling')   stage = 'rousing ' + (pr.model || 'the model');
-      else if (pr.stage === 'done')      stage = 'carrying it back — ' + pr.tokens.toLocaleString() + ' words';
+      else if (pr.stage === 'done')      stage = 'carrying it back \u2014 ' + pr.tokens.toLocaleString() + ' words';
       else                               stage = pr.stage;
-      /* Even with a report, if nothing has changed for a long while, say so. */
-      if (_slow) stage = stage + '  (longer than usual — still holding)';
     } else if (pr && typeof pr.tokens === 'number' && pr.tokens > 0) {
-      stage = 'live from engine - ' + pr.tokens.toLocaleString() + ' tokens';
+      stage = 'live from engine \u2014 ' + pr.tokens.toLocaleString() + ' tokens';
     } else if (nf && secs < 20) {
       stage = 'taking in your ' + nf + ' file' + (nf > 1 ? 's' : '');
-    } else if (_slow) {
-      stage = 'working - ' + secs + 's';
     } else {
-      /* HONEST: no report from backend. Do NOT invent progress. */
-      stage = 'working - ' + secs + 's';
+      stage = _pulse[Math.floor(secs / 4) % _pulse.length];
     }
     var mins = Math.floor(secs/60), rem = secs % 60;
     var t = mins ? (mins + 'm ' + rem + 's') : (secs + 's');
-    var lbl = '\u2026 ' + who + ' \u2014 ' + t + ' \u2014 ' + stage + ' \u2026';
+    var lbl = '\u2026 ' + who + ' \u2014 ' + stage + ' \u2026';
     if(_bgEl){ _bgEl.textContent = lbl; }
     else { var tt=current.turns[_bgIdx]; if(tt){ tt.text = lbl; renderTurns(); } }
   }, 1000);
