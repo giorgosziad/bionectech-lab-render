@@ -6356,7 +6356,7 @@ function _memPick(store, query, budget) {
           if (_r2.ok) { usedModel = m; text = (_d2.content || []).map(function (c) { return c.type === 'text' ? c.text : ''; }).join('\n').trim(); if (text && text.length >= 2) break; }
         } catch (e3) {}
       }
-      lastErr = { status: 502, error: 'Could not reach the model. ' + (e && e.message ? e.message : '') };
+      console.log('[MODELCALL-FAIL] ' + m + ' | name=' + (e&&e.name) + ' | msg=' + (e&&e.message ? String(e.message).slice(0,300) : ''));       lastErr = { status: 502, error: 'Could not reach the model. ' + (e && e.message ? e.message : '') };
       continue; // network hiccup — try the next candidate
     }
     if (r.ok) {
