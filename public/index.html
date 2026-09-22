@@ -860,6 +860,101 @@ function maybeFoldSummary(){
   .then(function(r){ if(r.ok&&r.data&&r.data.text){ proj.summary=r.data.text.trim(); proj.sumCount=foldTo; saveData(); } })
   .catch(function(){}).then(function(){ _folding=false; });
 }
+/* ============================================================
+   HANNA SUPERVISOR - STEP A (frontend, additive only)
+   Hanna reads the brief, judges it, and returns an APPOINT plan:
+     APPOINT: karim(1), galen(2), kostas(3)
+   The code parses that line, dispatches to those desks IN ORDER,
+   and shows a live board. Nothing existing is touched.
+   ============================================================ */
+var HANNA_PERSONA_LABEL = { karam:'Karam', karim:'Karim', galen:'Galen', elias:'Elias', kostas:'Kostas', elena:'Elena', solon:'Solon', nour:'Nour', jabir:'Jabir', lukas:'Lukas', hanno:'Hanno', hanna:'Hanna', fotis:'Fotis', yusuf:'Yusuf', sinan:'Sinan', platon:'Platon', kyros:'Kyros', giorgos:'Giorgos', nicolle:'Nicolle' };
+var HANNA_ALL = ['karam','karim','galen','elias','kostas','elena','solon','nour','jabir','lukas','hanno','fotis','yusuf','sinan','platon','kyros','giorgos'];
+
+function hannaBoardText(title, board, order){
+  var mark = { pending:'\u25CB', working:'\u25D0', delivered:'\u25CF', failed:'\u2715' };
+  var lines = [title];
+  (order||Object.keys(board)).forEach(function(p){
+    lines.push('  ' + (mark[board[p]]||'\u25CB') + ' ' + (HANNA_PERSONA_LABEL[p]||p) + ' \u2014 ' + board[p]);
+  });
+  return lines.join('\n');
+}
+
+/* Parse "APPOINT: karim(1), galen(2), kostas(3)" -> [['karim',1],['galen',2],...] sorted by order */
+function hannaParseAppoint(text){
+  if(!text) return [];
+  var m = String(text).match(/APPOINT:\s*([^\n\r]+)/i);
+  if(!m) return [];
+  var out = [];
+  m[1].split(',').forEach(function(chunk){
+    var mm = chunk.trim().match(/^([a-z]+)\s*\((\d+)\)/i);
+    if(mm){ var d=mm[1].toLowerCase(); if(HANNA_PERSONA_LABEL[d]) out.push([d, parseInt(mm[2],10)||99]); }
+  });
+  out.sort(function(a,b){ return a[1]-b[1]; });
+  return out;
+}
+
+/* Step 1: ask Hanna to judge + appoint. Step 2: dispatch to the appointed desks in order. */
+function hannaAppoint(brief){
+  if(!brief || !brief.trim()){ toast('Hanna needs a brief.'); return; }
+  addTurn('you', 'HANNA BRIEF: ' + brief);
+  $('send').disabled = true;
+  addTurn('claude', '\u2026 Hanna is weighing the brief \u2026');
+  var thinkIdx = current.turns.length - 1;
+
+  api('chat',{method:'POST',body:JSON.stringify({
+    prompt: brief, history: [], files: [], model: $('model').value,
+    mode:'answer', temperature:0.4, engine:false, ownerCode: ownerCode,
+    web:false, fast:false, smart:false, persona:'hanna'
+  })}).then(function(r){
+    if(!(r.ok && r.data && r.data.text)){
+      if(current.turns[thinkIdx]) current.turns.pop();
+      addTurn('claude','Hanna could not weigh the brief just now. Please try again.');
+      $('send').disabled=false; return;
+    }
+    var plan = r.data.text;
+    if(current.turns[thinkIdx]) current.turns.pop();
+    addTurnA('claude', plan, r.data.aegis, r.data.model, 'hanna');
+
+    var appointed = hannaParseAppoint(plan);
+    if(!appointed.length){
+      addTurn('claude','Hanna gave guidance but named no desks to appoint (no APPOINT line). Nothing dispatched.');
+      $('send').disabled=false; return;
+    }
+    var order = appointed.map(function(x){ return x[0]; });
+    var board = {}; order.forEach(function(p){ board[p]='pending'; });
+    addTurn('claude', hannaBoardText('HANNA appointed:', board, order));
+    var boardTurn = current.turns.length - 1;
+    function paint(){ if(current.turns[boardTurn]){ current.turns[boardTurn].text = hannaBoardText('HANNA appointed:', board, order); renderTurns(); } }
+
+    function sendOne(p){
+      board[p]='working'; paint();
+      return api('chat',{method:'POST',body:JSON.stringify({
+        prompt: brief, history: [], files: [], model: $('model').value,
+        mode:'answer', temperature:0.4, engine:false, ownerCode: ownerCode,
+        web:false, fast:false, smart:false, persona: p
+      })}).then(function(rr){
+        if(rr.ok && rr.data && rr.data.text){
+          board[p]='delivered'; paint();
+          addTurnA('claude', '['+(HANNA_PERSONA_LABEL[p]||p)+'] ' + rr.data.text, rr.data.aegis, rr.data.model, p);
+        } else { board[p]='failed'; paint(); }
+      }).catch(function(){ board[p]='failed'; paint(); });
+    }
+
+    /* dispatch in Hanna's priority order, in waves of 3 to protect rate limits */
+    var i=0, WAVE=3;
+    function nextWave(){
+      if(i>=order.length){ toast('Hanna finished the appointment.'); $('send').disabled=(!unlimited&&remaining<=0); return; }
+      var slice=order.slice(i,i+WAVE); i+=WAVE;
+      Promise.all(slice.map(sendOne)).then(nextWave);
+    }
+    nextWave();
+  }).catch(function(){
+    if(current.turns[thinkIdx]) current.turns.pop();
+    addTurn('claude','Hanna could not be reached just now. Please try again.');
+    $('send').disabled=false;
+  });
+}
+
 function runBackground(payload, prompt){
   var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
   payload.jobId = jobId; payload.bg = true;
