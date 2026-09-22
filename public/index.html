@@ -958,123 +958,86 @@ function hannaAppoint(brief){
 function runBackground(payload, prompt){
   var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
   payload.jobId = jobId; payload.bg = true;
-  addTurn('claude','\u2026 '+(personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':personaSel==='solon'?'Solon':personaSel==='nour'?'Nour':personaSel==='kyros'?'Kyros':personaSel==='sinan'?'Sinan':personaSel==='platon'?'Platon':personaSel==='hanno'?'Hanno':personaSel==='hanna'?'Hanna':personaSel==='fotis'?'Fotis':personaSel==='yusuf'?'Yusuf':personaSel==='lukas'?'Lukas':personaSel==='jabir'?'Jabir':'Karam')+' is working \u2014 0s \u2026');
+  var _who = (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':personaSel==='solon'?'Solon':personaSel==='nour'?'Nour':personaSel==='kyros'?'Kyros':personaSel==='sinan'?'Sinan':personaSel==='platon'?'Platon':personaSel==='hanno'?'Hanno':personaSel==='hanna'?'Hanna':personaSel==='fotis'?'Fotis':personaSel==='yusuf'?'Yusuf':personaSel==='lukas'?'Lukas':personaSel==='jabir'?'Jabir':'Karam');
+  var nf0 = (payload && payload.files && payload.files.length) || 0;
+  addTurn('claude','\u2026 '+_who+' is thinking \u2026');
   var _bgIdx = current.turns.length - 1;
-  var _bgT0 = Date.now();
-  window.__bgProgress = null;   /* fresh job, fresh truth */
+  window.__bgProgress = null;
   var _bgEl = null;
   try { var _bt=$('log').querySelectorAll('.turn'); var _bl=_bt[_bt.length-1]; _bgEl = _bl ? _bl.querySelector('.body') : null; } catch(e){}
-  /* A REAL HEARTBEAT. The old code only refreshed this label every 15 polls — i.e. every 30 SECONDS —
-     so the operator stared at a frozen "one moment" for half a minute and reasonably concluded it had
-     died. A 1-second clock, independent of the poll, so you can always see it is alive. */
-  /* STAGED PROGRESS — it must know WHAT WAS ASKED, not just how long it has been.
-     Bug caught before shipping: with no file attached, this used to say "writing the file" after
-     60 seconds — for a plain QUESTION. That is a lie, and this Lab does not lie about its own state.
-     Three genuinely different jobs, three honest progressions:
-       files attached  -> reading  -> working  -> WRITING the file (the slow part)
-       a file REQUESTED -> thinking -> building your file
-       a plain question -> thinking -> still thinking (never any file language)
-     On this path the model sends nothing until it finishes, so the phase is a TIME-BASED ESTIMATE,
-     not a claim of knowledge. But the stages are real and they happen in that order. */
-  var _bgTick = setInterval(function(){
-    var secs = Math.round((Date.now() - _bgT0)/1000);
-    var who  = (personaSel==='nicolle'?'Nicolle':personaSel==='karim'?'Karim':personaSel==='giorgos'?'Giorgos':personaSel==='galen'?'Galen':personaSel==='elias'?'Elias':personaSel==='kostas'?'Kostas':personaSel==='elena'?'Elena':personaSel==='solon'?'Solon':personaSel==='nour'?'Nour':personaSel==='kyros'?'Kyros':personaSel==='sinan'?'Sinan':personaSel==='platon'?'Platon':personaSel==='hanno'?'Hanno':personaSel==='hanna'?'Hanna':personaSel==='fotis'?'Fotis':personaSel==='yusuf'?'Yusuf':personaSel==='lukas'?'Lukas':personaSel==='jabir'?'Jabir':'Karam');
-    var nf   = (payload && payload.files && payload.files.length) || 0;
-    var askedFile = /\b(pdf|powerpoint|pptx|docx|xlsx|excel|spreadsheet|word doc|deck|slides|zip|deliver|download)\b/i.test(String(prompt||''));
-    var rebuild   = nf > 0 && /\b(rebuild|rewrite|complete|full|whole|deliver)\b/i.test(String(prompt||''));
-    var stage;
-    /* PREFER THE TRUTH. The server streams from Anthropic and reports what is ACTUALLY happening —
-       the model it called, and the real token count as it writes. Use that when we have it. Only fall
-       back to the time-based estimate in the first second, before the first progress report lands. */
-    /* LIVE_PULSE: self-driven. The previous indicator only moved when the server sent
-       a progress report, so a dead job froze mid-word and looked busy forever. This one
-       advances on elapsed time and only SHARPENS when a report arrives - so it is never
-       stale, and past the usual window it says plainly that this is taking longer than
-       normal rather than pretending. A dead job must not look alive. */
-    var pr = window.__bgProgress;
-    var _pulse = ['gathering the thread', 'weighing it', 'working it through',
-                  'shaping the answer', 'putting it in order'];
-    var _slow = secs > 150;
-    if (pr && pr.stage) {
-      if (pr.stage === 'searching')      stage = 'combing the wires';
-      else if (pr.stage === 'thinking')  stage = (pr.model || 'the model') + ' is turning it over' + (pr.waited ? (' — ' + pr.waited + 's') : '');
-      else if (pr.stage === 'writing')   stage = 'setting it down — ' + pr.tokens.toLocaleString() + ' words in';
-      else if (pr.stage === 'calling')   stage = 'rousing ' + (pr.model || 'the model');
-      else if (pr.stage === 'done')      stage = 'carrying it back — ' + pr.tokens.toLocaleString() + ' words';
-      else                               stage = pr.stage;
-      /* Even with a report, if nothing has changed for a long while, say so. */
-      if (_slow) stage = stage + '  (longer than usual — still holding)';
-    } else if (nf && secs < 20) {
-      stage = 'taking in your ' + nf + ' file' + (nf > 1 ? 's' : '');
-    } else if (_slow) {
-      stage = 'still holding — this is longer than usual';
-    } else {
-      /* HONEST: no report from backend. Do NOT invent progress. */
-      stage = (secs > 90) ? ('no word back from the engine in ' + secs + 's - it may have stalled') : 'waiting for the engine to report';
-    }
-    var mins = Math.floor(secs/60), rem = secs % 60;
-    var t = mins ? (mins + 'm ' + rem + 's') : (secs + 's');
-    var lbl = '\u2026 ' + who + ' \u2014 ' + t + ' \u2014 ' + stage + ' \u2026';
-    if(_bgEl){ _bgEl.textContent = lbl; }
-    else { var tt=current.turns[_bgIdx]; if(tt){ tt.text = lbl; renderTurns(); } }
+  var _lastState = 'thinking';
+  function _paint(state){
+    _lastState = state || _lastState;
+    var lbl = '\u2026 ' + _who + ' \u2014 ' + _lastState + ' \u2026';
+    try{ if(_bgEl){ _bgEl.textContent = lbl; return; } var tt=current.turns[_bgIdx]; if(tt){ tt.text = lbl; } }catch(e){}
+  }
+  function _fromBackend(pr){
+    if(!pr || !pr.stage) return null;
+    if(pr.stage==='searching') return 'searching';
+    if(pr.stage==='calling')   return 'reaching the engine';
+    if(pr.stage==='thinking')  return (pr.model || _who) + ' is thinking';
+    if(pr.stage==='writing')   return 'writing \u2014 ' + (pr.tokens?pr.tokens.toLocaleString():'0') + ' words';
+    if(pr.stage==='done')      return 'finishing';
+    return pr.stage;
+  }
+  var _tick = setInterval(function(){
+    var s = _fromBackend(window.__bgProgress);
+    if(s) _paint(s);
   }, 1000);
-  function _bgStop(){ try{ clearInterval(_bgTick); }catch(e){} }
-  // Kick off the background job (returns 202 immediately).
-  api('chat-background',{method:'POST',body:JSON.stringify(payload)}).then(function(){
-    var tries = 0, maxTries = 900; var _missN=0; var _doneN=0;   /* 900 x 2s = 30 MIN. The server tops out at 18 — the browser must
-                                       NEVER give up before the server does. It used to quit at 12 minutes
-                                       while the file was still being written. That was the bug. */ // ~12 min at 2s intervals
-    var poll = setInterval(function(){
-      tries++;
-      // Gentle progress reassurance so a long job never feels stuck (updates the placeholder text).
-      api('chat-result',{method:'POST',body:JSON.stringify({jobId:jobId})}).then(function(r){
-        if(!(r.ok && r.data)) return;
-        var st = r.data.status;
-        /* REAL PROGRESS from the server — which model, and how many tokens ACTUALLY written. */
-        if(r.data.progress){ window.__bgProgress = r.data.progress; }
-        if(st==='missing' && window.__bgProgress){ _missN++; if(_missN>=6){ clearInterval(poll); _bgStop(); current.turns.pop(); addTurn('claude','The answer was written but its delivery was lost in transit. Please ask once more.'); } return; } if(st!=='missing'){ _missN=0; } var _pd=window.__bgProgress; if(_pd && _pd.stage==='done' && st!=='done' && st!=='error'){ _doneN++; if(_doneN>=90){   /* 180s, was 50s - a heavy turn on a large archive is slow, not dead */ clearInterval(poll); _bgStop(); window.__lastJobId=jobId; current.turns.pop(); addTurn('claude','The answer was generated but its delivery has not arrived after 50 seconds. It may still land in the store - if it does not appear, please ask once more. (info@bionectech.com)'); try{ saveData(); }catch(e){} $('send').disabled=false; return; } } else { _doneN=0; } if(st==='done'){
-          clearInterval(poll); _bgStop();
-          var d = (r.data.result)||{};
-          current.turns.pop();
-          if(d.text){ addTurnA('claude',d.text,d.aegis,d.model,d.persona,d.websearched,d.modelNote); if(autoRead) speak(d.text,d.persona||personaSel); pushLive(personaSel, prompt, d.text); }
-          else { addTurn('claude','That did not come through ('+((d.error)||'no text')+'). Mind trying once more? (info@bionectech.com)'); if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); } }
-          $('send').disabled=(!unlimited&&remaining<=0);
-        } else if(st==='error'){
-          clearInterval(poll); _bgStop();
-          current.turns.pop();
-          var em=((r.data.result&&r.data.result.error))||'error';
-          addTurn('claude','That did not come through ('+em+'). Mind trying once more? (info@bionectech.com)');
-          if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); }
-          $('send').disabled=false;
-        } else if(st==='missing' && tries>30){
-          // job never registered — the background function isn't deployed on this site yet. Fall back
-          // to SYNC, but cap it hard (no deep thinking, modest output) so it finishes within the 26s
-          // limit instead of 504-ing. Tell the user the file may be trimmed and to deploy background.
-          clearInterval(poll); _bgStop();
-          current.turns.pop();
-          delete payload.bg; delete payload.jobId;
-          // DO NOT cap the output here. This used to force maxTokens=8000, so if the background
-          // function was ever unreachable, a PDF/deck/spreadsheet came back SILENTLY TRUNCATED.
-          // Let the server apply its normal ceiling; a cut-off file is worse than a slow one.
-          payload.smart=false; payload.fast=false;
-          addTurn('claude','… (running the quick path — deploy the background function for full large-file support) …');
-          api('chat',{method:'POST',body:JSON.stringify(payload)}).then(function(rr){
+  function _stop(){ try{ clearInterval(_tick); }catch(e){} }
+  var _startDelay = nf0>0 ? 1500 : 0;
+  setTimeout(function(){
+    api('chat-background',{method:'POST',body:JSON.stringify(payload)}).then(function(){
+      var tries=0, maxTries=900, _missN=0, _doneN=0, _netMiss=0;
+      var poll = setInterval(function(){
+        tries++;
+        api('chat-result',{method:'POST',body:JSON.stringify({jobId:jobId})}).then(function(r){
+          if(!(r && r.data)){ return; }
+          if(r.status===401 || !r.ok){ _netMiss++; if(_netMiss<15){ _paint('reconnecting'); return; } clearInterval(poll); _stop(); return; }
+          _netMiss=0;
+          var st = r.data.status;
+          if(r.data.progress){ window.__bgProgress = r.data.progress; }
+          if(st==='missing' && window.__bgProgress){ _missN++; if(_missN>=6){ clearInterval(poll); _stop(); current.turns.pop(); addTurn('claude','The answer was written but its delivery was lost in transit. Please ask once more.'); } return; }
+          if(st!=='missing'){ _missN=0; }
+          var _pd=window.__bgProgress;
+          if(_pd && _pd.stage==='done' && st!=='done' && st!=='error'){ _doneN++; if(_doneN>=90){ clearInterval(poll); _stop(); window.__lastJobId=jobId; current.turns.pop(); addTurn('claude','The answer was generated but its delivery has not arrived. It may still land in the store - if it does not appear, please ask once more. (info@bionectech.com)'); try{ saveData(); }catch(e){} $('send').disabled=false; return; } } else { _doneN=0; }
+          if(st==='done'){
+            clearInterval(poll); _stop();
+            var d = (r.data.result)||{};
             current.turns.pop();
-            if(rr.ok&&rr.data&&rr.data.text){ addTurnA('claude',rr.data.text,rr.data.aegis,rr.data.model,rr.data.persona,rr.data.websearched,rr.data.modelNote); if(autoRead) speak(rr.data.text,rr.data.persona||personaSel); pushLive(personaSel, prompt, rr.data.text); }
-            else { var em2=(rr.data&&rr.data.error)||('HTTP '+rr.status); addTurn('claude','That did not come through ('+em2+'). For large files, the background function needs deploying — or send a smaller file. (info@bionectech.com)'); if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); } }
+            if(d.text){ addTurnA('claude',d.text,d.aegis,d.model,d.persona,d.websearched,d.modelNote); if(autoRead) speak(d.text,d.persona||personaSel); pushLive(personaSel, prompt, d.text); }
+            else { addTurn('claude','That did not come through ('+((d.error)||'no text')+'). Mind trying once more? (info@bionectech.com)'); if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); } }
             $('send').disabled=(!unlimited&&remaining<=0);
-          }).catch(function(){ current.turns.pop(); addTurn('claude','I can\'t reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)'); $('send').disabled=false; });
-        }
-        if(tries>=maxTries){ clearInterval(poll); _bgStop();
-          window.__lastJobId = jobId;   /* keep it — the answer may still land in the store */ current.turns.pop(); addTurn('claude','This one is taking longer than expected. It may still finish — try asking again, or send a smaller file. (info@bionectech.com)'); $('send').disabled=false; }
-      }).catch(function(){ /* transient poll error — keep polling */ });
-    }, 2000);
-  }).catch(function(){
-    _bgStop();
-    current.turns.pop();
-    addTurn('claude','I can\'t reach the Lab right now — a connection hiccup. Please try again. (info@bionectech.com)');
-    $('send').disabled=false;
-  });
+          } else if(st==='error'){
+            clearInterval(poll); _stop();
+            current.turns.pop();
+            var em=((r.data.result&&r.data.result.error))||'error';
+            addTurn('claude','That did not come through ('+em+'). Mind trying once more? (info@bionectech.com)');
+            if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); }
+            $('send').disabled=false;
+          } else if(st==='missing' && tries>30){
+            clearInterval(poll); _stop();
+            current.turns.pop();
+            delete payload.bg; delete payload.jobId;
+            payload.smart=false; payload.fast=false;
+            addTurn('claude','\u2026 running the quick path \u2026');
+            api('chat',{method:'POST',body:JSON.stringify(payload)}).then(function(rr){
+              current.turns.pop();
+              if(rr.ok&&rr.data&&rr.data.text){ addTurnA('claude',rr.data.text,rr.data.aegis,rr.data.model,rr.data.persona,rr.data.websearched,rr.data.modelNote); if(autoRead) speak(rr.data.text,rr.data.persona||personaSel); pushLive(personaSel, prompt, rr.data.text); }
+              else { var em2=(rr.data&&rr.data.error)||('HTTP '+rr.status); addTurn('claude','That did not come through ('+em2+'). For large files, the background function needs deploying \u2014 or send a smaller file. (info@bionectech.com)'); if(payload.files&&payload.files.length){ pending=payload.files.concat(pending); renderChips(); } }
+              $('send').disabled=(!unlimited&&remaining<=0);
+            }).catch(function(){ current.turns.pop(); addTurn('claude','I could not reach the Lab just now. Please try again. (info@bionectech.com)'); $('send').disabled=false; });
+          }
+          if(tries>=maxTries){ clearInterval(poll); _stop(); window.__lastJobId = jobId; current.turns.pop(); addTurn('claude','This one is taking longer than expected. It may still finish \u2014 try asking again, or send a smaller file. (info@bionectech.com)'); $('send').disabled=false; }
+        }).catch(function(){ _netMiss++; if(_netMiss<15){ _paint('reconnecting'); } else { clearInterval(poll); _stop(); } });
+      }, 2000);
+    }).catch(function(){
+      _stop();
+      current.turns.pop();
+      addTurn('claude','I could not reach the Lab just now. Please try again. (info@bionectech.com)');
+      $('send').disabled=false;
+    });
+  }, _startDelay);
 }
 function send(){
   var prompt=($('ask').value||'').trim();
