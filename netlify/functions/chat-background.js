@@ -19,7 +19,7 @@ async function writeFinal(jobId, value) {
   // Best-effort mirror to the legacy key too (harmless if a late heartbeat clobbers it —
   // the poller reads 'jobdone:' first).
   try { await writeJSON(null, 'job:' + jobId, value); } catch (e) {}
-  console.log("[bg] writeFinal jobId=" + jobId + " ok=" + ok + " bytes=" + JSON.stringify(value).length); return ok;
+  console.log("[bg] writeFinal jobId=" + jobId + " ok=" + ok + " bytes=" + JSON.stringify(value).length + " body=" + JSON.stringify(value).slice(0,400)); return ok;
 }
 exports.handler = async function (event) {
   // Background functions return 202 immediately to the caller; the real work continues here.
