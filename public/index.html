@@ -802,7 +802,7 @@ function addTurnA(role,text,aegis,model,persona,websearched,modelNote){current.t
 async function bigFileFlow(userTask, bigText, otherFiles, mode, temp){
   var task=userTask||'Review the attached document.';
   addTurn('you', task); $('send').disabled=true;
-  var CHUNK=150000; var chunks=[]; for(var p=0;p<bigText.length;p+=CHUNK) chunks.push(bigText.slice(p,p+CHUNK));
+  var CHUNK=600000; var chunks=[]; for(var p=0;p<bigText.length;p+=CHUNK) chunks.push(bigText.slice(p,p+CHUNK));
   var N=chunks.length;
   addTurn('claude','Reading a large document in '+N+' part'+(N>1?'s':'')+'…');
   var statusIdx=current.turns.length-1;
