@@ -812,7 +812,7 @@ async function bigFileFlow(userTask, bigText, otherFiles, mode, temp){
     for(var i=0;i<N;i++){
       setStatus('Reading part '+(i+1)+' of '+N+'…');
       var cp='You are reading a large document in parts to help with this task: "'+task+'".\n\nThis is PART '+(i+1)+' of '+N+'.\n\n--- BEGIN PART ---\n'+chunks[i]+'\n--- END PART ---\n\n'+(summary?('Running summary so far:\n'+summary+'\n\n'):'')+'Update the running summary so it captures everything important from all parts read so far that is relevant to the task. Be concise but complete. Output ONLY the updated summary.';
-      var rr=await api('chat',{method:'POST',body:JSON.stringify({prompt:cp,history:[],files:[],model:$('model').value,mode:mode,temperature:0.3,engine:false,ownerCode:ownerCode,web:false,fast:true,maxTokens:1024})});
+      var rr=await api('chat',{method:'POST',body:JSON.stringify({prompt:cp,history:[],files:[],model:$('model').value,mode:mode,temperature:0.3,engine:false,ownerCode:ownerCode,web:false,fast:false,smart:true,maxTokens:1024})});
       if(!(rr.ok&&rr.data&&rr.data.text)){ setStatus('[not delivered] Could not read part '+(i+1)+' of '+N+': '+((rr.data&&rr.data.error)||('HTTP '+rr.status))); $('send').disabled=(!unlimited&&remaining<=0); saveData(); return; }
       summary=rr.data.text;
     }
