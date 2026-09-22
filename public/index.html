@@ -1134,6 +1134,58 @@ function tektonDispatch(brief){
   }catch(e){}
 })();
 
+/* ============================================================
+   PANEL MIC (v1) — voice dictation for Hanna & Tekton brief boxes.
+   Additive & self-contained: adds a mic button next to hannaBrief
+   and tektonBrief whenever those panels open. Reuses the browser
+   SpeechRecognition the Lab already uses. No edits to the panels.
+   ============================================================ */
+var _PanelSR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function _panelMicWire(taId, btnId){
+  var ta = document.getElementById(taId);
+  var btn = document.getElementById(btnId);
+  if(!ta || !btn) return;
+  if(btn._wired) return; btn._wired = true;
+  if(!_PanelSR){ btn.disabled = true; btn.title = 'Voice not supported'; btn.textContent = 'no mic'; return; }
+  var rec = null, listening = false;
+  btn.addEventListener('click', function(){
+    if(listening){ try{ rec && rec.stop(); }catch(e){} return; }
+    try{
+      rec = new _PanelSR();
+      rec.lang = 'en-US'; rec.interimResults = false; rec.continuous = true;
+      rec.onstart = function(){ listening = true; btn.textContent = '\u25A0 Stop'; };
+      rec.onend   = function(){ listening = false; btn.textContent = '\uD83C\uDFA4 Speak'; };
+      rec.onerror = function(){};
+      rec.onresult = function(ev){
+        var txt = '';
+        for(var i = ev.resultIndex; i < ev.results.length; i++){ if(ev.results[i].isFinal) txt += ev.results[i][0].transcript; }
+        if(txt){ ta.value = (ta.value ? ta.value + ' ' : '') + txt.trim(); }
+      };
+      rec.start();
+    }catch(e){ try{ if(typeof toast==='function') toast('Could not start voice.'); }catch(_){} }
+  });
+}
+
+/* When a brief textarea appears without a mic button, inject one and wire it. */
+function _panelMicInject(taId){
+  var ta = document.getElementById(taId);
+  if(!ta) return;
+  var micId = taId + '_mic';
+  if(document.getElementById(micId)) { _panelMicWire(taId, micId); return; }
+  var btn = document.createElement('button');
+  btn.id = micId; btn.type = 'button'; btn.textContent = '\uD83C\uDFA4 Speak';
+  btn.style.cssText = 'margin-top:6px;width:100%;padding:6px;border-radius:8px;border:1px solid #456;background:#123;color:#fff;cursor:pointer;font-family:monospace;font-size:12px';
+  ta.parentNode.insertBefore(btn, ta.nextSibling);
+  _panelMicWire(taId, micId);
+}
+
+/* Poll lightly for the panels opening; inject the mic when their textarea shows. */
+setInterval(function(){
+  _panelMicInject('hannaBrief');
+  _panelMicInject('tektonBrief');
+}, 1200);
+
 function runBackground(payload, prompt){
   var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
   payload.jobId = jobId; payload.bg = true;
