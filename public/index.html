@@ -1031,6 +1031,109 @@ function hannaAppoint(brief){
   });
 }
 
+/* ============================================================
+   TEKTON — THE AI ENGINEER (Hanna's technical twin; additive)
+   Own button + code gate + brief box. Sends the brief to Karam
+   (Tekton's engineering brain, installed in chat.js), reads his
+   APPOINT line, and dispatches to the technical desks — same
+   engine as Hanna. A human still runs any commit.
+   ============================================================ */
+var TEKTON_CODE = "MYENGCODE";   /* EDIT to your secret, then commit */
+var _tektonUnlocked = false;
+try{ if(sessionStorage.getItem('bnt_tekton_ok')==='1') _tektonUnlocked = true; }catch(e){}
+
+function tektonOpenPanel(){
+  var pan = document.getElementById('tektonPanel');
+  if(pan){ pan.style.display = (pan.style.display==='none'||!pan.style.display) ? 'block' : 'none'; return; }
+  pan = document.createElement('div');
+  pan.id = 'tektonPanel';
+  pan.style.cssText = 'position:fixed;right:18px;bottom:140px;z-index:9999;width:min(440px,92vw);background:#0b2534;color:#fff;border:1px solid #2ec4b6;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.5);padding:14px;font-family:var(--serif,serif)';
+  pan.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+      '<b style="color:#2ec4b6">Tekton \u2014 Lab Engineer</b>'+
+      '<span id="tektonClose" style="cursor:pointer;opacity:.7">\u2715</span>'+
+    '</div>'+
+    '<div id="tektonGate">'+
+      '<div style="font-family:monospace;font-size:11px;opacity:.8;margin-bottom:6px">Enter engineer code</div>'+
+      '<input id="tektonCodeInput" type="password" style="width:100%;padding:8px;border-radius:8px;border:1px solid #234;background:#08202c;color:#fff;box-sizing:border-box">'+
+      '<button id="tektonUnlockBtn" class="btn sm" style="margin-top:8px;width:100%;background:#2ec4b6;color:#042;border:none">Unlock Tekton</button>'+
+      '<div id="tektonGateErr" style="color:#f88;font-family:monospace;font-size:11px;min-height:14px;margin-top:4px"></div>'+
+    '</div>'+
+    '<div id="tektonWork" style="display:none">'+
+      '<div style="font-family:monospace;font-size:11px;opacity:.8;margin-bottom:6px">Technical brief \u2014 Tekton diagnoses, plans the gated fix, and appoints the desks. A human runs the commit.</div>'+
+      '<textarea id="tektonBrief" rows="4" style="width:100%;padding:8px;border-radius:8px;border:1px solid #234;background:#08202c;color:#fff;box-sizing:border-box;resize:vertical"></textarea>'+
+      '<button id="tektonDispatchBtn" class="btn sm" style="margin-top:8px;width:100%;background:#2ec4b6;color:#042;border:none">Send to Tekton \u2014 diagnose & appoint</button>'+
+    '</div>';
+  document.body.appendChild(pan);
+
+  document.getElementById('tektonClose').addEventListener('click',function(){ pan.style.display='none'; });
+  document.getElementById('tektonUnlockBtn').addEventListener('click',tektonTryUnlock);
+  var ci=document.getElementById('tektonCodeInput');
+  if(ci) ci.addEventListener('keydown',function(e){ if(e.key==='Enter') tektonTryUnlock(); });
+  document.getElementById('tektonDispatchBtn').addEventListener('click',function(){
+    var b=document.getElementById('tektonBrief').value;
+    pan.style.display='none';
+    tektonDispatch(b);
+  });
+  if(_tektonUnlocked){ tektonShowWork(); }
+}
+function tektonTryUnlock(){
+  var v=(document.getElementById('tektonCodeInput').value||'');
+  if(v && v===TEKTON_CODE){ _tektonUnlocked=true; try{ sessionStorage.setItem('bnt_tekton_ok','1'); }catch(e){} tektonShowWork(); }
+  else { var er=document.getElementById('tektonGateErr'); if(er) er.textContent='Wrong code.'; }
+}
+function tektonShowWork(){
+  var g=document.getElementById('tektonGate'); var w=document.getElementById('tektonWork');
+  if(g) g.style.display='none'; if(w) w.style.display='block';
+}
+
+/* Tekton dispatch: ask KARAM (Tekton's engineering brain) to diagnose+appoint, then
+   reuse Hanna's parse + board + wave dispatch (hannaParseAppoint / hannaBoardText). */
+function tektonDispatch(brief){
+  if(!brief || !brief.trim()){ toast('Tekton needs a technical brief.'); return; }
+  addTurn('you', 'TEKTON BRIEF: ' + brief);
+  $('send').disabled=true;
+  addTurn('claude','\u2026 Tekton is diagnosing \u2026');
+  var thinkIdx=current.turns.length-1;
+  var engBrief = 'Act in TEKTON SUPERVISOR MODE (the Lab engineer). Diagnose before fixing, state the cause with evidence, propose the gated fix, say what a human must confirm before it ships, and END with an APPOINT line for the desks. Technical brief: ' + brief;
+  api('chat',{method:'POST',body:JSON.stringify({
+    prompt: engBrief, history:[], files:[], model:$('model').value, mode:'answer',
+    temperature:0.3, engine:false, ownerCode:ownerCode, web:false, fast:false, smart:false, persona:'karam'
+  })}).then(function(r){
+    if(!(r.ok && r.data && r.data.text)){ if(current.turns[thinkIdx]) current.turns.pop(); addTurn('claude','Tekton could not diagnose just now. Please try again.'); $('send').disabled=false; return; }
+    var plan=r.data.text;
+    if(current.turns[thinkIdx]) current.turns.pop();
+    addTurnA('claude', plan, r.data.aegis, r.data.model, 'karam');
+    var appointed = (typeof hannaParseAppoint==='function') ? hannaParseAppoint(plan) : [];
+    if(!appointed.length){ addTurn('claude','Tekton diagnosed but named no desks (no APPOINT line). Nothing dispatched.'); $('send').disabled=false; return; }
+    var order=appointed.map(function(x){ return x[0]; });
+    var board={}; order.forEach(function(p){ board[p]='pending'; });
+    addTurn('claude', hannaBoardText('TEKTON appointed:', board, order));
+    var boardTurn=current.turns.length-1;
+    function paint(){ if(current.turns[boardTurn]){ current.turns[boardTurn].text=hannaBoardText('TEKTON appointed:', board, order); renderTurns(); } }
+    function sendOne(p){
+      board[p]='working'; paint();
+      return api('chat',{method:'POST',body:JSON.stringify({ prompt:brief, history:[], files:[], model:$('model').value, mode:'answer', temperature:0.3, engine:false, ownerCode:ownerCode, web:false, fast:false, smart:false, persona:p })})
+      .then(function(rr){ if(rr.ok&&rr.data&&rr.data.text){ board[p]='delivered'; paint(); addTurnA('claude','['+(HANNA_PERSONA_LABEL[p]||p)+'] '+rr.data.text, rr.data.aegis, rr.data.model, p); } else { board[p]='failed'; paint(); } })
+      .catch(function(){ board[p]='failed'; paint(); });
+    }
+    var i=0, WAVE=3;
+    (function nextWave(){ if(i>=order.length){ toast('Tekton finished the dispatch.'); $('send').disabled=(!unlimited&&remaining<=0); return; } var slice=order.slice(i,i+WAVE); i+=WAVE; Promise.all(slice.map(sendOne)).then(nextWave); })();
+  }).catch(function(){ if(current.turns[thinkIdx]) current.turns.pop(); addTurn('claude','Tekton could not be reached just now.'); $('send').disabled=false; });
+}
+
+/* floating Tekton button (teal, above Hanna) */
+(function(){
+  try{
+    if(document.getElementById('tektonFab')) return;
+    var fab=document.createElement('button');
+    fab.id='tektonFab'; fab.textContent='Tekton';
+    fab.style.cssText='position:fixed;right:18px;bottom:96px;z-index:9998;background:#2ec4b6;color:#042;border:none;border-radius:20px;padding:8px 16px;font-weight:bold;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);font-family:monospace';
+    fab.addEventListener('click',tektonOpenPanel);
+    document.body.appendChild(fab);
+  }catch(e){}
+})();
+
 function runBackground(payload, prompt){
   var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
   payload.jobId = jobId; payload.bg = true;
