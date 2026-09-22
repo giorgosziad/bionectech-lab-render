@@ -5895,7 +5895,7 @@ function _memPick(store, query, budget) {
   // question to Fable still needs minutes, and it died at 85s. The model decides the budget, NOT the
   // length of the question. Only a fast model on a light turn stays at 85s.
   var _heavyTurn = _isFileJob || b.web || b.smart || _deepModel;
-  const _turnBudgetMs = b.bg ? (18 * 60 * 1000) : (_heavyTurn ? (10 * 60 * 1000) : 85000);   // files: 5 min. chat: 85s.
+  const _turnBudgetMs = b.bg ? (18 * 60 * 1000) : (_heavyTurn ? (10 * 60 * 1000) : 300000);   // files: 5 min. chat: 85s.
   const _turnStart = Date.now();
   const _turnEnd = _turnStart + _turnBudgetMs;
   const _msLeft = function () { return _turnEnd - Date.now(); };
