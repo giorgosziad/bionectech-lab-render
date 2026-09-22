@@ -912,7 +912,7 @@ function runBackground(payload, prompt){
     } else if (nf && secs < 20) {
       stage = 'taking in your ' + nf + ' file' + (nf > 1 ? 's' : '');
     } else if (_slow) {
-      stage = 'still holding — this is longer than usual';
+      stage = 'no word back from the engine in ' + secs + 's - it may have stalled';
     } else {
       /* HONEST: no report from backend. Do NOT invent progress. */
       stage = (secs > 90) ? ('no word back from the engine in ' + secs + 's - it may have stalled') : 'waiting for the engine to report';
