@@ -870,6 +870,82 @@ function maybeFoldSummary(){
 var HANNA_PERSONA_LABEL = { karam:'Karam', karim:'Karim', galen:'Galen', elias:'Elias', kostas:'Kostas', elena:'Elena', solon:'Solon', nour:'Nour', jabir:'Jabir', lukas:'Lukas', hanno:'Hanno', hanna:'Hanna', fotis:'Fotis', yusuf:'Yusuf', sinan:'Sinan', platon:'Platon', kyros:'Kyros', giorgos:'Giorgos', nicolle:'Nicolle' };
 var HANNA_ALL = ['karam','karim','galen','elias','kostas','elena','solon','nour','jabir','lukas','hanno','fotis','yusuf','sinan','platon','kyros','giorgos'];
 
+/* ============================================================
+   HANNA SUPERVISOR - STEP C (code gate + panel; additive)
+   A small "Hanna" control: asks for the supervisor code, and if
+   it matches HANNA_CODE, opens a brief box that calls hannaAppoint
+   (Step A). Set HANNA_CODE to your own secret below, in the file.
+   ============================================================ */
+var HANNA_CODE = "YOURCODE";   /* <-- EDIT THIS to your secret supervisor code, then commit */
+var _hannaUnlocked = false;
+
+function hannaOpenPanel(){
+  var pan = document.getElementById('hannaPanel');
+  if(pan){ pan.style.display = (pan.style.display==='none'||!pan.style.display) ? 'block' : 'none'; return; }
+  pan = document.createElement('div');
+  pan.id = 'hannaPanel';
+  pan.style.cssText = 'position:fixed;right:18px;bottom:96px;z-index:9999;width:min(420px,92vw);background:var(--navy-deep,#052744);color:#fff;border:1px solid var(--gold,#FFD600);border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.5);padding:14px;font-family:var(--serif,serif)';
+  pan.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+      '<b style="color:var(--gold,#FFD600)">Hanna \u2014 Lab Supervisor</b>'+
+      '<span id="hannaClose" style="cursor:pointer;opacity:.7">\u2715</span>'+
+    '</div>'+
+    '<div id="hannaGate">'+
+      '<div style="font-family:monospace;font-size:11px;opacity:.8;margin-bottom:6px">Enter supervisor code</div>'+
+      '<input id="hannaCodeInput" type="password" style="width:100%;padding:8px;border-radius:8px;border:1px solid #345;background:#0a1626;color:#fff;box-sizing:border-box">'+
+      '<button id="hannaUnlockBtn" class="btn gold sm" style="margin-top:8px;width:100%">Unlock Hanna</button>'+
+      '<div id="hannaGateErr" style="color:#f88;font-family:monospace;font-size:11px;min-height:14px;margin-top:4px"></div>'+
+    '</div>'+
+    '<div id="hannaWork" style="display:none">'+
+      '<div style="font-family:monospace;font-size:11px;opacity:.8;margin-bottom:6px">Brief for the Lab \u2014 Hanna will weigh it and appoint the desks</div>'+
+      '<textarea id="hannaBrief" rows="4" style="width:100%;padding:8px;border-radius:8px;border:1px solid #345;background:#0a1626;color:#fff;box-sizing:border-box;resize:vertical"></textarea>'+
+      '<button id="hannaBroadcastBtn" class="btn gold sm" style="margin-top:8px;width:100%">Send to Hanna \u2014 appoint & dispatch</button>'+
+    '</div>';
+  document.body.appendChild(pan);
+
+  document.getElementById('hannaClose').addEventListener('click',function(){ pan.style.display='none'; });
+  document.getElementById('hannaUnlockBtn').addEventListener('click',hannaTryUnlock);
+  var ci = document.getElementById('hannaCodeInput');
+  if(ci) ci.addEventListener('keydown',function(e){ if(e.key==='Enter') hannaTryUnlock(); });
+  document.getElementById('hannaBroadcastBtn').addEventListener('click',function(){
+    var b = document.getElementById('hannaBrief').value;
+    pan.style.display='none';
+    hannaAppoint(b);
+  });
+  if(_hannaUnlocked){ hannaShowWork(); }
+}
+
+function hannaTryUnlock(){
+  var v = (document.getElementById('hannaCodeInput').value||'');
+  if(v && v === HANNA_CODE){
+    _hannaUnlocked = true;
+    try{ sessionStorage.setItem('bnt_hanna_ok','1'); }catch(e){}
+    hannaShowWork();
+  } else {
+    var er=document.getElementById('hannaGateErr'); if(er) er.textContent='Wrong code.';
+  }
+}
+
+function hannaShowWork(){
+  var g=document.getElementById('hannaGate'); var w=document.getElementById('hannaWork');
+  if(g) g.style.display='none'; if(w) w.style.display='block';
+}
+
+/* restore unlock within the session */
+try{ if(sessionStorage.getItem('bnt_hanna_ok')==='1') _hannaUnlocked = true; }catch(e){}
+
+/* floating Hanna button (always available; the code still gates the actual broadcast) */
+(function(){
+  try{
+    if(document.getElementById('hannaFab')) return;
+    var fab=document.createElement('button');
+    fab.id='hannaFab'; fab.textContent='Hanna';
+    fab.style.cssText='position:fixed;right:18px;bottom:52px;z-index:9998;background:var(--gold,#FFD600);color:#052744;border:none;border-radius:20px;padding:8px 16px;font-weight:bold;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);font-family:monospace';
+    fab.addEventListener('click',hannaOpenPanel);
+    document.body.appendChild(fab);
+  }catch(e){}
+})();
+
 function hannaBoardText(title, board, order){
   var mark = { pending:'\u25CB', working:'\u25D0', delivered:'\u25CF', failed:'\u2715' };
   var lines = [title];
