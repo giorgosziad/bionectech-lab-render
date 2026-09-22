@@ -912,10 +912,10 @@ function runBackground(payload, prompt){
     } else if (nf && secs < 20) {
       stage = 'taking in your ' + nf + ' file' + (nf > 1 ? 's' : '');
     } else if (_slow) {
-      stage = 'no word back from the engine in ' + secs + 's - it may have stalled';
+      stage = 'working - ' + secs + 's';
     } else {
       /* HONEST: no report from backend. Do NOT invent progress. */
-      stage = (secs > 90) ? ('no word back from the engine in ' + secs + 's - it may have stalled') : 'waiting for the engine to report';
+      stage = 'working - ' + secs + 's';
     }
     var mins = Math.floor(secs/60), rem = secs % 60;
     var t = mins ? (mins + 'm ' + rem + 's') : (secs + 's');
