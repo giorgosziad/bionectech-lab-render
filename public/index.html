@@ -909,6 +909,8 @@ function runBackground(payload, prompt){
       else                               stage = pr.stage;
       /* Even with a report, if nothing has changed for a long while, say so. */
       if (_slow) stage = stage + '  (longer than usual — still holding)';
+    } else if (pr && typeof pr.tokens === 'number' && pr.tokens > 0) {
+      stage = 'live from engine - ' + pr.tokens.toLocaleString() + ' tokens';
     } else if (nf && secs < 20) {
       stage = 'taking in your ' + nf + ' file' + (nf > 1 ? 's' : '');
     } else if (_slow) {
