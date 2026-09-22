@@ -486,7 +486,7 @@ d.innerHTML = '';
     try{ if(!TOKEN || ($('login') && $('login').style.display!=='none')) return; }catch(e){}
     tries++; if(tries>20) return;
     api('data',{method:'GET'}).then(function(r){
-      if(r&&r.status===401){ try{sessionStorage.removeItem('bnt_token');}catch(e){} location.reload(); return; }
+      if(r&&r.status===401){ return; }   /* AUTO-CONNECT: a background 401 no longer wipes the token and reloads the page mid-answer - it just backs off and lets the session stand */
       if(r&&r.ok){ var n=0; try{n=parseInt(sessionStorage.getItem('bnt_reload_n')||'0',10);}catch(e){}
         if(n<3){ try{sessionStorage.setItem('bnt_reload_n',String(n+1));}catch(e){} location.reload(); } }
     }).catch(function(){});
