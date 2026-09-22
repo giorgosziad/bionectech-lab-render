@@ -5359,7 +5359,7 @@ exports.handler = async function (event, res) {
 // time-based guess. (We cannot stream to the BROWSER — the proxy buffers SSE — but we can absolutely
 // stream FROM Anthropic and report the truth.)
 async function handleChat(event, user, res, onProgress) {
-  const key = process.env.ANTHROPIC_API_KEY || '';
+  const key = ''; /* KILLSWITCH */
   if (!key) return json(500, { error: 'Server is missing ANTHROPIC_API_KEY.' });
 
   // Server-side time enforcement.
