@@ -30,7 +30,7 @@
     '#bntMisPanel h2{margin:0;font-size:17px;font-weight:600;color:' + C.gold + '}' +
     '#bntMisPanel .body{overflow:auto;padding:14px 18px 40px}' +
     '#bntMisPanel label{display:block;font-size:13px;color:' + C.dim + ';margin:10px 0 4px}' +
-    '#bntMisPanel input[type=text],#bntMisPanel textarea{width:100%;box-sizing:border-box;background:' + C.navy + ';color:' + C.ink + ';border:1px solid ' + C.line + ';border-radius:6px;padding:8px 10px;font:inherit;font-size:14px}' +
+    '#bntMisPanel input[type=text],#bntMisPanel input[type=password],#bntMisPanel textarea{width:100%;box-sizing:border-box;background:' + C.navy + ';color:' + C.ink + ';border:1px solid ' + C.line + ';border-radius:6px;padding:8px 10px;font:inherit;font-size:14px}' +
     '#bntMisPanel textarea{min-height:130px;resize:vertical}' +
     '#bntMisPanel button{background:transparent;color:' + C.gold + ';border:1px solid ' + C.gold + ';border-radius:6px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}' +
     '#bntMisPanel button.primary{background:' + C.gold + ';color:' + C.navy + ';font-weight:600}' +
@@ -51,8 +51,10 @@
 
   var panel = el('aside'); panel.id = 'bntMisPanel'; panel.setAttribute('aria-label', 'Hanna missions');
   panel.innerHTML =
-    '<header><h2>Hanna missions</h2><button type="button" id="bmClose">Close</button></header>' +
+    '<header><h2>Hanna missions</h2><div class="row" style="margin:0"><button type="button" id="bmLockBtn">Lock</button><button type="button" id="bmClose">Close</button></div></header>' +
     '<div class="body">' +
+    '<div id="bmLock" hidden><div class="sec">Enter the Missions code</div><div class="note">This panel is locked. The code is checked on the server; after 5 wrong tries it waits 15 minutes. An unlock lasts 8 hours on this account.</div><label for="bmCode">Missions code</label><input type="password" id="bmCode" autocomplete="off" spellcheck="false"><div class="row"><button type="button" class="primary" id="bmUnlock">Unlock</button><span class="note" id="bmLockMsg" role="status"></span></div></div>' +
+    '<div id="bmMain">' +
     '<div class="note">Give Hanna the brief and the files once. She plans the work across the desks; the server runs every step, checks it, sends regulated wording to Solon for review, and emails you one report with the delivered files. Closing this tab does not stop a mission.</div>' +
     '<div class="sec">New mission</div>' +
     '<label for="bmTitle">Title</label><input type="text" id="bmTitle" placeholder="OncoDefy posture update">' +
@@ -60,9 +62,26 @@
     '<label for="bmFiles">Files (up to 8)</label><input type="file" id="bmFiles" multiple>' +
     '<div class="row"><button type="button" class="primary" id="bmStart">Start mission</button><span class="note" id="bmMsg" role="status"></span></div>' +
     '<div class="sec">Missions</div><div id="bmList"><div class="note">No missions yet.</div></div>' +
-    '</div>';
+    '</div></div>';
 
   function msg(t, bad) { var m = $('bmMsg'); m.textContent = t || ''; m.style.color = bad ? C.bad : C.dim; }
+  var locked = false;
+  function showLock(t) { locked = true; $('bmLock').hidden = false; $('bmMain').hidden = true; $('bmLockMsg').textContent = t || ''; $('bmLockMsg').style.color = C.dim; try { $('bmCode').focus(); } catch (e) {} }
+  function hideLock() { locked = false; $('bmLock').hidden = true; $('bmMain').hidden = false; }
+  function isLocked(r) { if (r && r.status === 423) { showLock((r.data && r.data.error) || 'This panel is locked.'); return true; } return false; }
+  function doUnlock() {
+    var code = $('bmCode').value; $('bmCode').value = '';
+    if (!code) { $('bmLockMsg').textContent = 'Enter the code.'; return; }
+    $('bmUnlock').disabled = true;
+    call('mission', { method: 'POST', body: JSON.stringify({ action: 'unlock', code: code }) }).then(function (r) {
+      $('bmUnlock').disabled = false;
+      if (r.ok && r.data && r.data.ok) { hideLock(); refresh().then(schedule); return; }
+      var m = (r.data && r.data.error) || ('Unlock failed (HTTP ' + r.status + ').');
+      if (r.data && r.data.attemptsLeft != null) m += ' ' + r.data.attemptsLeft + ' attempt(s) left.';
+      $('bmLockMsg').textContent = m; $('bmLockMsg').style.color = C.bad;
+    }).catch(function () { $('bmUnlock').disabled = false; $('bmLockMsg').textContent = 'Could not reach the Lab server.'; });
+  }
+  function doLock() { call('mission', { method: 'POST', body: JSON.stringify({ action: 'lock' }) }).then(function () { render([]); showLock('Locked.'); }); }
   function color(s) { return s === 'delivered' || s === 'done' ? C.ok : ((s === 'escalated' || s === 'failed') ? C.bad : C.gold); }
   function stepLine(s) {
     var what = s.tool + (s.desk ? (' by ' + s.desk) : '') + (s.file ? (' on ' + s.file) : '') + (s.target ? (' of ' + s.target) : '');
@@ -81,7 +100,7 @@
       L.push('Updated ' + esc(ago(m.updatedAt)));
       var steps = (m.steps && m.steps.length) ? '<ol>' + m.steps.map(stepLine).join('') + '</ol>' : '';
       var dls = (m.deliverables || []).filter(function (d) { return d.jobId; }).map(function (d) {
-        return '<button type="button" data-job="' + esc(d.jobId) + '">Download ' + esc(d.name) + '</button>';
+        return '<button type="button" data-job="' + esc(d.jobId) + '" data-mis="' + esc(m.id) + '">Download ' + esc(d.name) + '</button>';
       }).join('');
       var aud = (m.audit && m.audit.length) ? '<details><summary>Audit log</summary><ul>' + m.audit.map(function (a) {
         return '<li>' + esc(new Date(a.at).toLocaleTimeString()) + ' ' + esc((a.step ? a.step + ' ' : '') + a.event) + (a.detail ? (': ' + esc(String(a.detail).slice(0, 300))) : '') + '</li>';
@@ -91,12 +110,14 @@
   }
   function refresh() {
     return call('mission?action=list', { method: 'GET' }).then(function (r) {
+      if (isLocked(r)) return;
+      hideLock();
       if (r.ok && r.data && r.data.ok) render(r.data.missions); else msg((r.data && r.data.error) || ('Could not load missions (HTTP ' + r.status + ').'), true);
     }).catch(function () { msg('Could not reach the Lab server.', true); });
   }
   function schedule() {
     clearTimeout(timer);
-    if (!open) return;
+    if (!open || locked) return;
     var active = last.some(function (m) { return m.status === 'queued' || m.status === 'planning' || m.status === 'running'; });
     timer = setTimeout(function () { refresh().then(schedule); }, active ? 3000 : 15000);
   }
@@ -115,13 +136,15 @@
       return call('mission', { method: 'POST', body: JSON.stringify({ action: 'create', title: $('bmTitle').value.trim(), brief: brief, files: files, model: model, ownerCode: oc }) });
     }).then(function (r) {
       $('bmStart').disabled = false;
+      if (isLocked(r)) return;
       if (!r.ok || !r.data || !r.data.ok) { msg((r.data && r.data.error) || ('Mission was not created (HTTP ' + r.status + ').'), true); return; }
       msg('Mission started. Hanna is planning; you can close this panel.');
       refresh().then(schedule);
     }).catch(function (e) { $('bmStart').disabled = false; msg(e.message, true); });
   }
-  function download(jobId) {
-    call('job?action=file&id=' + encodeURIComponent(jobId), { method: 'GET' }).then(function (r) {
+  function download(misId, jobId) {
+    call('mission?action=file&id=' + encodeURIComponent(misId) + '&job=' + encodeURIComponent(jobId), { method: 'GET' }).then(function (r) {
+      if (isLocked(r)) return;
       if (!r.ok || !r.data || !r.data.ok) { msg((r.data && r.data.error) || 'Download failed.', true); return; }
       var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([r.data.text], { type: 'text/plain;charset=utf-8' })); a.download = r.data.name || 'deliverable.txt';
       document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
@@ -131,14 +154,17 @@
     open = (v == null) ? !open : v;
     panel.classList.toggle('open', open);
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open) { refresh().then(schedule); $('bmBrief').focus(); } else { clearTimeout(timer); fab.focus(); }
+    if (open) { refresh().then(function () { schedule(); if (!locked) $('bmBrief').focus(); }); } else { clearTimeout(timer); fab.focus(); }
   }
   function mount() {
     document.body.appendChild(fab); document.body.appendChild(panel);
     fab.addEventListener('click', function () { toggle(); });
     $('bmClose').addEventListener('click', function () { toggle(false); });
+    $('bmLockBtn').addEventListener('click', doLock);
+    $('bmUnlock').addEventListener('click', doUnlock);
+    $('bmCode').addEventListener('keydown', function (e) { if (e.key === 'Enter') doUnlock(); });
     $('bmStart').addEventListener('click', start);
-    $('bmList').addEventListener('click', function (e) { var j = e.target && e.target.getAttribute('data-job'); if (j) download(j); });
+    $('bmList').addEventListener('click', function (e) { var j = e.target && e.target.getAttribute('data-job'); if (j) download(e.target.getAttribute('data-mis'), j); });
     document.addEventListener('keydown', function (e) { if (open && e.key === 'Escape') toggle(false); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();

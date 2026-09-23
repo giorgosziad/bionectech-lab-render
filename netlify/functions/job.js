@@ -24,7 +24,8 @@
   const tls = require('tls');
   const net = require('net');
   const vm = require('vm');
-  const { cors, json, userFrom, readJSON, writeJSON, expire } = require('./lib/auth');
+  const { cors, json, userFrom, readJSON, writeJSON, expire, clientIp } = require('./lib/auth');
+  const accessGate = require('./lib/gate');
 
   const MAX_ATTEMPTS = 3;
   const KEEP_SECONDS = 60 * 60 * 24 * 30;      // 30 days
@@ -442,7 +443,7 @@
     }).filter(Boolean);
   }
 
-  const handler = async function (event) {
+  function makeHandler(skipGate) { return async function (event) {
     if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors, body: '' };
     const user = userFrom(event);
     if (!user) return json(401, { error: 'Sign in first.' });
@@ -454,6 +455,10 @@
     }
     const action = String(b.action || q.action || '');
     const ctx = { headers: Object.assign({}, event.headers || {}), ownerCode: String(b.ownerCode || '') };
+    /* BNT_GATE: server-enforced panel code */
+    if (action === 'unlock') { const g = await accessGate.unlock('jobs', user, b.code, clientIp(event)); return json(g.status || (g.ok ? 200 : 401), g); }
+    if (action === 'lock') { return json(200, await accessGate.lock('jobs', user)); }
+    if (!skipGate && !(await accessGate.isUnlocked('jobs', user))) return json(423, { error: accessGate.lockedMessage('jobs'), locked: true });
     try {
       if (action === 'create') {
         const title = String(b.title || '').trim().slice(0, 200) || 'Untitled job';
@@ -522,7 +527,9 @@
     } catch (e) {
       return json(500, { error: String((e && e.message) || e) });
     }
-  };
+  }; };
+  const handler = makeHandler(false);
+  const internalHandler = makeHandler(true);   // in-process only (missions); never mounted on a URL
 
-  module.exports = { handler: handler, _test: { parseEdits: parseEdits, applyEdits: applyEdits, gate: gate, buildPrompt: buildPrompt, buildMime: buildMime, smtpSend: smtpSend } };
+  module.exports = { handler: handler, internalHandler: internalHandler, _test: { parseEdits: parseEdits, applyEdits: applyEdits, gate: gate, buildPrompt: buildPrompt, buildMime: buildMime, smtpSend: smtpSend } };
 })();

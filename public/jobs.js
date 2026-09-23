@@ -29,7 +29,7 @@
     '#bntJobsPanel h2{margin:0;font-size:17px;font-weight:600;color:' + C.gold + '}' +
     '#bntJobsPanel .body{overflow:auto;padding:14px 18px 40px}' +
     '#bntJobsPanel label{display:block;font-size:13px;color:' + C.dim + ';margin:10px 0 4px}' +
-    '#bntJobsPanel input[type=text],#bntJobsPanel textarea{width:100%;box-sizing:border-box;background:' + C.navy + ';color:' + C.ink + ';border:1px solid ' + C.line + ';border-radius:6px;padding:8px 10px;font:inherit;font-size:14px}' +
+    '#bntJobsPanel input[type=text],#bntJobsPanel input[type=password],#bntJobsPanel textarea{width:100%;box-sizing:border-box;background:' + C.navy + ';color:' + C.ink + ';border:1px solid ' + C.line + ';border-radius:6px;padding:8px 10px;font:inherit;font-size:14px}' +
     '#bntJobsPanel textarea{min-height:92px;resize:vertical}' +
     '#bntJobsPanel button{background:transparent;color:' + C.gold + ';border:1px solid ' + C.gold + ';border-radius:6px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}' +
     '#bntJobsPanel button.primary{background:' + C.gold + ';color:' + C.navy + ';font-weight:600}' +
@@ -51,8 +51,10 @@
 
   var panel = el('aside'); panel.id = 'bntJobsPanel'; panel.setAttribute('aria-label', 'Build jobs');
   panel.innerHTML =
-    '<header><h2>Build jobs</h2><button type="button" id="bjClose">Close</button></header>' +
+    '<header><h2>Build jobs</h2><div class="row" style="margin:0"><button type="button" id="bjLockBtn">Lock</button><button type="button" id="bjClose">Close</button></div></header>' +
     '<div class="body">' +
+    '<div id="bjLock" hidden><div class="sec">Enter the Jobs code</div><div class="note">This panel is locked. The code is checked on the server; after 5 wrong tries it waits 15 minutes. An unlock lasts 8 hours on this account.</div><label for="bjCode">Jobs code</label><input type="password" id="bjCode" autocomplete="off" spellcheck="false"><div class="row"><button type="button" class="primary" id="bjUnlock">Unlock</button><span class="note" id="bjLockMsg" role="status"></span></div></div>' +
+    '<div id="bjMain">' +
     '<div class="note">A job runs on the Lab server. Karam returns edits, the server applies them to your file, a code check decides, and you get an email with the verified file or the exact reason it stopped. Closing this tab does not stop a job.</div>' +
     '<div class="sec">New job</div>' +
     '<label for="bjTitle">Title</label><input type="text" id="bjTitle" placeholder="OncoDefy posture update">' +
@@ -63,11 +65,28 @@
     '<div class="row"><button type="button" class="primary" id="bjStart">Start job</button><button type="button" id="bjMail">Send test email</button><span class="note" id="bjMsg" role="status"></span></div>' +
     '<div class="sec">Jobs <span class="note" id="bjEmail"></span></div>' +
     '<div id="bjList"><div class="note">No jobs yet. Start one above.</div></div>' +
-    '</div>';
+    '</div></div>';
 
   function $(id) { return document.getElementById(id); }
   function msg(t, bad) { var m = $('bjMsg'); m.textContent = t || ''; m.style.color = bad ? C.bad : C.dim; }
 
+  var locked = false;
+  function showLock(t) { locked = true; $('bjLock').hidden = false; $('bjMain').hidden = true; $('bjLockMsg').textContent = t || ''; $('bjLockMsg').style.color = C.dim; try { $('bjCode').focus(); } catch (e) {} }
+  function hideLock() { locked = false; $('bjLock').hidden = true; $('bjMain').hidden = false; }
+  function isLocked(r) { if (r && r.status === 423) { showLock((r.data && r.data.error) || 'This panel is locked.'); return true; } return false; }
+  function doUnlock() {
+    var code = $('bjCode').value; $('bjCode').value = '';
+    if (!code) { $('bjLockMsg').textContent = 'Enter the code.'; return; }
+    $('bjUnlock').disabled = true;
+    call('job', { method: 'POST', body: JSON.stringify({ action: 'unlock', code: code }) }).then(function (r) {
+      $('bjUnlock').disabled = false;
+      if (r.ok && r.data && r.data.ok) { hideLock(); refresh().then(schedule); return; }
+      var m = (r.data && r.data.error) || ('Unlock failed (HTTP ' + r.status + ').');
+      if (r.data && r.data.attemptsLeft != null) m += ' ' + r.data.attemptsLeft + ' attempt(s) left.';
+      $('bjLockMsg').textContent = m; $('bjLockMsg').style.color = C.bad;
+    }).catch(function () { $('bjUnlock').disabled = false; $('bjLockMsg').textContent = 'Could not reach the Lab server.'; });
+  }
+  function doLock() { call('job', { method: 'POST', body: JSON.stringify({ action: 'lock' }) }).then(function () { lastJobs = []; renderJobs([]); showLock('Locked.'); }); }
   function statusColor(s) { return s === 'delivered' ? C.ok : (s === 'escalated' ? C.bad : C.gold); }
   function renderJobs(jobs) {
     lastJobs = jobs || [];
@@ -97,6 +116,8 @@
 
   function refresh() {
     return call('job?action=list', { method: 'GET' }).then(function (r) {
+      if (isLocked(r)) return;
+      hideLock();
       if (!r.ok || !r.data) { $('bjEmail').textContent = (r.data && r.data.error) ? r.data.error : ('Could not load jobs (HTTP ' + r.status + ').'); return; }
       $('bjEmail').textContent = r.data.email === 'configured' ? 'Email reports on' : 'Email reports off: set SMTP_USER, SMTP_PASS, REPORT_TO on Render';
       renderJobs(r.data.jobs);
@@ -104,7 +125,7 @@
   }
   function schedule() {
     clearTimeout(pollTimer);
-    if (!open) return;
+    if (!open || locked) return;
     var active = lastJobs.some(function (j) { return j.status === 'queued' || j.status === 'building'; });
     pollTimer = setTimeout(function () { refresh().then(schedule); }, active ? 3000 : 15000);
   }
@@ -133,6 +154,7 @@
       }) });
     }).then(function (r) {
       $('bjStart').disabled = false;
+      if (isLocked(r)) return;
       if (!r.ok || !r.data || !r.data.ok) { msg((r.data && r.data.error) || ('Job was not created (HTTP ' + r.status + ').'), true); return; }
       msg('Job started. You can close this panel.');
       refresh().then(schedule);
@@ -142,6 +164,7 @@
     $('bjMail').disabled = true; msg('Sending test email...');
     call('job', { method: 'POST', body: JSON.stringify({ action: 'testmail' }) }).then(function (r) {
       $('bjMail').disabled = false;
+      if (isLocked(r)) return;
       if (r.ok && r.data && r.data.ok) msg('Test email sent to ' + r.data.sentTo + '.'); else msg((r.data && r.data.error) || ('Test email failed (HTTP ' + r.status + ').'), true);
     }).catch(function (e) { $('bjMail').disabled = false; msg(e.message, true); });
   }
@@ -165,7 +188,7 @@
     open = (v == null) ? !open : v;
     panel.classList.toggle('open', open);
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open) { refresh().then(schedule); $('bjTitle').focus(); } else { clearTimeout(pollTimer); fab.focus(); }
+    if (open) { refresh().then(function () { schedule(); if (!locked) $('bjTitle').focus(); }); } else { clearTimeout(pollTimer); fab.focus(); }
   }
 
   function mount() {
@@ -173,6 +196,9 @@
     document.body.appendChild(panel);
     fab.addEventListener('click', function () { toggle(); });
     $('bjClose').addEventListener('click', function () { toggle(false); });
+    $('bjLockBtn').addEventListener('click', doLock);
+    $('bjUnlock').addEventListener('click', doUnlock);
+    $('bjCode').addEventListener('keydown', function (e) { if (e.key === 'Enter') doUnlock(); });
     $('bjStart').addEventListener('click', start);
     $('bjMail').addEventListener('click', testMail);
     $('bjList').addEventListener('click', function (e) {

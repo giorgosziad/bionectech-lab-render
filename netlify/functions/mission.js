@@ -16,7 +16,8 @@
 (function () {
   'use strict';
   const crypto = require('crypto');
-  const { cors, json, userFrom, readJSON, writeJSON, expire } = require('./lib/auth');
+  const { cors, json, userFrom, readJSON, writeJSON, expire, clientIp } = require('./lib/auth');
+  const accessGate = require('./lib/gate');
 
   const DESKS = ['hanna', 'karam', 'karim', 'galen', 'elias', 'kostas', 'elena', 'solon', 'nour', 'jabir', 'lukas', 'hanno', 'fotis', 'yusuf', 'sinan', 'platon', 'kyros', 'giorgos'];
   // Only roles confirmed in the Lab are described; the rest are listed by name, never invented.
@@ -218,7 +219,7 @@
       banned: (st.checks && st.checks.banned) || [], required: (st.checks && st.checks.required) || [],
       model: m.model || '', ownerCode: ctx.ownerCode || '', notify: false
     }) };
-    const res = await job.handler(ev);
+    const res = await job.internalHandler(ev);   /* BNT_GATE: in-process call - the mission is already unlocked */
     let p = null; try { p = JSON.parse(res.body || '{}'); } catch (e) {}
     if (!p || !p.ok) return { ok: false, reason: 'Could not start the edit job: ' + ((p && p.error) || ('HTTP ' + res.statusCode)) };
     const jid = p.id, t0 = now();
@@ -475,7 +476,7 @@
     }
     return m;
   }
-  const handler = async function (event) {
+  function makeHandler(skipGate) { return async function (event) {
     if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors, body: '' };
     const user = userFrom(event);
     if (!user) return json(401, { error: 'Sign in first.' });
@@ -485,6 +486,10 @@
     if (event.httpMethod === 'POST') { try { b = JSON.parse(event.body || '{}'); } catch (e) { return json(400, { error: 'Body must be JSON.' }); } }
     const action = String(b.action || q.action || '');
     const ctx = { headers: Object.assign({}, event.headers || {}), ownerCode: String(b.ownerCode || '') };
+    /* BNT_GATE: server-enforced panel code */
+    if (action === 'unlock') { const g = await accessGate.unlock('missions', user, b.code, clientIp(event)); return json(g.status || (g.ok ? 200 : 401), g); }
+    if (action === 'lock') { return json(200, await accessGate.lock('missions', user)); }
+    if (!skipGate && !(await accessGate.isUnlocked('missions', user))) return json(423, { error: accessGate.lockedMessage('missions'), locked: true });
     try {
       if (action === 'create') {
         const brief = String(b.brief || '').trim();
@@ -510,17 +515,27 @@
         if (!m) return json(404, { error: 'No such mission.' });
         return json(200, { ok: true, mission: summary(m) });
       }
+      if (action === 'file') {   /* BNT_GATE: deliverable download scoped to this mission */
+        const m = await loadM(String(q.id || b.id || ''));
+        const jid = String(q.job || b.job || '');
+        if (!m || !jid || !((m.deliverables || []).some(function (d) { return d.jobId === jid; }))) return json(404, { error: 'No such deliverable in this mission.' });
+        const f = await readJSON(null, 'hjobfile:' + jid, null);
+        if (!f) return json(404, { error: 'The delivered file has expired from the store.' });
+        return json(200, { ok: true, name: f.name, sha256: f.sha256, text: f.text });
+      }
       if (action === 'list') {
         let ids = await readJSON(null, INDEX_KEY, []); if (!Array.isArray(ids)) ids = [];
         const out = [];
         for (let i = 0; i < Math.min(ids.length, 20); i++) { const m = await loadM(ids[i]); if (m) out.push(summary(m)); }
         return json(200, { ok: true, missions: out });
       }
-      return json(400, { error: 'Unknown action. Use create, get or list.' });
+      return json(400, { error: 'Unknown action. Use create, get, list, file, unlock or lock.' });
     } catch (e) {
       return json(500, { error: String((e && e.message) || e) });
     }
-  };
+  }; };
+  const handler = makeHandler(false);
+  const internalHandler = makeHandler(true);   // in-process only (missions); never mounted on a URL
 
-  module.exports = { handler: handler, _test: { validatePlan: validatePlan, parseJsonBlock: parseJsonBlock, checkText: checkText, subst: subst, blockedHost: blockedHost } };
+  module.exports = { handler: handler, internalHandler: internalHandler, _test: { validatePlan: validatePlan, parseJsonBlock: parseJsonBlock, checkText: checkText, subst: subst, blockedHost: blockedHost } };
 })();
