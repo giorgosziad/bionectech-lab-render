@@ -1112,22 +1112,29 @@ function tektonOpenPanel(){
   if(pan){ pan.style.display = (pan.style.display==='none'||!pan.style.display) ? 'block' : 'none'; return; }
   pan = document.createElement('div');
   pan.id = 'tektonPanel';
-  pan.style.cssText = 'position:fixed;right:18px;bottom:140px;z-index:9999;width:min(440px,92vw);background:#0b2534;color:#fff;border:1px solid #2ec4b6;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.5);padding:14px;font-family:var(--serif,serif)';
+  pan.style.cssText = 'position:fixed;right:18px;bottom:140px;z-index:9999;width:min(560px,94vw);max-height:82vh;overflow:auto;background:#0b2534;color:#fff;border:1px solid #2ec4b6;border-radius:14px;box-shadow:0 10px 48px rgba(0,0,0,.55);padding:16px;font-family:var(--serif,serif)';
   pan.innerHTML =
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-      '<b style="color:#2ec4b6">Tekton \u2014 Lab Engineer</b>'+
-      '<span id="tektonClose" style="cursor:pointer;opacity:.7">\u2715</span>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+      '<b style="color:#2ec4b6;font-size:16px">Tekton \u2014 Lab Engineer Console</b>'+
+      '<span id="tektonClose" style="cursor:pointer;opacity:.7;font-size:16px">\u2715</span>'+
     '</div>'+
     '<div id="tektonGate">'+
       '<div style="font-family:monospace;font-size:11px;opacity:.8;margin-bottom:6px">Enter engineer code</div>'+
-      '<input id="tektonCodeInput" type="password" style="width:100%;padding:8px;border-radius:8px;border:1px solid #234;background:#08202c;color:#fff;box-sizing:border-box">'+
+      '<input id="tektonCodeInput" type="password" style="width:100%;padding:9px;border-radius:8px;border:1px solid #234;background:#08202c;color:#fff;box-sizing:border-box">'+
       '<button id="tektonUnlockBtn" class="btn sm" style="margin-top:8px;width:100%;background:#2ec4b6;color:#042;border:none">Unlock Tekton</button>'+
       '<div id="tektonGateErr" style="color:#f88;font-family:monospace;font-size:11px;min-height:14px;margin-top:4px"></div>'+
     '</div>'+
     '<div id="tektonWork" style="display:none">'+
-      '<div style="font-family:monospace;font-size:11px;opacity:.8;margin-bottom:6px">Technical brief \u2014 Tekton diagnoses, plans the gated fix, and appoints the desks. A human runs the commit.</div>'+
-      '<textarea id="tektonBrief" rows="4" style="width:100%;padding:8px;border-radius:8px;border:1px solid #234;background:#08202c;color:#fff;box-sizing:border-box;resize:vertical"></textarea>'+
-      '<button id="tektonDispatchBtn" class="btn sm" style="margin-top:8px;width:100%;background:#2ec4b6;color:#042;border:none">Send to Tekton \u2014 diagnose & appoint</button>'+
+      '<div style="font-family:monospace;font-size:11px;opacity:.8;margin-bottom:6px">Technical brief \u2014 Tekton diagnoses, plans the gated fix, appoints the desks, and shows the technical status. A human runs the commit.</div>'+
+      '<textarea id="tektonBrief" rows="7" style="width:100%;padding:10px;border-radius:8px;border:1px solid #234;background:#08202c;color:#fff;box-sizing:border-box;resize:vertical;font-size:14px;line-height:1.4"></textarea>'+
+      '<div style="display:flex;gap:8px;margin-top:8px">'+
+        '<button id="tektonAttachBtn" class="btn sm" style="flex:1;background:#08202c;color:#fff;border:1px solid #2a6;border-radius:8px;padding:8px;cursor:pointer;font-family:monospace;font-size:12px">\uD83D\uDCCE Attach files</button>'+
+      '</div>'+
+      '<input id="tektonFileInput" type="file" multiple accept=".txt,.md,.csv,.json,.js,.html,.xml,.pdf,image/*" style="display:none">'+
+      '<div id="tektonFileList" style="margin-top:6px;font-family:monospace;font-size:11px;opacity:.9"></div>'+
+      '<button id="tektonDispatchBtn" class="btn sm" style="margin-top:10px;width:100%;padding:10px;font-size:14px;background:#2ec4b6;color:#042;border:none">Send to Tekton \u2014 diagnose & appoint</button>'+
+      '<div style="font-family:monospace;font-size:10px;opacity:.65;margin-top:10px;border-top:1px solid #234;padding-top:8px">TECHNICAL STATUS \u2014 coordination, file receipt, autonomy, and why a desk is blocked appear here and in the thread.</div>'+
+      '<div id="tektonBoard" style="margin-top:6px;font-family:monospace;font-size:11px;white-space:pre-wrap;min-height:10px;opacity:.95"></div>'+
     '</div>';
   document.body.appendChild(pan);
 
@@ -1135,13 +1142,48 @@ function tektonOpenPanel(){
   document.getElementById('tektonUnlockBtn').addEventListener('click',tektonTryUnlock);
   var ci=document.getElementById('tektonCodeInput');
   if(ci) ci.addEventListener('keydown',function(e){ if(e.key==='Enter') tektonTryUnlock(); });
+
+  window._tektonFiles = window._tektonFiles || [];
+  function renderFileList(){
+    var el=document.getElementById('tektonFileList'); if(!el) return;
+    if(!window._tektonFiles.length){ el.innerHTML=''; return; }
+    el.innerHTML = window._tektonFiles.map(function(f,idx){
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0">'+
+        '<span>\uD83D\uDCC4 '+ (f.name||('file'+idx)) +'</span>'+
+        '<span data-rm="'+idx+'" style="cursor:pointer;color:#f9a">remove</span></div>';
+    }).join('');
+    Array.prototype.forEach.call(el.querySelectorAll('[data-rm]'), function(x){
+      x.addEventListener('click', function(){ var i=parseInt(x.getAttribute('data-rm'),10); window._tektonFiles.splice(i,1); renderFileList(); });
+    });
+  }
+  document.getElementById('tektonAttachBtn').addEventListener('click', function(){ document.getElementById('tektonFileInput').click(); });
+  document.getElementById('tektonFileInput').addEventListener('change', function(ev){
+    var files = ev.target.files ? Array.prototype.slice.call(ev.target.files) : [];
+    files.forEach(function(file){
+      var name=file.name||'file';
+      if(/\.(png|jpg|jpeg|gif|webp)$/i.test(name) || (file.type && file.type.indexOf('image/')===0)){
+        var fr=new FileReader(); fr.onload=function(){ window._tektonFiles.push({name:name,type:file.type||'image/png',dataUrl:fr.result,kind:'image'}); renderFileList(); }; fr.readAsDataURL(file);
+      } else if(/\.pdf$/i.test(name) && (window.pdfjsLib||window.pdfjs)){
+        var lib=window.pdfjsLib||window.pdfjs; var fr=new FileReader();
+        fr.onload=function(){ try{ (lib.getDocument({data:new Uint8Array(fr.result)}).promise).then(function(pdf){ var n=pdf.numPages,out=new Array(n),got=0; if(n===0){ window._tektonFiles.push({name:name,type:'text',text:'',kind:'text'}); renderFileList(); return; } for(var p=1;p<=n;p++){ (function(pg){ pdf.getPage(pg).then(function(page){ page.getTextContent().then(function(tc){ out[pg-1]=tc.items.map(function(it){return it.str;}).join(' '); got++; if(got===n){ window._tektonFiles.push({name:name,type:'text',text:out.join('\n'),kind:'text'}); renderFileList(); } }); }); })(p); } }); }catch(e){ window._tektonFiles.push({name:name,type:'text',text:'[could not read PDF]',kind:'text'}); renderFileList(); } };
+        fr.readAsArrayBuffer(file);
+      } else {
+        var fr=new FileReader(); fr.onload=function(){ window._tektonFiles.push({name:name,type:'text',text:String(fr.result||''),kind:'text'}); renderFileList(); }; fr.readAsText(file);
+      }
+    });
+    ev.target.value='';
+  });
+
   document.getElementById('tektonDispatchBtn').addEventListener('click',function(){
     var b=document.getElementById('tektonBrief').value;
-    pan.style.display='none';
-    tektonDispatch(b);
+    var extra=(window._tektonFiles||[]).filter(function(f){return f.kind==='text';}).map(function(f){ return '\n\n--- ATTACHED: '+f.name+' ---\n'+(f.text||''); }).join('');
+    var board=document.getElementById('tektonBoard'); if(board) board.textContent='Tekton is diagnosing and appointing the desks\u2026';
+    tektonDispatch(b + extra);
   });
   if(_tektonUnlocked){ tektonShowWork(); }
 }
+
+
 function tektonTryUnlock(){
   var v=(document.getElementById('tektonCodeInput').value||'');
   if(v && v===TEKTON_CODE){ _tektonUnlocked=true; try{ sessionStorage.setItem('bnt_tekton_ok','1'); }catch(e){} tektonShowWork(); }
