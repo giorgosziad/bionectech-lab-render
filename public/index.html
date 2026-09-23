@@ -1257,6 +1257,91 @@ setInterval(function(){
   _panelAttachInject('tektonBrief');
 }, 1300);
 
+/* ============================================================
+   HANNA/TEKTON PANEL UPGRADE v2 (self-contained)
+   1) Attachment clears itself (no more stuck files) + a clear control.
+   2) Status board shows per-desk timing (started / elapsed / delivered-in),
+      captured by watching status transitions - no dispatch edits needed.
+   3) A progress summary line so you see who is working vs delivered at a glance.
+   Loads AFTER the originals, so these definitions win.
+   ============================================================ */
+
+/* timing captured purely from status transitions the board observes */
+var _deskT = {};
+function _fmtE(ms){
+  if(ms == null) return '';
+  var s = Math.round(ms/1000);
+  if(s < 60) return s + 's';
+  var m = Math.floor(s/60); return m + 'm ' + (s%60<10?'0':'') + (s%60) + 's';
+}
+function hannaBoardText(title, board, order){
+  var mark = { pending:'\u25CB', working:'\u25D0', delivered:'\u25CF', failed:'\u2715' };
+  var now = Date.now();
+  var keys = order || Object.keys(board);
+  /* observe transitions: first time we see 'working' record start; first 'delivered'/'failed' record done */
+  keys.forEach(function(p){
+    var st = board[p]; if(!_deskT[p]) _deskT[p] = {};
+    if(st === 'working' && !_deskT[p].start) _deskT[p].start = now;
+    if((st === 'delivered' || st === 'failed') && !_deskT[p].done) _deskT[p].done = now;
+  });
+  var lines = [title];
+  keys.forEach(function(p){
+    var label = (typeof HANNA_PERSONA_LABEL !== 'undefined' && HANNA_PERSONA_LABEL[p]) ? HANNA_PERSONA_LABEL[p] : p;
+    var st = board[p], t = _deskT[p] || {}, timing = '';
+    if(st === 'working' && t.start) timing = ' \u00b7 ' + _fmtE(now - t.start) + ' elapsed';
+    else if(st === 'delivered' && t.start && t.done) timing = ' \u00b7 delivered in ' + _fmtE(t.done - t.start);
+    else if(st === 'failed' && t.start) timing = ' \u00b7 stopped after ' + _fmtE((t.done||now) - t.start);
+    lines.push('  ' + (mark[st]||'\u25CB') + ' ' + label + ' \u2014 ' + st + timing);
+  });
+  var d=0,w=0,f=0,pd=0;
+  Object.keys(board).forEach(function(p){ var s=board[p]; if(s==='delivered')d++;else if(s==='working')w++;else if(s==='failed')f++;else pd++; });
+  lines.push('');
+  lines.push('  progress: ' + d + ' delivered \u00b7 ' + w + ' working \u00b7 ' + pd + ' pending' + (f? ' \u00b7 '+f+' failed':''));
+  return lines.join('\n');
+}
+
+/* attachment injector that CLEARS itself (fixes the stuck file) */
+function _panelAttachInject(taId){
+  var ta = document.getElementById(taId);
+  if(!ta) return;
+  var wrapId = taId + '_attachBtn';
+  if(document.getElementById(wrapId)) return;
+  var btn = document.createElement('button');
+  btn.id = wrapId; btn.type = 'button'; btn.textContent = '\uD83D\uDCCE Attach a document';
+  btn.style.cssText = 'margin-top:6px;width:100%;padding:6px;border-radius:8px;border:1px solid #456;background:#123;color:#fff;cursor:pointer;font-family:monospace;font-size:12px';
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.id = taId + '_file'; inp.style.display = 'none';
+  inp.accept = '.txt,.md,.csv,.json,.js,.html,.xml,.pdf';
+  var clearBtn = document.createElement('button');
+  clearBtn.id = taId + '_clear'; clearBtn.type = 'button'; clearBtn.textContent = '\u2715 clear attachment';
+  clearBtn.style.cssText = 'margin-top:4px;width:100%;padding:5px;border-radius:8px;border:1px solid #533;background:#201015;color:#f9c;cursor:pointer;font-family:monospace;font-size:11px;display:none';
+  var MARK = '\n\n--- ATTACHED:';
+  btn.addEventListener('click', function(){ inp.click(); });
+  inp.addEventListener('change', function(){
+    var f = inp.files && inp.files[0]; if(!f) return;
+    btn.textContent = '\u2026 reading ' + f.name;
+    _panelAttachRead(f, function(text){
+      var clip = String(text || '').slice(0, 200000);
+      ta.value = (ta.value || '') + MARK + ' ' + f.name + ' ---\n' + clip;
+      btn.textContent = '\uD83D\uDCCE Attach another';
+      clearBtn.style.display = 'block';
+      inp.value = '';   /* THE FIX */
+    });
+  });
+  clearBtn.addEventListener('click', function(){
+    var idx = ta.value.indexOf(MARK);
+    if(idx >= 0) ta.value = ta.value.slice(0, idx);
+    inp.value = '';
+    btn.textContent = '\uD83D\uDCCE Attach a document';
+    clearBtn.style.display = 'none';
+  });
+  ta.parentNode.insertBefore(btn, ta.nextSibling);
+  ta.parentNode.insertBefore(inp, btn.nextSibling);
+  ta.parentNode.insertBefore(clearBtn, inp.nextSibling);
+}
+
+setInterval(function(){ _panelAttachInject('hannaBrief'); _panelAttachInject('tektonBrief'); }, 1300);
+
 function runBackground(payload, prompt){
   var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
   payload.jobId = jobId; payload.bg = true;
