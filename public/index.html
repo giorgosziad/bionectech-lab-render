@@ -1066,9 +1066,9 @@ function hannaAppoint(brief){
 
     /* the accumulating shared workspace: each desk's delivered output is appended here
        and handed to the NEXT desk, so Karim finally sees Galen's brief, Fotis's data, etc. */
-    var _handoff = 'HANNA BRIEF:\n' + brief + '\n'; /* BNT_CARRY_FORWARD: prepend the previous run (its brief and every desk output) */ var _bntPrev = (window._bntLastRun && window._bntLastRun.handoff) ? window._bntLastRun.handoff : ''; if(_bntPrev){ _handoff = 'PREVIOUS RUN (carried forward by the Lab - prior brief and every desk output; treat as in-window):\n' + _bntPrev.slice(-60000) + '\n=== END PREVIOUS RUN ===\n\n' + _handoff; } window._bntLastRun = { handoff: _handoff, files: _files };
+    var _handoff = 'HANNA BRIEF:\n' + brief + '\n'; /* BNT_RETRY: Hanna retries a failed desk twice with the real reason, then halts the chain */ var _bntTries = {}, _bntHalt = false; function _bntRetry(p, why){ var lbl = (HANNA_PERSONA_LABEL[p]||p); why = String(why || 'unknown error').slice(0, 300); _bntTries[p] = (_bntTries[p] || 0) + 1; if(_bntTries[p] <= 2){ board[p] = 'pending'; paint(); addTurn('claude', 'HANNA \u2014 ' + lbl + ' failed: ' + why + '. Retrying automatically (attempt ' + (_bntTries[p] + 1) + ' of 3).'); return new Promise(function(ok){ setTimeout(ok, 5000); }).then(function(){ return sendOne(p); }); } board[p] = 'failed'; paint(); _bntHalt = true; addTurn('claude', 'HANNA \u2014 ' + lbl + ' failed 3 times. Last reason: ' + why + '. I stopped the chain so no later desk works without ' + lbl + '\u2019s output. Fix the reason above or resend the brief.'); return Promise.resolve(); } /* BNT_CARRY_FORWARD: prepend the previous run (its brief and every desk output) */ var _bntPrev = (window._bntLastRun && window._bntLastRun.handoff) ? window._bntLastRun.handoff : ''; if(_bntPrev){ _handoff = 'PREVIOUS RUN (carried forward by the Lab - prior brief and every desk output; treat as in-window):\n' + _bntPrev.slice(-60000) + '\n=== END PREVIOUS RUN ===\n\n' + _handoff; } window._bntLastRun = { handoff: _handoff, files: _files };
 
-    function sendOne(p){
+    function sendOne(p){ /* BNT_RETRY */ if(_bntHalt){ board[p] = 'skipped'; paint(); return Promise.resolve(); }
       board[p]='working'; paint();
       /* the desk receives the brief PLUS everything prior desks delivered, PLUS the file */
       var deskPrompt = _handoff +
@@ -1084,8 +1084,8 @@ function hannaAppoint(brief){
           addTurnA('claude', '['+(HANNA_PERSONA_LABEL[p]||p)+'] ' + rr.data.text, rr.data.aegis, rr.data.model, p);
           /* append this desk's output to the shared workspace for the next desk */
           _handoff += '\n--- ' + (HANNA_PERSONA_LABEL[p]||p) + ' delivered:\n' + rr.data.text + '\n'; /* BNT_CARRY_FORWARD */ if(window._bntLastRun){ window._bntLastRun.handoff = _handoff; }
-        } else { board[p]='failed'; paint(); }
-      }).catch(function(){ board[p]='failed'; paint(); });
+        } else { /* BNT_RETRY */ return _bntRetry(p, (rr && rr.data && (rr.data.error || rr.data.message)) || ('HTTP ' + (rr ? rr.status : '?'))); }
+      }).catch(function(e){ /* BNT_RETRY */ return _bntRetry(p, (e && e.message) || 'network error'); });
     }
 
     /* SEQUENTIAL chain in Hanna's priority order (not parallel) so each desk builds on the last */
