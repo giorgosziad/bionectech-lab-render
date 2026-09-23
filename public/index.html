@@ -1062,7 +1062,7 @@ function hannaAppoint(brief){
     var board = {}; order.forEach(function(p){ board[p]='pending'; });
     addTurn('claude', hannaBoardText('HANNA appointed:', board, order));
     var boardTurn = current.turns.length - 1;
-    function paint(){ if(current.turns[boardTurn]){ current.turns[boardTurn].text = hannaBoardText('HANNA appointed:', board, order); renderTurns(); } }
+    function paint(){ if(current.turns[boardTurn]){ current.turns[boardTurn].text = hannaBoardText('HANNA appointed:', board, order); renderTurns(); } } /* BNT_CLOCK: live ticker - elapsed keeps counting, catches up on tab return, never paints another chat */ var _bntConv = current, _bntT0 = Date.now(); var _bntTick = setInterval(function(){ var live = order.some(function(q){ return board[q]==='working' || board[q]==='pending'; }); if(!live || (Date.now() - _bntT0) > 1800000){ clearInterval(_bntTick); if(current === _bntConv) paint(); return; } if(!document.hidden && current === _bntConv) paint(); }, 2000); document.addEventListener('visibilitychange', function(){ if(!document.hidden && current === _bntConv) paint(); });
 
     /* the accumulating shared workspace: each desk's delivered output is appended here
        and handed to the NEXT desk, so Karim finally sees Galen's brief, Fotis's data, etc. */
@@ -1400,7 +1400,7 @@ function hannaBoardText(title, board, order){
   var keys = order || Object.keys(board);
   /* observe transitions: first time we see 'working' record start; first 'delivered'/'failed' record done */
   keys.forEach(function(p){
-    var st = board[p]; if(!_deskT[p]) _deskT[p] = {};
+    var st = board[p]; if(!_deskT[p]) _deskT[p] = {}; /* BNT_CLOCK: a new run (pending) resets this desk's clock */ if(st === 'pending') _deskT[p] = {};
     if(st === 'working' && !_deskT[p].start) _deskT[p].start = now;
     if((st === 'delivered' || st === 'failed') && !_deskT[p].done) _deskT[p].done = now;
   });
@@ -1408,7 +1408,7 @@ function hannaBoardText(title, board, order){
   keys.forEach(function(p){
     var label = (typeof HANNA_PERSONA_LABEL !== 'undefined' && HANNA_PERSONA_LABEL[p]) ? HANNA_PERSONA_LABEL[p] : p;
     var st = board[p], t = _deskT[p] || {}, timing = '';
-    if(st === 'working' && t.start) timing = ' \u00b7 ' + _fmtE(now - t.start) + ' elapsed';
+    if(st === 'working' && t.start){ timing = ' \u00b7 ' + _fmtE(now - t.start) + ' elapsed'; /* BNT_CLOCK */ if((now - t.start) > 600000) timing += ' \u00b7 likely stalled (over 10m)'; }
     else if(st === 'delivered' && t.start && t.done) timing = ' \u00b7 delivered in ' + _fmtE(t.done - t.start);
     else if(st === 'failed' && t.start) timing = ' \u00b7 stopped after ' + _fmtE((t.done||now) - t.start);
     lines.push('  ' + (mark[st]||'\u25CB') + ' ' + label + ' \u2014 ' + st + timing);
