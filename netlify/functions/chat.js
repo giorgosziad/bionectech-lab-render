@@ -5465,41 +5465,7 @@ async function handleChat(event, user, res, onProgress) {
   // Owner control: if a specific model was explicitly chosen in the dropdown, it stays first and
   // auto-discovery does NOT override it. Discovery only leads when the model is left on 'auto'.
   if (!_explicitModel) {   /* discovery runs on every auto turn - newest flagship wins */
-    try {
-      let _disc = _MEM_MODEL_CACHE;
-      if (!_disc) { try { _disc = await readJSON(null, 'model:newest', null); } catch (e) { _disc = null; } }
-      const _fresh = _disc && _disc.id && _disc.ts && (Date.now() - _disc.ts < 6 * 3600 * 1000);
-      if (_fresh) { _MEM_MODEL_CACHE = _disc; }
-      if (!_fresh && process.env.ANTHROPIC_API_KEY) {
-        var _mac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-        var _mto = _mac ? setTimeout(function(){ try { _mac.abort(); } catch (e) {} }, 2000) : null;
-        const _mr = await fetch('https://api.anthropic.com/v1/models?limit=40', {
-          headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-          signal: _mac ? _mac.signal : undefined
-        });
-        if (_mto) clearTimeout(_mto);
-        if (_mr.ok) {
-          const _mj = await _mr.json();
-          const _list = (_mj && _mj.data) || [];
-          // Rank by tier so the newest FLAGSHIP leads — not tied to one name. Fable/Mythos are the
-          // top tier (above Opus), then Opus, then Sonnet, then Haiku. Names change over time; this
-          // ranking promotes whatever the current top-tier model is, and the newest within a tier.
-          // Tier ranking. Known top tiers (fable/mythos and any future 'aria','vega','nova'-style
-          // flagship names) rank highest; opus/sonnet/haiku below. An UNKNOWN new name defaults to a
-          // the TOP flagship tier (5) so a brand-new flagship is never buried behind an older known model, and created_at breaks ties so the
-          // genuinely newest model wins. This makes Karam auto-adopt future models without code edits.
-          const _rank = function (id) { id = String(id || '').toLowerCase(); if (/fable|mythos|aria|vega|nova|lyra|orion/.test(id)) return 5; if (/opus/.test(id)) return 4; if (/sonnet/.test(id)) return 2; if (/haiku/.test(id)) return 1; return 5; };  // UNKNOWN new name -> top flagship tier, so a brand-new model leads by created_at
-          _list.sort(function (a, b2) {
-            const ra = _rank(a.id), rb = _rank(b2.id);
-            if (ra !== rb) return rb - ra;                                  // top tier first
-            return String(b2.created_at || '').localeCompare(String(a.created_at || '')); // then newest
-          });
-          const _top = _list[0] && _list[0].id;
-          if (_top) { _disc = { id: _top, ts: Date.now() }; _MEM_MODEL_CACHE = _disc; try { await writeJSON(null, 'model:newest', _disc); } catch (e) {} }
-        }
-      }
-      if (_disc && _disc.id) candidates.unshift(_disc.id); // newest discovered model goes first
-    } catch (e) { /* discovery is best-effort; the priority list still applies */ }
+    try { /* BNT_LATEST_OPUS: auto = newest Opus by release date, live from Anthropic (10-minute cache, Redis fallback) */ const _lo = await require('./lib/latest').latestOpusId(); if (_lo) candidates.unshift(_lo); } catch (e) { /* discovery is best-effort; the priority list still applies */ }
   }
   candidates.push('claude-opus-4-8');
   candidates = candidates.filter(function (m, i) { return m && candidates.indexOf(m) === i; });
