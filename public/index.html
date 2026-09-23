@@ -1041,7 +1041,7 @@ function hannaAppoint(brief){
 
   api('chat',{method:'POST',body:JSON.stringify({
     prompt: brief, history: [], files: _files, model: $('model').value,
-    mode:'answer', temperature:0.4, engine:false, ownerCode: ownerCode,
+    mode:'answer', temperature:(typeof _effortParams==='function'?_effortParams('hanna').temperature:0.4), engine:false, ownerCode: ownerCode,
     web:false, fast:false, smart:false, persona:'hanna'
   })}).then(function(r){
     if(!(r.ok && r.data && r.data.text)){
@@ -1218,7 +1218,7 @@ function tektonDispatch(brief){
   var engBrief = 'Act in TEKTON SUPERVISOR MODE (the Lab engineer). Diagnose before fixing, state the cause with evidence, propose the gated fix, say what a human must confirm before it ships, and END with an APPOINT line for the desks. Technical brief: ' + brief;
   api('chat',{method:'POST',body:JSON.stringify({
     prompt: engBrief, history:[], files:[], model:$('model').value, mode:'answer',
-    temperature:0.3, engine:false, ownerCode:ownerCode, web:false, fast:false, smart:false, persona:'karam'
+    temperature:(typeof _effortParams==='function'?_effortParams('tekton').temperature:0.3), engine:false, ownerCode:ownerCode, web:false, fast:false, smart:false, persona:'karam'
   })}).then(function(r){
     if(!(r.ok && r.data && r.data.text)){ if(current.turns[thinkIdx]) current.turns.pop(); addTurn('claude','Tekton could not diagnose just now. Please try again.'); $('send').disabled=false; return; }
     var plan=r.data.text;
@@ -1233,7 +1233,7 @@ function tektonDispatch(brief){
     function paint(){ if(current.turns[boardTurn]){ current.turns[boardTurn].text=hannaBoardText('TEKTON appointed:', board, order); renderTurns(); } }
     function sendOne(p){
       board[p]='working'; paint();
-      return api('chat',{method:'POST',body:JSON.stringify({ prompt:brief, history:[], files:[], model:$('model').value, mode:'answer', temperature:0.3, engine:false, ownerCode:ownerCode, web:false, fast:false, smart:false, persona:p })})
+      return api('chat',{method:'POST',body:JSON.stringify({ prompt:brief, history:[], files:[], model:$('model').value, mode:'answer', temperature:(typeof _effortParams==='function'?_effortParams('tekton').temperature:0.3), engine:false, ownerCode:ownerCode, web:false, fast:false, smart:false, persona:p })})
       .then(function(rr){ if(rr.ok&&rr.data&&rr.data.text){ board[p]='delivered'; paint(); addTurnA('claude','['+(HANNA_PERSONA_LABEL[p]||p)+'] '+rr.data.text, rr.data.aegis, rr.data.model, p); } else { board[p]='failed'; paint(); } })
       .catch(function(){ board[p]='failed'; paint(); });
     }
@@ -1461,6 +1461,71 @@ function _panelAttachInject(taId){
 }
 
 setInterval(function(){ _panelAttachInject('hannaBrief'); _panelAttachInject('tektonBrief'); }, 1300);
+
+/* ============================================================
+   EFFORT THROTTLE — real control wired to temperature + depth + dispatch order.
+   Hanna:  "Delivery Pace"    Brisk / Standard / Thorough
+   Tekton: "Engineering Mode" Rapid / Balanced / Rigorous
+   Sets window._hannaLevel / window._tektonLevel; the dispatch reads
+   _effortParams(which) for the real {temperature, smart, sequential}.
+   ============================================================ */
+window._hannaLevel = window._hannaLevel || 'standard';
+window._tektonLevel = window._tektonLevel || 'balanced';
+
+function _effortParams(which){
+  var lvl = (which === 'tekton') ? (window._tektonLevel||'balanced') : (window._hannaLevel||'standard');
+  // map both naming schemes to the same real dials
+  if(lvl === 'brisk' || lvl === 'rapid')      return { temperature: 0.6, smart: false, sequential: false, label: lvl };
+  if(lvl === 'thorough' || lvl === 'rigorous') return { temperature: 0.2, smart: true,  sequential: true,  label: lvl };
+  return { temperature: 0.4, smart: false, sequential: true, label: lvl }; // standard / balanced
+}
+
+function _injectThrottle(which){
+  var isT = (which === 'tekton');
+  var workId = isT ? 'tektonWork' : 'hannaWork';
+  var rowId  = isT ? 'tektonThrottle' : 'hannaThrottle';
+  var work = document.getElementById(workId);
+  if(!work || document.getElementById(rowId)) return;
+  var title = isT ? 'Engineering Mode' : 'Delivery Pace';
+  var opts = isT ? [['rapid','Rapid'],['balanced','Balanced'],['rigorous','Rigorous']]
+                 : [['brisk','Brisk'],['standard','Standard'],['thorough','Thorough']];
+  var cur = isT ? (window._tektonLevel||'balanced') : (window._hannaLevel||'standard');
+  var accent = isT ? '#2ec4b6' : '#FFD600';
+  var ink = isT ? '#042' : '#052744';
+  var row = document.createElement('div');
+  row.id = rowId;
+  row.style.cssText = 'margin:10px 0;font-family:monospace;font-size:11px';
+  row.innerHTML = '<div style="opacity:.75;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">'+title+
+    ' <span style="opacity:.6">\u2014 speed vs depth</span></div><div id="'+rowId+'Btns" style="display:flex;gap:6px"></div>'+
+    '<div id="'+rowId+'Desc" style="opacity:.6;margin-top:4px;min-height:12px"></div>';
+  // insert at TOP of the work area
+  work.insertBefore(row, work.firstChild);
+  var descs = isT
+    ? { rapid:'fast, lean answers \u2014 parallel desks, quick passes', balanced:'default depth and pace', rigorous:'deep, precise \u2014 sequential desks, full output room' }
+    : { brisk:'fast, lean answers \u2014 desks run in parallel', standard:'default depth and pace', thorough:'deep, careful \u2014 desks run one by one, full room' };
+  var btnWrap = document.getElementById(rowId+'Btns');
+  var descEl = document.getElementById(rowId+'Desc');
+  function paint(){
+    var lvl = isT ? window._tektonLevel : window._hannaLevel;
+    Array.prototype.forEach.call(btnWrap.children, function(b){
+      var on = b.getAttribute('data-v')===lvl;
+      b.style.background = on ? accent : 'transparent';
+      b.style.color = on ? ink : '#9ab';
+      b.style.borderColor = on ? accent : '#456';
+    });
+    if(descEl) descEl.textContent = descs[lvl] || '';
+  }
+  opts.forEach(function(o){
+    var b=document.createElement('button'); b.type='button'; b.setAttribute('data-v',o[0]); b.textContent=o[1];
+    b.style.cssText='flex:1;padding:6px;border-radius:8px;border:1px solid #456;background:transparent;color:#9ab;cursor:pointer;font-family:monospace;font-size:11px';
+    b.addEventListener('click', function(){ if(isT){ window._tektonLevel=o[0]; } else { window._hannaLevel=o[0]; } paint(); });
+    btnWrap.appendChild(b);
+  });
+  paint();
+}
+
+/* keep injecting when the work area is shown */
+setInterval(function(){ _injectThrottle('hanna'); _injectThrottle('tekton'); }, 1000);
 
 function runBackground(payload, prompt){
   var jobId = 'j'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
