@@ -1037,7 +1037,7 @@ function hannaAppoint(brief){
   var thinkIdx = current.turns.length - 1;
 
   /* capture any file the operator attached so it can TRAVEL to every desk (fixes: desks never saw the file) */
-  var _files = (typeof pending !== 'undefined' && pending && pending.length) ? pending.slice() : [];
+  var _files = (typeof pending !== 'undefined' && pending && pending.length) ? pending.slice() : []; /* BNT_CARRY_FORWARD: a follow-up brief with no attachment reuses the last run's files */ if(!_files.length && window._bntLastRun && window._bntLastRun.files && window._bntLastRun.files.length){ _files = window._bntLastRun.files.slice(); }
 
   api('chat',{method:'POST',body:JSON.stringify({
     prompt: brief, history: [], files: _files, model: $('model').value,
@@ -1066,7 +1066,7 @@ function hannaAppoint(brief){
 
     /* the accumulating shared workspace: each desk's delivered output is appended here
        and handed to the NEXT desk, so Karim finally sees Galen's brief, Fotis's data, etc. */
-    var _handoff = 'HANNA BRIEF:\n' + brief + '\n';
+    var _handoff = 'HANNA BRIEF:\n' + brief + '\n'; /* BNT_CARRY_FORWARD: prepend the previous run (its brief and every desk output) */ var _bntPrev = (window._bntLastRun && window._bntLastRun.handoff) ? window._bntLastRun.handoff : ''; if(_bntPrev){ _handoff = 'PREVIOUS RUN (carried forward by the Lab - prior brief and every desk output; treat as in-window):\n' + _bntPrev.slice(-60000) + '\n=== END PREVIOUS RUN ===\n\n' + _handoff; } window._bntLastRun = { handoff: _handoff, files: _files };
 
     function sendOne(p){
       board[p]='working'; paint();
@@ -1083,7 +1083,7 @@ function hannaAppoint(brief){
           board[p]='delivered'; paint();
           addTurnA('claude', '['+(HANNA_PERSONA_LABEL[p]||p)+'] ' + rr.data.text, rr.data.aegis, rr.data.model, p);
           /* append this desk's output to the shared workspace for the next desk */
-          _handoff += '\n--- ' + (HANNA_PERSONA_LABEL[p]||p) + ' delivered:\n' + rr.data.text + '\n';
+          _handoff += '\n--- ' + (HANNA_PERSONA_LABEL[p]||p) + ' delivered:\n' + rr.data.text + '\n'; /* BNT_CARRY_FORWARD */ if(window._bntLastRun){ window._bntLastRun.handoff = _handoff; }
         } else { board[p]='failed'; paint(); }
       }).catch(function(){ board[p]='failed'; paint(); });
     }
