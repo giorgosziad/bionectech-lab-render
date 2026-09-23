@@ -1037,7 +1037,7 @@ function hannaAppoint(brief){
   var thinkIdx = current.turns.length - 1;
 
   /* capture any file the operator attached so it can TRAVEL to every desk (fixes: desks never saw the file) */
-  var _files = (typeof pending !== 'undefined' && pending && pending.length) ? pending.slice() : []; /* BNT_CARRY_FORWARD: a follow-up brief with no attachment reuses the last run's files */ if(!_files.length && window._bntLastRun && window._bntLastRun.files && window._bntLastRun.files.length){ _files = window._bntLastRun.files.slice(); }
+  var _files = (typeof pending !== 'undefined' && pending && pending.length) ? pending.slice() : []; /* BNT_CARRY_FORWARD: a follow-up brief with no attachment reuses the last run's files */ if(!_files.length && window._bntLastRun && window._bntLastRun.files && window._bntLastRun.files.length){ _files = window._bntLastRun.files.slice(); } /* BNT_CASE: load the case file; keep new files; a bare confirmation re-runs the last real brief */ var _bntCase = _bntCaseLoad(); var _bntScope = (String(brief||'').match(/\[SUPERVISOR NOTE:[\s\S]*?\]/)||[''])[0]; var _bntSp = _bntSplitAttached(String(brief||'').replace(/\[SUPERVISOR NOTE:[\s\S]*?\]/g,'')); Object.keys(_bntSp.att).forEach(function(n){ _bntCase.notes[n] = _bntSp.att[n]; }); var _bntHead = _bntSp.head.replace(/^\s*HANNA BRIEF:\s*/i,'').trim(); if(_files.length){ _bntCaseFiles(_bntCase, _files); } else if(_bntCase.files.length){ _files = _bntCase.files.slice(); } var _bntDeskBrief = _bntHead, _bntConfirmed = false; if(_bntIsConfirm(_bntHead) && _bntCase.briefs.length){ _bntConfirmed = true; _bntDeskBrief = _bntCase.briefs[_bntCase.briefs.length-1] + '\n\n[OPERATOR CONFIRMED: proceed now using the CASE FILE. Do not ask the operator to review or confirm again.]'; try{ brief = _bntDeskBrief + (_bntScope ? '\n\n' + _bntScope : ''); }catch(e){} } else if(_bntHead){ _bntCase.briefs.push(_bntHead.slice(0, 20000)); if(_bntCase.briefs.length > 5) _bntCase.briefs = _bntCase.briefs.slice(-5); } _bntCaseSave(_bntCase);
 
   api('chat',{method:'POST',body:JSON.stringify({
     prompt: brief, history: [], files: _files, model: $('model').value,
@@ -1066,12 +1066,12 @@ function hannaAppoint(brief){
 
     /* the accumulating shared workspace: each desk's delivered output is appended here
        and handed to the NEXT desk, so Karim finally sees Galen's brief, Fotis's data, etc. */
-    var _handoff = 'HANNA BRIEF:\n' + brief + '\n'; /* BNT_RETRY: Hanna retries a failed desk twice with the real reason, then halts the chain */ var _bntTries = {}, _bntHalt = false; function _bntRetry(p, why){ var lbl = (HANNA_PERSONA_LABEL[p]||p); why = String(why || 'unknown error').slice(0, 300); _bntTries[p] = (_bntTries[p] || 0) + 1; if(_bntTries[p] <= 2){ board[p] = 'pending'; paint(); addTurn('claude', 'HANNA \u2014 ' + lbl + ' failed: ' + why + '. Retrying automatically (attempt ' + (_bntTries[p] + 1) + ' of 3).'); return new Promise(function(ok){ setTimeout(ok, 5000); }).then(function(){ return sendOne(p); }); } board[p] = 'failed'; paint(); _bntHalt = true; addTurn('claude', 'HANNA \u2014 ' + lbl + ' failed 3 times. Last reason: ' + why + '. I stopped the chain so no later desk works without ' + lbl + '\u2019s output. Fix the reason above or resend the brief.'); return Promise.resolve(); } /* BNT_CARRY_FORWARD: prepend the previous run (its brief and every desk output) */ var _bntPrev = (window._bntLastRun && window._bntLastRun.handoff) ? window._bntLastRun.handoff : ''; if(_bntPrev){ _handoff = 'PREVIOUS RUN (carried forward by the Lab - prior brief and every desk output; treat as in-window):\n' + _bntPrev.slice(-60000) + '\n=== END PREVIOUS RUN ===\n\n' + _handoff; } window._bntLastRun = { handoff: _handoff, files: _files };
+    var _handoff = 'HANNA BRIEF:\n' + brief + '\n'; /* BNT_RETRY: Hanna retries a failed desk twice with the real reason, then halts the chain */ var _bntTries = {}, _bntHalt = false, _bntNote = {}; function _bntRetry(p, why){ var lbl = (HANNA_PERSONA_LABEL[p]||p); why = String(why || 'unknown error').slice(0, 1200); _bntTries[p] = (_bntTries[p] || 0) + 1; _bntNote[p] = why; if(_bntTries[p] <= 2){ board[p] = 'pending'; paint(); addTurn('claude', 'HANNA \u2014 ' + lbl + ' failed: ' + why + '. Retrying automatically (attempt ' + (_bntTries[p] + 1) + ' of 3).'); return new Promise(function(ok){ setTimeout(ok, 5000); }).then(function(){ return sendOne(p); }); } board[p] = 'failed'; paint(); _bntHalt = true; addTurn('claude', 'HANNA \u2014 ' + lbl + ' failed 3 times. Last reason: ' + why + '. I stopped the chain so no later desk works without ' + lbl + '\u2019s output. Fix the reason above or resend the brief.'); return Promise.resolve(); } /* BNT_CARRY_FORWARD: prepend the previous run (its brief and every desk output) */ var _bntPrev = (window._bntLastRun && window._bntLastRun.handoff) ? window._bntLastRun.handoff : ''; /* BNT_CASE */ _handoff = _bntCaseText(_bntCase, _files) + '\n\nHANNA BRIEF (current):\n' + _bntDeskBrief + '\n'; if(_bntConfirmed){ addTurn('claude','HANNA \u2014 confirmation received. I re-ran your last real brief with the full case file. Nothing more is needed from you.'); } window._bntLastRun = { handoff: _handoff, files: _files };
 
     function sendOne(p){ /* BNT_RETRY */ if(_bntHalt){ board[p] = 'skipped'; paint(); return Promise.resolve(); }
       board[p]='working'; paint();
       /* the desk receives the brief PLUS everything prior desks delivered, PLUS the file */
-      var deskPrompt = _handoff +
+      var deskPrompt = _handoff + /* BNT_CASE */ (_bntNote[p] ? ('\n\n=== HANNA RETRY NOTE FOR THIS DESK ===\n' + _bntNote[p] + '\n') : '') +
         '\n---\nYou are the ' + (HANNA_PERSONA_LABEL[p]||p) + ' desk. Do your part of the brief above using the prior desks\' work included here. ' +
         'If you produce a deliverable, output it in full. If you are blocked, state exactly what you need in one line so Hanna can route it.';
       /* BNT_LIVE */ return _bntDeskApi(p,'chat',{method:'POST',body:JSON.stringify({ stream: true,
@@ -1083,7 +1083,7 @@ function hannaAppoint(brief){
           board[p]='delivered'; paint();
           addTurnA('claude', '['+(HANNA_PERSONA_LABEL[p]||p)+'] ' + rr.data.text, rr.data.aegis, rr.data.model, p);
           /* append this desk's output to the shared workspace for the next desk */
-          _handoff += '\n--- ' + (HANNA_PERSONA_LABEL[p]||p) + ' delivered:\n' + rr.data.text + '\n'; /* BNT_CARRY_FORWARD */ if(window._bntLastRun){ window._bntLastRun.handoff = _handoff; }
+          _handoff += '\n--- ' + (HANNA_PERSONA_LABEL[p]||p) + ' delivered:\n' + rr.data.text + '\n'; /* BNT_CARRY_FORWARD */ if(window._bntLastRun){ window._bntLastRun.handoff = _handoff; } /* BNT_CASE */ var _bntWhy = _bntCheckDelivery(p, rr.data.text, _bntCase, _bntDeskBrief); if(_bntWhy){ return _bntRetry(p, _bntWhy); } _bntCase.outputs[p] = String(rr.data.text||'').slice(0, 200000); if(_bntNote[p]) delete _bntNote[p]; _bntCaseSave(_bntCase);
         } else { /* BNT_RETRY */ return _bntRetry(p, (rr && rr.data && (rr.data.error || rr.data.message)) || ('HTTP ' + (rr ? rr.status : '?'))); }
       }).catch(function(e){ /* BNT_RETRY */ return _bntRetry(p, (e && e.message) || 'network error'); });
     }
@@ -1092,7 +1092,7 @@ function hannaAppoint(brief){
     var i=0;
     function nextDesk(){
       if(i>=order.length){
-        addTurn('claude','HANNA \u2014 all appointed desks have reported. The chained result is above; review and confirm before anything ships.');
+        /* BNT_CASE */ addTurn('claude', _bntSummary(order, board, _bntCase));
         toast('Hanna finished coordinating.');
         $('send').disabled=(!unlimited&&remaining<=0);
         return;
@@ -1391,7 +1391,7 @@ setInterval(function(){
 window._bntLive = window._bntLive || {};
 function _bntDeskApi(p, path, opts){
   opts = opts || {};
-  var off = false; try { off = (localStorage.getItem("BNT_LIVE_OFF") === "1"); } catch(e){}
+  var off = false; try { off = (localStorage.getItem("BNT_LIVE_OFF") === "1"); } catch(e){} if (p === "karam") off = true; /* BNT_CASE: builder desk uses the buffered path so the server auto-continue can finish a long file */
   if (off) { try { var bo = JSON.parse(opts.body); delete bo.stream; opts.body = JSON.stringify(bo); } catch(e){} return api(path, opts); }
   var lv = { t0: Date.now(), last: Date.now(), chars: 0, thinking: 0, section: "" };
   window._bntLive[p] = lv;
@@ -1429,6 +1429,17 @@ function _bntDeskApi(p, path, opts){
     return pump();
   });
 }
+/* BNT_CASE: persistent case file - every file, real brief and desk deliverable, saved with the project */
+function _bntCaseLoad(){ try{ if(!current.hannaCase) current.hannaCase = { files: [], briefs: [], outputs: {}, notes: {} }; var c = current.hannaCase; c.files = c.files || []; c.briefs = c.briefs || []; c.outputs = c.outputs || {}; c.notes = c.notes || {}; return c; }catch(e){ return { files: [], briefs: [], outputs: {}, notes: {} }; } }
+function _bntCaseSave(c){ try{ current.hannaCase = c; current.updated = Date.now(); if(typeof __turnsDirty !== "undefined") __turnsDirty = true; saveData(); }catch(e){} }
+function _bntFileName(f, i){ return (f && (f.name || f.filename || f.fileName)) || ("file" + i); }
+function _bntCaseFiles(c, files){ files.forEach(function(f, i){ var n = _bntFileName(f, i); c.files = c.files.filter(function(g, j){ return _bntFileName(g, j) !== n; }); c.files.push(f); }); if(c.files.length > 8) c.files = c.files.slice(-8); }
+function _bntIsConfirm(s){ s = String(s || "").trim(); if(!s || s.length > 80) return false; return /^(i\s*)?(have\s*)?(reviewed?|review|confirm(ed)?|approved?|go( ahead)?|yes|ok(ay)?|proceed|continue|do it|ship it)\b/i.test(s); }
+function _bntSplitAttached(s){ var out = { head: s, att: {} }; var re = /\n\n--- ATTACHED: ([^\n]+?) ---\n/g; var idx = s.search(re); if(idx < 0) return out; out.head = s.slice(0, idx); var parts = s.slice(idx).split(re); for(var k = 1; k + 1 < parts.length; k += 2){ out.att[parts[k]] = parts[k + 1]; } return out; }
+function _bntLbl(p){ return (typeof HANNA_PERSONA_LABEL !== "undefined" && HANNA_PERSONA_LABEL[p]) || p; }
+function _bntCaseText(c, files){ var L = []; L.push("=== HANNA CASE FILE (kept by the Lab - everything below is IN YOUR WINDOW NOW) ==="); L.push("RULE: every file, brief and prior deliverable listed here is present. Requesting an input that appears in this case file is a failure. Use it and deliver."); var fn = (files || []).map(function(f, i){ return _bntFileName(f, i); }); if(fn.length) L.push("FILES TRAVELLING WITH THIS MESSAGE (full bytes attached): " + fn.join(", ")); Object.keys(c.notes).forEach(function(n){ L.push("\n--- CASE TEXT FILE: " + n + " ---\n" + c.notes[n]); }); if(c.briefs.length){ L.push("\nOPERATOR BRIEFS (oldest to newest):"); c.briefs.forEach(function(b, i){ L.push("[" + (i + 1) + "] " + b); }); } var ks = Object.keys(c.outputs); if(ks.length){ L.push("\nLATEST DELIVERABLE FROM EACH DESK:"); ks.forEach(function(k){ var o = String(c.outputs[k] || ""); L.push("\n--- " + _bntLbl(k) + " (latest) ---\n" + (o.length > 30000 ? o.slice(0, 30000) + "\n[...truncated in case file]" : o)); }); } L.push("=== END CASE FILE ==="); return L.join("\n"); }
+function _bntCheckDelivery(p, text, c, brief){ var t = String(text || ""); var have = []; (c.files || []).forEach(function(f, i){ have.push(_bntFileName(f, i)); }); Object.keys(c.notes || {}).forEach(function(n){ have.push(n); }); var haveTxt = have.length ? have.join(", ") : "the operator briefs and prior desk deliverables"; var wantsFile = (have.length > 0) && /\b(cut|build|deliver|file|html|patch|emit|stamp)\b/i.test(String(brief || "")); if(p === "karam" && wantsFile){ var best = 0, closed = false, re = /```[^\n]*\n([\s\S]*?)(```|$)/g, m; while((m = re.exec(t)) !== null){ if(m[1].length > best){ best = m[1].length; closed = /<\/html>\s*$/i.test(m[1].trim()) || !/<html/i.test(m[1]); } } if(best < 2000) return "no file delivered. Your reply contained no complete fenced file. The case file holds " + haveTxt + ". Emit the complete deliverable now in ONE fenced block with its filename - no plan, no readback, no request for inputs."; if(!closed) return "the file you delivered is incomplete (it does not end at </html>). Emit the COMPLETE file again in one fenced block."; return ""; } var asksInputs = /received-inputs\?\s*(no|partial)/i.test(t) || /blocked-because[^\n]*(not in (my|this|the) window|absent|missing|not present|paste|not arrived|not attached)/i.test(t); if(asksInputs){ var line = (t.match(/STATUS\s*=[^\n]*/i) || [""])[0].slice(0, 300); return "you reported missing inputs (" + line + "), but the case file already holds " + haveTxt + " plus every prior desk deliverable. Do your part now with what is in the case file. Only if something is truly absent from the case file, name it in one line starting MISSING:"; } return ""; }
+function _bntSummary(order, board, c){ var d = [], f = [], s = []; order.forEach(function(p){ var l = _bntLbl(p); if(board[p] === "delivered") d.push(l); else if(board[p] === "skipped") s.push(l); else f.push(l); }); var msg = "HANNA \u2014 chain finished. Delivered: " + (d.join(", ") || "none"); if(f.length) msg += ". Failed: " + f.join(", ") + " (reason posted above)"; if(s.length) msg += ". Skipped because an earlier desk failed: " + s.join(", "); msg += f.length ? ". I need you only for the one question above." : ". Nothing is waiting on you. Deliverables are above and saved to the case file."; return msg; }
 var _deskT = {};
 function _fmtE(ms){
   if(ms == null) return '';
