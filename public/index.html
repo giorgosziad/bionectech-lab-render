@@ -1074,7 +1074,7 @@ function hannaAppoint(brief){
       var deskPrompt = _handoff +
         '\n---\nYou are the ' + (HANNA_PERSONA_LABEL[p]||p) + ' desk. Do your part of the brief above using the prior desks\' work included here. ' +
         'If you produce a deliverable, output it in full. If you are blocked, state exactly what you need in one line so Hanna can route it.';
-      return api('chat',{method:'POST',body:JSON.stringify({
+      /* BNT_LIVE */ return _bntDeskApi(p,'chat',{method:'POST',body:JSON.stringify({ stream: true,
         prompt: deskPrompt, history: [], files: _files, model: $('model').value,
         mode:'answer', temperature:0.4, engine:false, ownerCode: ownerCode,
         web:false, fast:false, smart:false, persona: p
@@ -1387,6 +1387,48 @@ setInterval(function(){
    ============================================================ */
 
 /* timing captured purely from status transitions the board observes */
+/* BNT_LIVE: desk calls read the server SSE feed live so the board shows real progress; JSON fallback; off switch: localStorage BNT_LIVE_OFF=1 */
+window._bntLive = window._bntLive || {};
+function _bntDeskApi(p, path, opts){
+  opts = opts || {};
+  var off = false; try { off = (localStorage.getItem("BNT_LIVE_OFF") === "1"); } catch(e){}
+  if (off) { try { var bo = JSON.parse(opts.body); delete bo.stream; opts.body = JSON.stringify(bo); } catch(e){} return api(path, opts); }
+  var lv = { t0: Date.now(), last: Date.now(), chars: 0, thinking: 0, section: "" };
+  window._bntLive[p] = lv;
+  opts.headers = Object.assign({"Content-Type":"application/json"}, opts.headers || {});
+  if (TOKEN) opts.headers["Authorization"] = "Bearer " + TOKEN;
+  return fetch("/.netlify/functions/" + path, opts).then(function(r){
+    var ct = r.headers.get("content-type") || "";
+    if (ct.indexOf("text/event-stream") < 0 || !r.body || !r.body.getReader) {
+      return r.text().then(function(t){ var j = null; try { j = JSON.parse(t); } catch(e){} return { ok: r.ok, status: r.status, data: j }; });
+    }
+    var rd = r.body.getReader(), dec = new TextDecoder("utf-8"), buf = "", full = "", fin = null, err = null;
+    function handle(line){
+      lv.last = Date.now();
+      if (line.indexOf("data:") !== 0) return;
+      var ev = null; try { ev = JSON.parse(line.slice(5).trim()); } catch(e){ return; }
+      if (ev.delta) { full += ev.delta; lv.chars = full.length; var ls = full.slice(-400).split("\n").map(function(s){ return s.trim(); }).filter(Boolean); if (ls.length) lv.section = ls[ls.length - 1].slice(0, 90).replace(/[<>&]/g, " "); }
+      else if (typeof ev.thinking === "number") { lv.thinking = ev.thinking; }
+      else if (ev.error) { err = ev.error; }
+      else if (ev.done) { fin = ev; }
+    }
+    function pump(){
+      return rd.read().then(function(step){
+        if (step.done) {
+          buf += dec.decode();
+          if (buf.trim()) handle(buf.trim());
+          if (fin && full) return { ok: true, status: 200, data: Object.assign({}, fin, { text: full }) };
+          return { ok: false, status: err ? 502 : 500, data: { error: err || "Stream ended without a final answer.", text: full } };
+        }
+        buf += dec.decode(step.value, { stream: true });
+        var parts = buf.split("\n"); buf = parts.pop();
+        parts.forEach(function(l){ if (l.charAt(l.length - 1) === "\r") l = l.slice(0, -1); if (l) handle(l); });
+        return pump();
+      });
+    }
+    return pump();
+  });
+}
 var _deskT = {};
 function _fmtE(ms){
   if(ms == null) return '';
@@ -1408,7 +1450,7 @@ function hannaBoardText(title, board, order){
   keys.forEach(function(p){
     var label = (typeof HANNA_PERSONA_LABEL !== 'undefined' && HANNA_PERSONA_LABEL[p]) ? HANNA_PERSONA_LABEL[p] : p;
     var st = board[p], t = _deskT[p] || {}, timing = '';
-    if(st === 'working' && t.start){ timing = ' \u00b7 ' + _fmtE(now - t.start) + ' elapsed'; /* BNT_CLOCK */ if((now - t.start) > 600000) timing += ' \u00b7 likely stalled (over 10m)'; }
+    if(st === 'working' && t.start){ timing = ' \u00b7 ' + _fmtE(now - t.start) + ' elapsed'; /* BNT_LIVE */ var _lv = (window._bntLive || {})[p]; if(_lv && _lv.t0 >= t.start - 5000){ var _idle = Math.round((now - _lv.last) / 1000); if(_lv.chars){ timing += ' \u00b7 writing ' + (_lv.chars / 1000).toFixed(1) + 'k chars'; } else if(_lv.thinking){ timing += ' \u00b7 thinking ' + _lv.thinking + 's'; } else { timing += ' \u00b7 connected'; } timing += ' \u00b7 last activity ' + _idle + 's ago'; if(_idle > 90) timing += ' \u00b7 NO ACTIVITY 90s+ - likely stalled'; if(_lv.section) timing += '\n      \u21b3 ' + _lv.section; } else if((now - t.start) > 600000){ timing += ' \u00b7 likely stalled (over 10m, no live feed)'; } }
     else if(st === 'delivered' && t.start && t.done) timing = ' \u00b7 delivered in ' + _fmtE(t.done - t.start);
     else if(st === 'failed' && t.start) timing = ' \u00b7 stopped after ' + _fmtE((t.done||now) - t.start);
     lines.push('  ' + (mark[st]||'\u25CB') + ' ' + label + ' \u2014 ' + st + timing);
