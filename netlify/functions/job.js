@@ -398,6 +398,7 @@
     return L.join('\n');
   }
   async function notify(job, fileText) {
+    if (job.notify === false) { job.email = 'reported in the mission email'; try { await saveJob(job); } catch (e) {} return; }
     const subject = (job.status === 'delivered' ? 'DELIVERED: ' : 'ESCALATED: ') + job.title;
     try {
       const to = await sendMail(subject, reportText(job), fileText != null ? { name: job.sourceName, text: fileText } : null);
@@ -469,7 +470,7 @@
           id: id, title: title, instructions: instructions.slice(0, 60000), sourceName: sourceName,
           sourceSha256: sha256(sourceText), sourceBytes: Buffer.byteLength(sourceText, 'utf8'),
           checks: { banned: banned, required: normRequired(b.required), html: (b.html === false ? false : (b.html === true ? true : undefined)) },
-          persona: 'karam', model: String(b.model || ''), createdBy: String(user.name || user.u || user.user || ''),
+          persona: 'karam', notify: (b.notify !== false), model: String(b.model || ''), createdBy: String(user.name || user.u || user.user || ''),
           createdAt: now(), status: 'queued', stage: 'Queued', attempts: []
         };
         await writeJSON(null, 'hjobsrc:' + id, { name: sourceName, text: sourceText });
