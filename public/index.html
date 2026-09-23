@@ -884,22 +884,28 @@ function hannaOpenPanel(){
   if(pan){ pan.style.display = (pan.style.display==='none'||!pan.style.display) ? 'block' : 'none'; return; }
   pan = document.createElement('div');
   pan.id = 'hannaPanel';
-  pan.style.cssText = 'position:fixed;right:18px;bottom:96px;z-index:9999;width:min(420px,92vw);background:var(--navy-deep,#052744);color:#fff;border:1px solid var(--gold,#FFD600);border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.5);padding:14px;font-family:var(--serif,serif)';
+  pan.style.cssText = 'position:fixed;right:18px;bottom:96px;z-index:9999;width:min(560px,94vw);max-height:82vh;overflow:auto;background:var(--navy-deep,#052744);color:#fff;border:1px solid var(--gold,#FFD600);border-radius:14px;box-shadow:0 10px 48px rgba(0,0,0,.55);padding:16px;font-family:var(--serif,serif)';
   pan.innerHTML =
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-      '<b style="color:var(--gold,#FFD600)">Hanna \u2014 Lab Supervisor</b>'+
-      '<span id="hannaClose" style="cursor:pointer;opacity:.7">\u2715</span>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+      '<b style="color:var(--gold,#FFD600);font-size:16px">Hanna \u2014 Lab Supervisor Console</b>'+
+      '<span id="hannaClose" style="cursor:pointer;opacity:.7;font-size:16px">\u2715</span>'+
     '</div>'+
     '<div id="hannaGate">'+
       '<div style="font-family:monospace;font-size:11px;opacity:.8;margin-bottom:6px">Enter supervisor code</div>'+
-      '<input id="hannaCodeInput" type="password" style="width:100%;padding:8px;border-radius:8px;border:1px solid #345;background:#0a1626;color:#fff;box-sizing:border-box">'+
+      '<input id="hannaCodeInput" type="password" style="width:100%;padding:9px;border-radius:8px;border:1px solid #345;background:#0a1626;color:#fff;box-sizing:border-box">'+
       '<button id="hannaUnlockBtn" class="btn gold sm" style="margin-top:8px;width:100%">Unlock Hanna</button>'+
       '<div id="hannaGateErr" style="color:#f88;font-family:monospace;font-size:11px;min-height:14px;margin-top:4px"></div>'+
     '</div>'+
     '<div id="hannaWork" style="display:none">'+
-      '<div style="font-family:monospace;font-size:11px;opacity:.8;margin-bottom:6px">Brief for the Lab \u2014 Hanna will weigh it and appoint the desks</div>'+
-      '<textarea id="hannaBrief" rows="4" style="width:100%;padding:8px;border-radius:8px;border:1px solid #345;background:#0a1626;color:#fff;box-sizing:border-box;resize:vertical"></textarea>'+
-      '<button id="hannaBroadcastBtn" class="btn gold sm" style="margin-top:8px;width:100%">Send to Hanna \u2014 appoint & dispatch</button>'+
+      '<div style="font-family:monospace;font-size:11px;opacity:.8;margin-bottom:6px">Brief for the Lab \u2014 Hanna weighs it, appoints the desks, and runs the chain to the end.</div>'+
+      '<textarea id="hannaBrief" rows="7" style="width:100%;padding:10px;border-radius:8px;border:1px solid #345;background:#0a1626;color:#fff;box-sizing:border-box;resize:vertical;font-size:14px;line-height:1.4"></textarea>'+
+      '<div style="display:flex;gap:8px;margin-top:8px">'+
+        '<button id="hannaAttachBtn" class="btn sm" style="flex:1;background:#123;color:#fff;border:1px solid #456;border-radius:8px;padding:8px;cursor:pointer;font-family:monospace;font-size:12px">\uD83D\uDCCE Attach files</button>'+
+      '</div>'+
+      '<input id="hannaFileInput" type="file" multiple accept=".txt,.md,.csv,.json,.js,.html,.xml,.pdf,image/*" style="display:none">'+
+      '<div id="hannaFileList" style="margin-top:6px;font-family:monospace;font-size:11px;opacity:.9"></div>'+
+      '<button id="hannaBroadcastBtn" class="btn gold sm" style="margin-top:10px;width:100%;padding:10px;font-size:14px">Send to Hanna \u2014 appoint & dispatch</button>'+
+      '<div id="hannaBoard" style="margin-top:10px;font-family:monospace;font-size:11px;white-space:pre-wrap;border-top:1px solid #234;padding-top:8px;min-height:10px;opacity:.95"></div>'+
     '</div>';
   document.body.appendChild(pan);
 
@@ -907,13 +913,53 @@ function hannaOpenPanel(){
   document.getElementById('hannaUnlockBtn').addEventListener('click',hannaTryUnlock);
   var ci = document.getElementById('hannaCodeInput');
   if(ci) ci.addEventListener('keydown',function(e){ if(e.key==='Enter') hannaTryUnlock(); });
+
+  /* ---- multi-file attach with per-file remove; text+PDF read to text, images kept for the model ---- */
+  window._hannaFiles = window._hannaFiles || [];
+  function renderFileList(){
+    var el = document.getElementById('hannaFileList'); if(!el) return;
+    if(!window._hannaFiles.length){ el.innerHTML=''; return; }
+    el.innerHTML = window._hannaFiles.map(function(f,idx){
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0">'+
+        '<span>\uD83D\uDCC4 '+ (f.name||('file'+idx)) +'</span>'+
+        '<span data-rm="'+idx+'" style="cursor:pointer;color:#f9a">remove</span></div>';
+    }).join('');
+    Array.prototype.forEach.call(el.querySelectorAll('[data-rm]'), function(x){
+      x.addEventListener('click', function(){ var i=parseInt(x.getAttribute('data-rm'),10); window._hannaFiles.splice(i,1); renderFileList(); });
+    });
+  }
+  document.getElementById('hannaAttachBtn').addEventListener('click', function(){ document.getElementById('hannaFileInput').click(); });
+  document.getElementById('hannaFileInput').addEventListener('change', function(ev){
+    var files = ev.target.files ? Array.prototype.slice.call(ev.target.files) : [];
+    files.forEach(function(file){
+      var name = file.name || 'file';
+      if(/\.(png|jpg|jpeg|gif|webp)$/i.test(name) || (file.type && file.type.indexOf('image/')===0)){
+        var fr=new FileReader(); fr.onload=function(){ window._hannaFiles.push({name:name, type:file.type||'image/png', dataUrl:fr.result, kind:'image'}); renderFileList(); }; fr.readAsDataURL(file);
+      } else {
+        (function(){
+          if(/\.pdf$/i.test(name) && (window.pdfjsLib||window.pdfjs)){
+            var lib=window.pdfjsLib||window.pdfjs; var fr=new FileReader();
+            fr.onload=function(){ try{ (lib.getDocument({data:new Uint8Array(fr.result)}).promise).then(function(pdf){ var n=pdf.numPages, out=new Array(n), got=0; if(n===0){ window._hannaFiles.push({name:name,type:'text',text:'',kind:'text'}); renderFileList(); return; } for(var p=1;p<=n;p++){ (function(pg){ pdf.getPage(pg).then(function(page){ page.getTextContent().then(function(tc){ out[pg-1]=tc.items.map(function(it){return it.str;}).join(' '); got++; if(got===n){ window._hannaFiles.push({name:name,type:'text',text:out.join('\n'),kind:'text'}); renderFileList(); } }); }); })(p); } }); }catch(e){ window._hannaFiles.push({name:name,type:'text',text:'[could not read PDF]',kind:'text'}); renderFileList(); } };
+            fr.readAsArrayBuffer(file);
+          } else {
+            var fr=new FileReader(); fr.onload=function(){ window._hannaFiles.push({name:name,type:'text',text:String(fr.result||''),kind:'text'}); renderFileList(); }; fr.readAsText(file);
+          }
+        })();
+      }
+    });
+    ev.target.value='';   /* THE FIX: reset so more files can be added and it never sticks */
+  });
+
   document.getElementById('hannaBroadcastBtn').addEventListener('click',function(){
     var b = document.getElementById('hannaBrief').value;
-    pan.style.display='none';
-    hannaAppoint(b);
+    /* fold attached file text into the brief so it travels; keep the panel OPEN to show the board */
+    var extra = (window._hannaFiles||[]).filter(function(f){return f.kind==='text';}).map(function(f){ return '\n\n--- ATTACHED: '+f.name+' ---\n'+(f.text||''); }).join('');
+    var board=document.getElementById('hannaBoard'); if(board) board.textContent='Hanna is weighing the brief and appointing the desks\u2026';
+    hannaAppoint(b + extra);
   });
   if(_hannaUnlocked){ hannaShowWork(); }
 }
+
 
 function hannaTryUnlock(){
   var v = (document.getElementById('hannaCodeInput').value||'');
