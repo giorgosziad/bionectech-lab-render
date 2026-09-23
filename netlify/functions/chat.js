@@ -5558,7 +5558,7 @@ async function handleChat(event, user, res, onProgress) {
   } else if (_wantsBuild) {
     // A full project / multi-file zip delivery can be large — give it a HIGH output ceiling so the
     // model can write every file completely and never truncate (partial zip). Capped per-model below.
-    maxTokens = Math.max(maxTokens, 128000);
+    maxTokens = Math.min(Math.max(maxTokens, 48000), 48000); // was 128000 - too high, caused multi-minute stalls on large HTML builds; 48k emits a full ~100KB file without over-planning
   } else if (_trivial) {
     maxTokens = Math.min(Math.max(maxTokens, 4000), 8000);   // "hi" — no need for a big ceiling
   } else {
