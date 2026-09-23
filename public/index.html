@@ -977,8 +977,11 @@ function hannaAppoint(brief){
   addTurn('claude', '\u2026 Hanna is weighing the brief \u2026');
   var thinkIdx = current.turns.length - 1;
 
+  /* capture any file the operator attached so it can TRAVEL to every desk (fixes: desks never saw the file) */
+  var _files = (typeof pending !== 'undefined' && pending && pending.length) ? pending.slice() : [];
+
   api('chat',{method:'POST',body:JSON.stringify({
-    prompt: brief, history: [], files: [], model: $('model').value,
+    prompt: brief, history: [], files: _files, model: $('model').value,
     mode:'answer', temperature:0.4, engine:false, ownerCode: ownerCode,
     web:false, fast:false, smart:false, persona:'hanna'
   })}).then(function(r){
@@ -1002,34 +1005,50 @@ function hannaAppoint(brief){
     var boardTurn = current.turns.length - 1;
     function paint(){ if(current.turns[boardTurn]){ current.turns[boardTurn].text = hannaBoardText('HANNA appointed:', board, order); renderTurns(); } }
 
+    /* the accumulating shared workspace: each desk's delivered output is appended here
+       and handed to the NEXT desk, so Karim finally sees Galen's brief, Fotis's data, etc. */
+    var _handoff = 'HANNA BRIEF:\n' + brief + '\n';
+
     function sendOne(p){
       board[p]='working'; paint();
+      /* the desk receives the brief PLUS everything prior desks delivered, PLUS the file */
+      var deskPrompt = _handoff +
+        '\n---\nYou are the ' + (HANNA_PERSONA_LABEL[p]||p) + ' desk. Do your part of the brief above using the prior desks\' work included here. ' +
+        'If you produce a deliverable, output it in full. If you are blocked, state exactly what you need in one line so Hanna can route it.';
       return api('chat',{method:'POST',body:JSON.stringify({
-        prompt: brief, history: [], files: [], model: $('model').value,
+        prompt: deskPrompt, history: [], files: _files, model: $('model').value,
         mode:'answer', temperature:0.4, engine:false, ownerCode: ownerCode,
         web:false, fast:false, smart:false, persona: p
       })}).then(function(rr){
         if(rr.ok && rr.data && rr.data.text){
           board[p]='delivered'; paint();
           addTurnA('claude', '['+(HANNA_PERSONA_LABEL[p]||p)+'] ' + rr.data.text, rr.data.aegis, rr.data.model, p);
+          /* append this desk's output to the shared workspace for the next desk */
+          _handoff += '\n--- ' + (HANNA_PERSONA_LABEL[p]||p) + ' delivered:\n' + rr.data.text + '\n';
         } else { board[p]='failed'; paint(); }
       }).catch(function(){ board[p]='failed'; paint(); });
     }
 
-    /* dispatch in Hanna's priority order, in waves of 3 to protect rate limits */
-    var i=0, WAVE=3;
-    function nextWave(){
-      if(i>=order.length){ toast('Hanna finished the appointment.'); $('send').disabled=(!unlimited&&remaining<=0); return; }
-      var slice=order.slice(i,i+WAVE); i+=WAVE;
-      Promise.all(slice.map(sendOne)).then(nextWave);
+    /* SEQUENTIAL chain in Hanna's priority order (not parallel) so each desk builds on the last */
+    var i=0;
+    function nextDesk(){
+      if(i>=order.length){
+        addTurn('claude','HANNA \u2014 all appointed desks have reported. The chained result is above; review and confirm before anything ships.');
+        toast('Hanna finished coordinating.');
+        $('send').disabled=(!unlimited&&remaining<=0);
+        return;
+      }
+      var p = order[i]; i++;
+      sendOne(p).then(nextDesk);
     }
-    nextWave();
+    nextDesk();
   }).catch(function(){
     if(current.turns[thinkIdx]) current.turns.pop();
     addTurn('claude','Hanna could not be reached just now. Please try again.');
     $('send').disabled=false;
   });
 }
+
 
 /* ============================================================
    TEKTON — THE AI ENGINEER (Hanna's technical twin; additive)
