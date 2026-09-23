@@ -72,7 +72,7 @@ async function runHandler(handler, req, res) {
 const FUNCTIONS = [
   'chat', 'chat-result', 'login', 'me', 'data', 'memory',
   'team', 'admin', 'lessons', 'models', 'engine', 'fetchurl',
-  'sendmail', 'unlock', 'render', 'flux-sense', 'creative-gen', 'chat-background'
+  'sendmail', 'unlock', 'render', 'flux-sense', 'creative-gen', 'chat-background', 'job'
 ];
 
 FUNCTIONS.forEach(function (name) {
