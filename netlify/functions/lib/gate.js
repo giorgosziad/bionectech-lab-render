@@ -8,8 +8,8 @@
   'use strict';
   const crypto = require('crypto');
   const { readJSON, writeJSON, del, expire, rlHit, rlReset } = require('./auth');
-  const PANELS = { jobs: 'JOBS_CODE_HASH', missions: 'MISSIONS_CODE_HASH' };
-  const PLAIN = { jobs: 'JOBS_CODE', missions: 'MISSIONS_CODE' };   // BNT_GATE_PLAIN: a password you type on Render (min 12 chars); preferred when set
+  const PANELS = { jobs: 'JOBS_CODE_HASH', missions: 'MISSIONS_CODE_HASH', hanna: 'HANNA_CODE_HASH', tekton: 'TEKTON_CODE_HASH' };
+  const PLAIN = { jobs: 'JOBS_CODE', missions: 'MISSIONS_CODE', hanna: 'HANNA_CODE', tekton: 'TEKTON_CODE' };   /* BNT_CONSOLE_GATE: Hanna + Tekton consoles use the same server gate */   // BNT_GATE_PLAIN: a password you type on Render (min 12 chars); preferred when set
   const MIN_PLAIN = 12;
   const UNLOCK_SECONDS = 8 * 3600, MAX_TRIES = 5, WINDOW_SECONDS = 15 * 60, ITERATIONS = 210000;
 

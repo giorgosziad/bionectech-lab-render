@@ -874,9 +874,9 @@ var HANNA_ALL = ['karam','karim','galen','elias','kostas','elena','solon','nour'
    HANNA SUPERVISOR - STEP C (code gate + panel; additive)
    A small "Hanna" control: asks for the supervisor code, and if
    it matches HANNA_CODE, opens a brief box that calls hannaAppoint
-   (Step A). Set HANNA_CODE to your own secret below, in the file.
+   (Step A). The code lives only on the server (Render env HANNA_CODE).
    ============================================================ */
-var HANNA_CODE = "2EbsAjLEYvaz5o81ICKlhdUv";
+var HANNA_CODE = null; /* BNT_CONSOLE_GATE: the Hanna code is checked on the server (HANNA_CODE on Render), never in this page */
 var _hannaUnlocked = false;
 
 function hannaOpenPanel(){
@@ -975,14 +975,13 @@ function hannaOpenPanel(){
 
 
 function hannaTryUnlock(){
-  var v = (document.getElementById('hannaCodeInput').value||'');
-  if(v && v === HANNA_CODE){
-    _hannaUnlocked = true;
-    try{ sessionStorage.setItem('bnt_hanna_ok','1'); }catch(e){}
-    hannaShowWork();
-  } else {
-    var er=document.getElementById('hannaGateErr'); if(er) er.textContent='Wrong code.';
-  }
+  /* BNT_CONSOLE_GATE: the code goes to the server; nothing to compare here */
+  var el=document.getElementById('hannaCodeInput'); var v=(el&&el.value)||''; if(el) el.value='';
+  var er=document.getElementById('hannaGateErr');
+  if(!v){ if(er) er.textContent='Enter the code.'; return; }
+  if(typeof bntConsoleUnlock!=='function'){ if(er) er.textContent='Console gate not loaded - refresh the page.'; return; }
+  if(er) er.textContent='Checking...';
+  bntConsoleUnlock('hanna', v).then(function(res){ if(res.ok){ _hannaUnlocked=true; if(er) er.textContent=''; hannaShowWork(); } else { if(er) er.textContent=res.error; } });
 }
 
 function hannaShowWork(){
@@ -991,7 +990,7 @@ function hannaShowWork(){
 }
 
 /* restore unlock within the session */
-try{ if(sessionStorage.getItem('bnt_hanna_ok')==='1') _hannaUnlocked = true; }catch(e){}
+/* BNT_CONSOLE_GATE: unlock state comes from the server, not session storage */
 
 /* floating Hanna button (always available; the code still gates the actual broadcast) */
 (function(){
@@ -1116,9 +1115,9 @@ function hannaAppoint(brief){
    APPOINT line, and dispatches to the technical desks — same
    engine as Hanna. A human still runs any commit.
    ============================================================ */
-var TEKTON_CODE = "UyS7VPJ25Equm1OqyXso8vCX";
+var TEKTON_CODE = null; /* BNT_CONSOLE_GATE: the Tekton code is checked on the server (TEKTON_CODE on Render), never in this page */
 var _tektonUnlocked = false;
-try{ if(sessionStorage.getItem('bnt_tekton_ok')==='1') _tektonUnlocked = true; }catch(e){}
+/* BNT_CONSOLE_GATE: unlock state comes from the server, not session storage */
 
 function tektonOpenPanel(){
   var pan = document.getElementById('tektonPanel');
@@ -1198,9 +1197,13 @@ function tektonOpenPanel(){
 
 
 function tektonTryUnlock(){
-  var v=(document.getElementById('tektonCodeInput').value||'');
-  if(v && v===TEKTON_CODE){ _tektonUnlocked=true; try{ sessionStorage.setItem('bnt_tekton_ok','1'); }catch(e){} tektonShowWork(); }
-  else { var er=document.getElementById('tektonGateErr'); if(er) er.textContent='Wrong code.'; }
+  /* BNT_CONSOLE_GATE: the code goes to the server; nothing to compare here */
+  var el=document.getElementById('tektonCodeInput'); var v=(el&&el.value)||''; if(el) el.value='';
+  var er=document.getElementById('tektonGateErr');
+  if(!v){ if(er) er.textContent='Enter the code.'; return; }
+  if(typeof bntConsoleUnlock!=='function'){ if(er) er.textContent='Console gate not loaded - refresh the page.'; return; }
+  if(er) er.textContent='Checking...';
+  bntConsoleUnlock('tekton', v).then(function(res){ if(res.ok){ _tektonUnlocked=true; if(er) er.textContent=''; tektonShowWork(); } else { if(er) er.textContent=res.error; } });
 }
 function tektonShowWork(){
   var g=document.getElementById('tektonGate'); var w=document.getElementById('tektonWork');
@@ -3300,6 +3303,6 @@ function buildPdfLegacy(f){
 
 </script>
 <div id="buildBadge" style="position:fixed;bottom:8px;right:10px;z-index:99999;background:#FFD600;color:#052744;font:bold 12px monospace;padding:4px 8px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4);">BUILD DC8 LIVE</div>
-<!-- BPV-RACEFIX-LIVE --><script src="jobs.js"></script><script src="missions.js"></script><script src="bench.js"></script>
+<!-- BPV-RACEFIX-LIVE --><script src="jobs.js"></script><script src="missions.js"></script><script src="consoles.js"></script><script src="bench.js"></script>
 </body>
 </html>
