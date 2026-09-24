@@ -315,8 +315,15 @@
       m.status = 'planning'; m.stage = 'Hanna is planning'; m.startedAt = now(); m.audit = m.audit || [];
       audit(m, '', 'mission started', 'files: ' + (Object.keys(files).join(', ') || 'none'));
       await saveM(m);
-      const v = await makePlan(m, files, user, ctx, '', []);
+      let v = await makePlan(m, files, user, ctx, '', []);
       if (!v.ok) return await finish(m, 'escalated', v.errors.join(' '), {});
+      /* BNT_KANON: Kanon hardens Hanna's plan into a command-grade plan the server proves before it runs */
+      m.stage = 'Kanon is compiling the plan'; await saveM(m);
+      try {
+        const kc = await require('./lib/kanon').compileMission({ brief: m.brief, files: files, draft: v.steps, validate: function (p) { return validatePlan(p, files, m.brief, []); } });
+        if (kc.ok) { v = kc.v; if (kc.goal) m.goal = kc.goal; m.kanon = { status: 'compiled', tries: kc.tries, probes: kc.probes, model: kc.model, notes: kc.notes }; audit(m, '', 'kanon compiled', 'tries ' + kc.tries + ', counts measured ' + kc.probes + (kc.notes.length ? ('; notes: ' + kc.notes.join(' / ')) : '')); }
+        else { m.kanon = { status: 'fallback', reason: kc.reason }; audit(m, '', 'kanon fallback - running Hanna plan', kc.reason); }
+      } catch (e) { m.kanon = { status: 'fallback', reason: String((e && e.message) || e) }; audit(m, '', 'kanon fallback - running Hanna plan', String((e && e.message) || e)); }
       m.steps = v.steps.map(function (s) { return Object.assign({}, s, { status: 'pending', tries: 0, revisions: 0 }); });
       audit(m, '', 'plan accepted', m.steps.map(function (s) { return s.id + ':' + s.tool + (s.desk ? ('/' + s.desk) : '') + (s.file ? ('/' + s.file) : ''); }).join(' -> '));
       (v.governance || []).forEach(function (g) { audit(m, '', 'governance', g); });
@@ -427,6 +434,8 @@
       L.push('  ' + s.id + '  ' + s.tool + (s.desk ? (' / ' + s.desk) : '') + (s.file ? (' / ' + s.file) : '') + (s.auto ? ' [governance]' : '') + '  ->  ' + s.status +
         (s.lastVerdict ? (' (verdict ' + s.lastVerdict + ')') : '') + (s.revisions ? (', ' + s.revisions + ' revision(s)') : '') + (s.outSha ? (', sha ' + s.outSha.slice(0, 16)) : '') + (s.reason ? (' - ' + s.reason.slice(0, 300)) : ''));
     });
+    if (m.kanon) L.push('', 'Kanon: ' + (m.kanon.status === 'compiled' ? ('compiled and proved the plan (' + m.kanon.tries + ' tries, ' + m.kanon.probes + ' counts measured in the real files)') : ('not used, Hanna plan ran - ' + m.kanon.reason)));
+    (m.steps || []).forEach(function (s) { if (s.tool === 'edit_file' && s.checks) L.push('  ' + s.id + ' rules: ' + (s.checks.required || []).map(function (r) { return JSON.stringify(String(r.text).slice(0, 70)) + ' x' + (r.min === r.max ? r.min : (r.min + '..' + (r.max == null ? 'any' : r.max))); }).join('; ') + ((s.checks.banned || []).length ? (' | never: ' + s.checks.banned.join(', ')) : '')); });
     if (m.deliverables && m.deliverables.length) {
       L.push('', 'Delivered files (attached):');
       m.deliverables.forEach(function (d) { L.push('  ' + d.name + ' - ' + d.bytes + ' bytes - SHA-256 ' + d.sha); });
@@ -464,7 +473,8 @@
   function summary(m) {
     return { id: m.id, title: m.title, status: m.status, stage: m.stage, goal: m.goal || '', reason: m.reason || '', email: m.email || '',
       createdAt: m.createdAt, updatedAt: m.updatedAt, finishedAt: m.finishedAt || null, running: !!RUNNING[m.id],
-      steps: (m.steps || []).map(function (s) { return { id: s.id, tool: s.tool, desk: s.desk || '', file: s.file || '', target: s.target || '', auto: !!s.auto, status: s.status, verdict: s.lastVerdict || '', revisions: s.revisions || 0, reason: s.reason || '', jobId: s.jobId || '', ms: s.ms || 0 }; }),
+      steps: (m.steps || []).map(function (s) { return { id: s.id, tool: s.tool, desk: s.desk || '', file: s.file || '', target: s.target || '', auto: !!s.auto, status: s.status, verdict: s.lastVerdict || '', revisions: s.revisions || 0, reason: s.reason || '', jobId: s.jobId || '', ms: s.ms || 0, rules: s.checks ? ((s.checks.required || []).length + (s.checks.banned || []).length) : 0 }; }),
+      kanon: m.kanon ? { status: m.kanon.status, tries: m.kanon.tries || 0, probes: m.kanon.probes || 0, notes: m.kanon.notes || [], reason: m.kanon.reason || '' } : null,
       deliverables: m.deliverables || [], audit: (m.audit || []).slice(-60) };
   }
   async function loadM(id) {

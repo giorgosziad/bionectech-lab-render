@@ -220,6 +220,17 @@
       job.status = 'building'; job.stage = 'Starting'; job.attempts = []; job.startedAt = now();
       job.reason = ''; job.result = null; job.email = '';
       await saveJob(job);
+      /* BNT_KANON: rules left empty on a panel job -> Kanon writes them from the real file; the server proves them */
+      const _noRules = !((job.checks && job.checks.banned) || []).length && !((job.checks && job.checks.required) || []).length;
+      if (_noRules && job.notify !== false) {
+        job.stage = 'Kanon is writing the rules'; await saveJob(job);
+        try {
+          const kr = await require('./lib/kanon').compileJob({ task: job.instructions, fileName: job.sourceName, text: src });
+          if (kr.ok) { job.checks = Object.assign({}, job.checks || {}, { banned: kr.checks.banned, required: kr.checks.required }); job.kanon = { status: 'compiled', tries: kr.tries, notes: kr.notes }; }
+          else job.kanon = { status: 'skipped', reason: kr.reason };
+        } catch (e) { job.kanon = { status: 'skipped', reason: String((e && e.message) || e) }; }
+        await saveJob(job);
+      }
       let feedback = '';
       for (let a = 1; a <= MAX_ATTEMPTS; a++) {
         const at = { n: a, startedAt: now() };
@@ -386,6 +397,7 @@
     const L = ['Hanna - Bionectech AI Lab', '', 'Job: ' + job.title + ' (' + job.id + ')', 'Status: ' + String(job.status).toUpperCase()];
     L.push('Source: ' + job.sourceName + ' (' + job.sourceBytes + ' bytes, SHA-256 ' + job.sourceSha256 + ')');
     L.push('Time: ' + secs((job.finishedAt || now()) - (job.startedAt || job.createdAt)) + ', attempts: ' + (job.attempts || []).length + ' of ' + MAX_ATTEMPTS);
+    if (job.kanon) L.push('Kanon: ' + (job.kanon.status === 'compiled' ? ('wrote and proved the rules from the real file (' + job.kanon.tries + ' tries)') : ('not used - ' + job.kanon.reason)));
     if (job.status === 'delivered' && job.result) {
       L.push('', 'Delivered file: ' + job.result.name + ' (' + job.result.bytes + ' bytes)', 'SHA-256: ' + job.result.sha256, 'Edits applied: ' + job.result.edits);
       L.push('Non-ASCII characters: ' + job.result.nonAscii.before + ' before, ' + job.result.nonAscii.after + ' after', '', 'Checks passed:');

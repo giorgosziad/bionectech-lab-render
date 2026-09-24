@@ -85,7 +85,7 @@
   function color(s) { return s === 'delivered' || s === 'done' ? C.ok : ((s === 'escalated' || s === 'failed') ? C.bad : C.gold); }
   function stepLine(s) {
     var what = s.tool + (s.desk ? (' by ' + s.desk) : '') + (s.file ? (' on ' + s.file) : '') + (s.target ? (' of ' + s.target) : '');
-    var extra = (s.auto ? ' [required review]' : '') + (s.verdict ? (' - verdict ' + s.verdict) : '') + (s.revisions ? (' - ' + s.revisions + ' revision(s)') : '') + (s.reason ? (' - ' + s.reason.slice(0, 220)) : '');
+    var extra = (s.auto ? ' [required review]' : '') + (s.verdict ? (' - verdict ' + s.verdict) : '') + (s.revisions ? (' - ' + s.revisions + ' revision(s)') : '') + (s.rules ? (' - ' + s.rules + ' proved rules') : '') + (s.reason ? (' - ' + s.reason.slice(0, 220)) : '');
     return '<li><span style="color:' + color(s.status) + '">' + esc(s.status) + '</span> ' + esc(s.id + ': ' + what) + esc(extra) + '</li>';
   }
   function render(list) {
@@ -95,6 +95,7 @@
     box.innerHTML = last.map(function (m) {
       var L = ['<span style="color:' + color(m.status) + ';font-weight:600">' + esc(m.status) + '</span> ' + esc(m.stage || '')];
       if (m.goal) L.push('Goal: ' + esc(m.goal));
+      if (m.kanon) L.push(m.kanon.status === 'compiled' ? ('<span style="color:' + C.ok + '">Kanon: plan compiled and proved (' + esc(m.kanon.probes) + ' counts measured, ' + esc(m.kanon.tries) + ' tries)</span>') : ('<span style="color:' + C.gold + '">Kanon not used: ' + esc(String(m.kanon.reason || '').slice(0, 200)) + '</span>'));
       if (m.reason) L.push(esc(m.reason));
       if (m.email) L.push('Email: ' + esc(m.email));
       L.push('Updated ' + esc(ago(m.updatedAt)));
