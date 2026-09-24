@@ -67,13 +67,13 @@
     '<div id="bjList"><div class="note">No jobs yet. Start one above.</div></div>' +
     '</div></div>';
 
-  function $(id) { return document.getElementById(id); }
+  function $(id) { return document.getElementById(id) || (panel && panel.querySelector ? panel.querySelector('#' + id) : null); }
   function msg(t, bad) { var m = $('bjMsg'); m.textContent = t || ''; m.style.color = bad ? C.bad : C.dim; }
 
   var locked = false;
   function showLock(t) { locked = true; $('bjLock').hidden = false; $('bjMain').hidden = true; $('bjLockMsg').textContent = t || ''; $('bjLockMsg').style.color = C.dim; try { $('bjCode').focus(); } catch (e) {} }
   function hideLock() { locked = false; $('bjLock').hidden = true; $('bjMain').hidden = false; }
-  function isLocked(r) { if (r && r.status === 423) { showLock((r.data && r.data.error) || 'This panel is locked.'); return true; } return false; }
+  function isLocked(r) { if (authRejected(r)) return true; if (r && r.status === 423) { showLock((r.data && r.data.error) || 'This panel is locked.'); return true; } return false; }
   function doUnlock() {
     var code = $('bjCode').value; $('bjCode').value = '';
     if (!code) { $('bjLockMsg').textContent = 'Enter the code.'; return; }
@@ -191,9 +191,18 @@
     if (open) { refresh().then(function () { schedule(); if (!locked) $('bjTitle').focus(); }); } else { clearTimeout(pollTimer); fab.focus(); }
   }
 
+  /* BNT_SIGNIN_GUARD: the button and panel exist on the page ONLY while a Lab session is signed in.
+     Signed out (or session rejected with 401) they are removed from the page and their contents cleared. */
+  var rejectedToken = null;
+  function signedIn() { try { return typeof TOKEN !== 'undefined' && !!TOKEN && TOKEN !== rejectedToken; } catch (e) { return false; } }
+  function sync() {
+    var s = signedIn();
+    if (s && !fab.isConnected) { document.body.appendChild(fab); document.body.appendChild(panel); }
+    else if (!s && fab.isConnected) { if (open) toggle(false); lastJobs = []; renderJobs([]); ['bjTitle','bjTask','bjCode'].forEach(function (i) { var x = $(i); if (x) x.value = ''; }); if (panel.parentNode) panel.parentNode.removeChild(panel); if (fab.parentNode) fab.parentNode.removeChild(fab); }
+  }
+  function authRejected(r) { if (r && r.status === 401) { try { rejectedToken = TOKEN; } catch (e) {} sync(); return true; } return false; }
   function mount() {
-    document.body.appendChild(fab);
-    document.body.appendChild(panel);
+    sync(); setInterval(sync, 1000);
     fab.addEventListener('click', function () { toggle(); });
     $('bjClose').addEventListener('click', function () { toggle(false); });
     $('bjLockBtn').addEventListener('click', doLock);

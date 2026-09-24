@@ -19,7 +19,7 @@
   }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function ago(t) { if (!t) return ''; var s = Math.round((Date.now() - t) / 1000); if (s < 60) return s + 's ago'; if (s < 3600) return Math.round(s / 60) + 'm ago'; return Math.round(s / 3600) + 'h ago'; }
-  function $(id) { return document.getElementById(id); }
+  function $(id) { return document.getElementById(id) || (panel && panel.querySelector ? panel.querySelector('#' + id) : null); }
   function el(tag, css) { var e = document.createElement(tag); if (css) e.style.cssText = css; return e; }
 
   var st = el('style');
@@ -68,7 +68,7 @@
   var locked = false;
   function showLock(t) { locked = true; $('bmLock').hidden = false; $('bmMain').hidden = true; $('bmLockMsg').textContent = t || ''; $('bmLockMsg').style.color = C.dim; try { $('bmCode').focus(); } catch (e) {} }
   function hideLock() { locked = false; $('bmLock').hidden = true; $('bmMain').hidden = false; }
-  function isLocked(r) { if (r && r.status === 423) { showLock((r.data && r.data.error) || 'This panel is locked.'); return true; } return false; }
+  function isLocked(r) { if (authRejected(r)) return true; if (r && r.status === 423) { showLock((r.data && r.data.error) || 'This panel is locked.'); return true; } return false; }
   function doUnlock() {
     var code = $('bmCode').value; $('bmCode').value = '';
     if (!code) { $('bmLockMsg').textContent = 'Enter the code.'; return; }
@@ -156,8 +156,18 @@
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) { refresh().then(function () { schedule(); if (!locked) $('bmBrief').focus(); }); } else { clearTimeout(timer); fab.focus(); }
   }
+  /* BNT_SIGNIN_GUARD: the button and panel exist on the page ONLY while a Lab session is signed in.
+     Signed out (or session rejected with 401) they are removed from the page and their contents cleared. */
+  var rejectedToken = null;
+  function signedIn() { try { return typeof TOKEN !== 'undefined' && !!TOKEN && TOKEN !== rejectedToken; } catch (e) { return false; } }
+  function sync() {
+    var s = signedIn();
+    if (s && !fab.isConnected) { document.body.appendChild(fab); document.body.appendChild(panel); }
+    else if (!s && fab.isConnected) { if (open) toggle(false); render([]); ['bmTitle','bmBrief','bmCode'].forEach(function (i) { var x = $(i); if (x) x.value = ''; }); if (panel.parentNode) panel.parentNode.removeChild(panel); if (fab.parentNode) fab.parentNode.removeChild(fab); }
+  }
+  function authRejected(r) { if (r && r.status === 401) { try { rejectedToken = TOKEN; } catch (e) {} sync(); return true; } return false; }
   function mount() {
-    document.body.appendChild(fab); document.body.appendChild(panel);
+    sync(); setInterval(sync, 1000);
     fab.addEventListener('click', function () { toggle(); });
     $('bmClose').addEventListener('click', function () { toggle(false); });
     $('bmLockBtn').addEventListener('click', doLock);
