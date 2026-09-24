@@ -56,6 +56,7 @@
     '<div id="bmLock" hidden><div class="sec">Enter the Missions code</div><div class="note">This panel is locked. The code is checked on the server; after 5 wrong tries it waits 15 minutes. An unlock lasts 8 hours on this account.</div><label for="bmCode">Missions code</label><input type="password" id="bmCode" autocomplete="off" spellcheck="false"><div class="row"><button type="button" class="primary" id="bmUnlock">Unlock</button><span class="note" id="bmLockMsg" role="status"></span></div></div>' +
     '<div id="bmMain">' +
     '<div class="note">Give Hanna the brief and the files once. She plans the work across the desks; the server runs every step, checks it, sends regulated wording to Solon for review, and emails you one report with the delivered files. Closing this tab does not stop a mission.</div>' +
+    '<div class="note" id="bmKanon">Kanon: checking...</div>' +
     '<div class="sec">New mission</div>' +
     '<label for="bmTitle">Title</label><input type="text" id="bmTitle" placeholder="OncoDefy posture update">' +
     '<label for="bmBrief">Brief for Hanna</label><textarea id="bmBrief" placeholder="What you want delivered, the rules it must follow, and what done looks like."></textarea>' +
@@ -88,6 +89,38 @@
     var extra = (s.auto ? ' [required review]' : '') + (s.verdict ? (' - verdict ' + s.verdict) : '') + (s.revisions ? (' - ' + s.revisions + ' revision(s)') : '') + (s.rules ? (' - ' + s.rules + ' proved rules') : '') + (s.reason ? (' - ' + s.reason.slice(0, 220)) : '');
     return '<li><span style="color:' + color(s.status) + '">' + esc(s.status) + '</span> ' + esc(s.id + ': ' + what) + esc(extra) + '</li>';
   }
+  /* BNT_KANON_VISIBLE */
+  function kanonLine(k) {
+    if (!k) return '';
+    return k.ready ? ('<span style="color:' + C.ok + ';font-weight:600">Kanon is ready</span> - the measuring rod. He writes the exact commands and rules for every mission after Hanna plans it, and the server proves them before anything runs. Model: ' + esc(k.model) + '.')
+                   : ('<span style="color:' + C.gold + ';font-weight:600">Kanon is offline</span> - no model key on the server. Missions still run on Hanna\'s plan.');
+  }
+  var openPlans = {};   /* mission id -> rendered commands, kept open across refreshes */
+  function rulesText(c) {
+    if (!c) return '';
+    var a = (c.required || []).map(function (q) { return 'must contain "' + String(q.text).slice(0, 160) + '" ' + ((q.max != null && q.min === q.max) ? ('exactly ' + q.min) : ('at least ' + q.min)) + (q.min === 1 && q.max === 1 ? ' time' : ' times'); });
+    (c.banned || []).forEach(function (b) { a.push('must never contain "' + b + '"'); });
+    return a.length ? ('<div style="margin:4px 0"><b>Proved rules:</b><ul>' + a.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>') : '';
+  }
+  var PRE = 'white-space:pre-wrap;word-break:break-word;max-height:240px;overflow:auto;background:rgba(0,0,0,.25);border:1px solid ' + C.line + ';border-radius:6px;padding:8px;font-size:12px;margin:4px 0';
+  function planHtml(d) {
+    var head = (d.kanon && d.kanon.status === 'compiled') ? ('<b style="color:' + C.ok + '">Commands written by Kanon and proved by the server</b>') : ('<b style="color:' + C.gold + '">Hanna\'s plan - Kanon was not used' + ((d.kanon && d.kanon.reason) ? (': ' + esc(String(d.kanon.reason).slice(0, 200))) : '') + '</b>');
+    var steps = (d.steps || []).map(function (st) {
+      var what = st.id + ' - ' + st.tool + (st.desk ? (' by ' + st.desk) : '') + (st.file ? (' on ' + st.file) : '') + (st.target ? (' of ' + st.target) : '') + (st.auto ? ' [required review]' : '');
+      var body = st.task ? ('<div><b>Task:</b></div><div style="' + PRE + '">' + esc(st.task) + '</div>') : '';
+      if (st.criteria) body += '<div><b>Review criteria:</b></div><div style="' + PRE + '">' + esc(st.criteria) + '</div>';
+      return '<li style="margin:8px 0"><b>' + esc(what) + '</b>' + body + rulesText(st.checks) + '</li>';
+    }).join('');
+    return '<div class="kplan" style="margin-top:8px;border-top:1px solid ' + C.line + ';padding-top:8px">' + head + (d.goal ? ('<div>Goal: ' + esc(d.goal) + '</div>') : '') + '<ol>' + steps + '</ol></div>';
+  }
+  function togglePlan(id) {
+    if (openPlans[id]) { delete openPlans[id]; render(last); return; }
+    call('mission?action=plan&id=' + encodeURIComponent(id), { method: 'GET' }).then(function (r) {
+      if (isLocked(r)) return;
+      if (!r.ok || !r.data || !r.data.ok) { msg((r.data && r.data.error) || ('Could not load the commands (HTTP ' + r.status + ').'), true); return; }
+      openPlans[id] = planHtml(r.data); render(last);
+    }).catch(function () { msg('Could not reach the Lab server.', true); });
+  }
   function render(list) {
     last = list || [];
     var box = $('bmList');
@@ -106,14 +139,15 @@
       var aud = (m.audit && m.audit.length) ? '<details><summary>Audit log</summary><ul>' + m.audit.map(function (a) {
         return '<li>' + esc(new Date(a.at).toLocaleTimeString()) + ' ' + esc((a.step ? a.step + ' ' : '') + a.event) + (a.detail ? (': ' + esc(String(a.detail).slice(0, 300))) : '') + '</li>';
       }).join('') + '</ul></details>' : '';
-      return '<div class="mis"><div class="t">' + esc(m.title) + '</div><div class="s">' + L.join('<br>') + '</div>' + steps + (dls ? '<div class="row">' + dls + '</div>' : '') + aud + '</div>';
+      var kbtn = (m.steps && m.steps.length) ? ('<button type="button" data-plan="' + esc(m.id) + '">' + (openPlans[m.id] ? 'Hide Kanon\'s commands' : 'Show Kanon\'s commands') + '</button>') : '';
+      return '<div class="mis"><div class="t">' + esc(m.title) + '</div><div class="s">' + L.join('<br>') + '</div>' + steps + '<div class="row">' + kbtn + dls + '</div>' + (openPlans[m.id] || '') + aud + '</div>';
     }).join('');
   }
   function refresh() {
     return call('mission?action=list', { method: 'GET' }).then(function (r) {
       if (isLocked(r)) return;
       hideLock();
-      if (r.ok && r.data && r.data.ok) render(r.data.missions); else msg((r.data && r.data.error) || ('Could not load missions (HTTP ' + r.status + ').'), true);
+      if (r.ok && r.data && r.data.ok) { if ($('bmKanon')) $('bmKanon').innerHTML = kanonLine(r.data.kanon); render(r.data.missions); } else msg((r.data && r.data.error) || ('Could not load missions (HTTP ' + r.status + ').'), true);
     }).catch(function () { msg('Could not reach the Lab server.', true); });
   }
   function schedule() {
@@ -175,7 +209,7 @@
     $('bmUnlock').addEventListener('click', doUnlock);
     $('bmCode').addEventListener('keydown', function (e) { if (e.key === 'Enter') doUnlock(); });
     $('bmStart').addEventListener('click', start);
-    $('bmList').addEventListener('click', function (e) { var j = e.target && e.target.getAttribute('data-job'); if (j) download(e.target.getAttribute('data-mis'), j); });
+    $('bmList').addEventListener('click', function (e) { var j = e.target && e.target.getAttribute('data-job'); if (j) download(e.target.getAttribute('data-mis'), j); var pl = e.target && e.target.getAttribute('data-plan'); if (pl) togglePlan(pl); });
     document.addEventListener('keydown', function (e) { if (open && e.key === 'Escape') toggle(false); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();

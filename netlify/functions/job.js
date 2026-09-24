@@ -503,6 +503,13 @@
         const prog = await readJSON(null, 'hjobprog:' + id, null);
         return json(200, { ok: true, job: summary(job, prog) });
       }
+      if (action === 'kanon-preview') {   /* BNT_KANON_VISIBLE: Kanon writes the rules in front of the operator; nothing runs */
+        const task = String(b.instructions || b.task || '').trim(), name = safeName(b.sourceName) || 'file', text = (typeof b.sourceText === 'string') ? b.sourceText : '';
+        if (!task || !text) return json(400, { error: 'Choose the file and write the task first.' });
+        if (text.length > 3000000) return json(413, { error: 'Source file is over 3 MB.' });
+        const kr = await require('./lib/kanon').compileJob({ task: task, fileName: name, text: text });
+        return json(200, kr.ok ? { ok: true, checks: kr.checks, notes: kr.notes, tries: kr.tries } : { ok: false, error: kr.reason });
+      }
       if (action === 'list') {
         let ids = await readJSON(null, INDEX_KEY, []);
         if (!Array.isArray(ids)) ids = [];
@@ -513,7 +520,8 @@
           const prog = (job.status === 'building') ? await readJSON(null, 'hjobprog:' + job.id, null) : null;
           out.push(summary(job, prog));
         }
-        return json(200, { ok: true, jobs: out, email: mailConfig().ok ? 'configured' : 'not configured' });
+        let kst = null; try { kst = await require('./lib/kanon').status(); } catch (e) {}
+        return json(200, { ok: true, jobs: out, email: mailConfig().ok ? 'configured' : 'not configured', kanon: kst });
       }
       if (action === 'file') {
         const id = String(q.id || b.id || '');

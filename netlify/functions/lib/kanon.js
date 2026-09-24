@@ -202,6 +202,14 @@
     return { ok: false, reason: 'Kanon could not write provable rules after ' + MAX_TRIES + ' tries: ' + (last || [fb]).join(' | ').slice(0, 600), model: model };
   }
 
-  module.exports = { compileMission: compileMission, compileJob: compileJob, METHOD: METHOD,
+  /* BNT_KANON_VISIBLE: live status for the panels */
+  async function status() {
+    const ready = !!(askImpl || process.env.ANTHROPIC_API_KEY);
+    let name = process.env.KANON_MODEL || '';
+    if (!name) { try { const s = await latest.snapshot(); name = (s.latest && (s.latest.name || s.latest.id)) || ''; } catch (e) {} }
+    return { ready: ready, model: name || 'claude-opus-5-5' };
+  }
+
+  module.exports = { compileMission: compileMission, compileJob: compileJob, status: status, METHOD: METHOD,
     _test: { provePlan: provePlan, countProbes: countProbes, parseJson: parseJson, setAsk: function (f) { askImpl = f; } } };
 })();

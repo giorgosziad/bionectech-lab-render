@@ -56,13 +56,14 @@
     '<div id="bjLock" hidden><div class="sec">Enter the Jobs code</div><div class="note">This panel is locked. The code is checked on the server; after 5 wrong tries it waits 15 minutes. An unlock lasts 8 hours on this account.</div><label for="bjCode">Jobs code</label><input type="password" id="bjCode" autocomplete="off" spellcheck="false"><div class="row"><button type="button" class="primary" id="bjUnlock">Unlock</button><span class="note" id="bjLockMsg" role="status"></span></div></div>' +
     '<div id="bjMain">' +
     '<div class="note">A job runs on the Lab server. Karam returns edits, the server applies them to your file, a code check decides, and you get an email with the verified file or the exact reason it stopped. Closing this tab does not stop a job.</div>' +
+    '<div class="note" id="bjKanon">Kanon: checking...</div>' +
     '<div class="sec">New job</div>' +
     '<label for="bjTitle">Title</label><input type="text" id="bjTitle" placeholder="OncoDefy posture update">' +
     '<label for="bjFile">Source file</label><input type="file" id="bjFile">' +
     '<label for="bjTask">Task for Karam</label><textarea id="bjTask" placeholder="What to change in the file, as precisely as you can."></textarea>' +
     '<label for="bjBanned">Must not contain (comma separated, case-insensitive)</label><input type="text" id="bjBanned" placeholder="approved, cleared, clearance, approval">' +
-    '<label for="bjReq">Must contain (one per line; add || N for an exact count)</label><textarea id="bjReq" placeholder="Deferred \u2014 modality pending FDA authorization || 1"></textarea>' +
-    '<div class="row"><button type="button" class="primary" id="bjStart">Start job</button><button type="button" id="bjMail">Send test email</button><span class="note" id="bjMsg" role="status"></span></div>' +
+    '<label for="bjReq">Must contain (one per line; add || N for an exact count, || N+ for at least N)</label><textarea id="bjReq" placeholder="Deferred \u2014 modality pending FDA authorization || 1"></textarea>' +
+    '<div class="row"><button type="button" class="primary" id="bjStart">Start job</button><button type="button" id="bjKanonBtn">Preview Kanon\'s rules</button><button type="button" id="bjMail">Send test email</button><span class="note" id="bjMsg" role="status"></span></div>' +
     '<div class="sec">Jobs <span class="note" id="bjEmail"></span></div>' +
     '<div id="bjList"><div class="note">No jobs yet. Start one above.</div></div>' +
     '</div></div>';
@@ -120,6 +121,7 @@
       hideLock();
       if (!r.ok || !r.data) { $('bjEmail').textContent = (r.data && r.data.error) ? r.data.error : ('Could not load jobs (HTTP ' + r.status + ').'); return; }
       $('bjEmail').textContent = r.data.email === 'configured' ? 'Email reports on' : 'Email reports off: set SMTP_USER, SMTP_PASS, REPORT_TO on Render';
+      if ($('bjKanon')) $('bjKanon').innerHTML = kanonLine(r.data.kanon);
       renderJobs(r.data.jobs);
     }).catch(function () { $('bjEmail').textContent = 'Could not reach the Lab server.'; });
   }
@@ -132,9 +134,34 @@
 
   function parseRequired(txt) {
     return String(txt || '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean).map(function (l) {
-      var m = l.match(/^(.*?)\s*\|\|\s*(\d+)\s*$/);
-      return m ? { text: m[1], min: parseInt(m[2], 10), max: parseInt(m[2], 10) } : { text: l, min: 1, max: null };
+      var m = l.match(/^(.*?)\s*\|\|\s*(\d+)(\+?)\s*$/);
+      return m ? { text: m[1], min: parseInt(m[2], 10), max: m[3] ? null : parseInt(m[2], 10) } : { text: l, min: 1, max: null };
     });
+  }
+  /* BNT_KANON_VISIBLE */
+  function kanonLine(k) {
+    if (!k) return '';
+    return k.ready ? ('<span style="color:' + C.ok + ';font-weight:600">Kanon is ready</span> - the measuring rod. He writes the exact commands and rules for a job when you leave the two rule boxes empty (press Preview Kanon\'s rules to see them first), and the server proves them before anything runs. Model: ' + esc(k.model) + '.')
+                   : ('<span style="color:' + C.gold + ';font-weight:600">Kanon is offline</span> - no model key on the server. Jobs still run with the rules you write.');
+  }
+  var kanonRules = null;   /* the exact rules from the last preview, sent as-is unless the boxes are edited */
+  function reqText(list) { return (list || []).map(function (q) { return q.text + ((q.max != null && q.min === q.max) ? (' || ' + q.min) : (q.min > 1 ? (' || ' + q.min + '+') : '')); }).join('\n'); }
+  function kanonPreview() {
+    var f = $('bjFile').files && $('bjFile').files[0]; var task = $('bjTask').value.trim();
+    if (!f) { msg('Choose the source file first.', true); return; }
+    if (!task) { msg('Write the task for Karam first.', true); return; }
+    $('bjKanonBtn').disabled = true; msg('Kanon is reading the real file and writing the rules - this can take a minute or two...');
+    readFile(f).then(function (text) {
+      return call('job', { method: 'POST', body: JSON.stringify({ action: 'kanon-preview', instructions: task, sourceName: f.name, sourceText: text }) });
+    }).then(function (r) {
+      $('bjKanonBtn').disabled = false;
+      if (isLocked(r)) return;
+      if (!r.ok || !r.data || !r.data.ok) { msg('Kanon could not write provable rules: ' + ((r.data && r.data.error) || ('HTTP ' + r.status)), true); return; }
+      var c = r.data.checks || { banned: [], required: [] };
+      kanonRules = { banned: (c.banned || []).slice(), required: (c.required || []).slice(), bannedText: (c.banned || []).join(', '), reqText: reqText(c.required) };
+      $('bjBanned').value = kanonRules.bannedText; $('bjReq').value = kanonRules.reqText;
+      msg('Kanon wrote ' + (kanonRules.banned.length + kanonRules.required.length) + ' rules and the server proved them' + ((r.data.notes && r.data.notes.length) ? (' - ' + r.data.notes.join(' / ')) : '') + '. Review or edit them, then press Start job.');
+    }).catch(function (e) { $('bjKanonBtn').disabled = false; msg(e.message, true); });
   }
   function readFile(f) {
     return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(String(r.result)); }; r.onerror = function () { rej(new Error('Could not read the file.')); }; r.readAsText(f, 'utf-8'); });
@@ -150,7 +177,7 @@
       var oc = ''; try { if (typeof ownerCode !== 'undefined' && ownerCode) oc = ownerCode; } catch (e) {}
       return call('job', { method: 'POST', body: JSON.stringify({
         action: 'create', title: $('bjTitle').value.trim() || f.name, instructions: task, sourceName: f.name, sourceText: text,
-        banned: $('bjBanned').value, required: parseRequired($('bjReq').value), model: model, ownerCode: oc
+        banned: (kanonRules && $('bjBanned').value === kanonRules.bannedText) ? kanonRules.banned : $('bjBanned').value, required: (kanonRules && $('bjReq').value === kanonRules.reqText) ? kanonRules.required : parseRequired($('bjReq').value), model: model, ownerCode: oc
       }) });
     }).then(function (r) {
       $('bjStart').disabled = false;
@@ -209,6 +236,7 @@
     $('bjUnlock').addEventListener('click', doUnlock);
     $('bjCode').addEventListener('keydown', function (e) { if (e.key === 'Enter') doUnlock(); });
     $('bjStart').addEventListener('click', start);
+    $('bjKanonBtn').addEventListener('click', kanonPreview);
     $('bjMail').addEventListener('click', testMail);
     $('bjList').addEventListener('click', function (e) {
       var t = e.target;

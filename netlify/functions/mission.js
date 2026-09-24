@@ -533,13 +533,19 @@
         if (!f) return json(404, { error: 'The delivered file has expired from the store.' });
         return json(200, { ok: true, name: f.name, sha256: f.sha256, text: f.text });
       }
+      if (action === 'plan') {   /* BNT_KANON_VISIBLE: the full compiled commands of one mission */
+        const m = await loadM(String(q.id || b.id || ''));
+        if (!m) return json(404, { error: 'No such mission.' });
+        return json(200, { ok: true, goal: m.goal || '', kanon: m.kanon || null, steps: (m.steps || []).map(function (s) { return { id: s.id, tool: s.tool, desk: s.desk || '', file: s.file || '', target: s.target || '', url: s.url || '', task: String(s.task || '').slice(0, 20000), criteria: String(s.criteria || '').slice(0, 8000), checks: s.checks || null, auto: !!s.auto, status: s.status }; }) });
+      }
       if (action === 'list') {
         let ids = await readJSON(null, INDEX_KEY, []); if (!Array.isArray(ids)) ids = [];
         const out = [];
         for (let i = 0; i < Math.min(ids.length, 20); i++) { const m = await loadM(ids[i]); if (m) out.push(summary(m)); }
-        return json(200, { ok: true, missions: out });
+        let kst = null; try { kst = await require('./lib/kanon').status(); } catch (e) {}
+        return json(200, { ok: true, missions: out, kanon: kst });
       }
-      return json(400, { error: 'Unknown action. Use create, get, list, file, unlock or lock.' });
+      return json(400, { error: 'Unknown action. Use create, get, list, plan, file, unlock or lock.' });
     } catch (e) {
       return json(500, { error: String((e && e.message) || e) });
     }
