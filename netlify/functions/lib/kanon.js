@@ -210,6 +210,81 @@
     return { ready: ready, model: name || 'claude-opus-5-5' };
   }
 
-  module.exports = { compileMission: compileMission, compileJob: compileJob, status: status, METHOD: METHOD,
-    _test: { provePlan: provePlan, countProbes: countProbes, parseJson: parseJson, setAsk: function (f) { askImpl = f; } } };
+  /* ==== BNT_KANON_BRIEF: Kanon writes the brief from the record ==================================== */
+  const BRIEF_METHOD = METHOD + '\n' + [
+    'BRIEF MODE: you are writing the MISSION BRIEF itself, the way a senior engineer who read the whole record would:',
+    'A. Read every part of the record. Extract rulings, requirements, decisions, scope calls, open bugs, rejected ideas and the files people refer to - each with the line number it came from.',
+    'B. Reconcile: the operator\'s LATEST explicit ruling wins; a desk ruling the operator accepted stands; older contradicting versions are SUPERSEDED and never return. List real conflicts as flags.',
+    'C. Measure the target files: every count in the brief comes from the server-measured PROBE COUNTS, never from the record\'s claims.',
+    'D. Write the brief in plain language - no code, no JSON, no commands, no markdown code fences.'
+  ].join('\n');
+  const PART_CHARS = 110000;
+
+  function splitParts(record) {
+    const lines = String(record || '').split('\n'); const parts = []; let cur = [], len = 0;
+    lines.forEach(function (l) { if (len + l.length + 1 > PART_CHARS && cur.length) { parts.push(cur.join('\n')); cur = []; len = 0; } cur.push(l); len += l.length + 1; });
+    if (cur.length) parts.push(cur.join('\n'));
+    return parts;
+  }
+  function fenced(text, tag) { const m = String(text || '').match(new RegExp('```' + tag + '[^\\n]*\\n([\\s\\S]*?)```')); return m ? m[1].trim() : null; }
+  function briefProblems(brief) {
+    const p = [];
+    if (!brief || brief.length < 600) p.push('The brief is missing or too short.');
+    if (brief && brief.length > 58000) p.push('The brief is over 58,000 characters; tighten it.');
+    if (brief && !/STEP 1\b/i.test(brief)) p.push('The brief has no numbered steps (STEP 1, STEP 2 ...).');
+    if (brief && /```|\{"|"\}|=>|function\s*\(/.test(brief)) p.push('The brief contains code or JSON; it must be plain language only.');
+    if (brief && !/done when/i.test(brief)) p.push('No step says "This step is done when ...".');
+    return p;
+  }
+  // opts: { want, record, files, knowledge, validate(plan) }   progress({stage, done, total})
+  async function writeBrief(opts, progress) {
+    progress = progress || function () {};
+    const files = opts.files || {};
+    const know = String(opts.knowledge || '');
+    const parts = splitParts(opts.record);
+    const items = []; let model = null;
+    for (let i = 0; i < parts.length; i++) {
+      progress({ stage: 'Kanon is reading the record: part ' + (i + 1) + ' of ' + parts.length, done: i, total: parts.length });
+      const r = await ask(BRIEF_METHOD, 'STANDING KNOWLEDGE:\n' + know + '\n\nWHAT THE OPERATOR WANTS:\n' + String(opts.want || '') + '\n\nRECORD PART ' + (i + 1) + ' OF ' + parts.length + ' (each line starts with its line number):\n' + parts[i] +
+        '\n\nExtract every ruling, requirement, decision, scope call, open bug, rejected idea and referenced file in this part that matters for what the operator wants. Return one ```json block {"items":[{"line":"<line number as written>","who":"operator|<desk name>","kind":"ruling|requirement|decision|scope|bug|rejected|file|question","text":"the exact or near-exact wording, at most 400 characters"}]} with at most 60 items.', 6000);
+      model = r.model || model;
+      const j = parseJson(r.text) || {};
+      (Array.isArray(j.items) ? j.items : []).slice(0, 60).forEach(function (it) {
+        if (it && it.text) items.push({ line: String(it.line || ''), who: String(it.who || ''), kind: String(it.kind || ''), text: String(it.text).slice(0, 400) });
+      });
+    }
+    const itemsBlock = items.map(function (it) { return 'L' + it.line.replace(/^L/i, '') + ' [' + it.who + ' ' + it.kind + '] ' + it.text; }).join('\n').slice(0, 160000) || '(no record supplied)';
+    const context = 'STANDING KNOWLEDGE:\n' + know + '\n\nWHAT THE OPERATOR WANTS:\n' + String(opts.want || '') + '\n\nEXTRACTED FROM THE RECORD (' + items.length + ' items, with line numbers):\n' + itemsBlock + '\n\nTARGET FILES:\n' + filesBlock(files);
+    progress({ stage: 'Kanon is choosing what to count in the target files', done: parts.length, total: parts.length });
+    const pr = await ask(BRIEF_METHOD, context + '\n\nBRIEF PROBE. List the exact strings the server must count in the target files so every count in the brief is real: phrases to remove, texts to add, ruled sentences, and names, ids or endpoints that must survive. Copy each exactly. Return one ```json block {"probes":["..."]} with at most ' + MAX_PROBES + ' items.', 4000);
+    const probes = cleanProbes(parseJson(pr.text));
+    const counts = countsBlock(countProbes(probes, files));
+    let fb = '', last = null;
+    for (let t = 1; t <= MAX_TRIES; t++) {
+      progress({ stage: 'Kanon is writing the brief' + (t > 1 ? (' (revision ' + t + ')') : ''), done: parts.length, total: parts.length });
+      const r = await ask(BRIEF_METHOD, context + '\n\nPROBE COUNTS (measured by the server in the target files):\n' + counts +
+        '\n\nWRITE THE BRIEF. Structure: a title line; one paragraph telling Hanna how many steps to plan and in what order; the FINAL sentences section quoting every ruled sentence verbatim; RULES FOR EVERY STEP as plain sentences (with exact counts from the probe counts); OUT OF SCOPE with a one-line reason each; then STEP 1, STEP 2 ... - each edit step names the attached file, says exactly what to change in plain words with every sentence the editor needs, and ends with "This step is done when ..."; each regulated edit is followed by a Solon review step whose criteria quote the ruled sentence and say it is not reopened; the last step is a Karim integrity review of the finished file. At most 10 steps. Plain language only.' +
+        '\nReturn the brief inside one ```brief block, then one ```json block {"decisions":[{"line":"...","decision":"...","status":"final|superseded|open"}],"flags":["..."]}.' + (fb ? ('\n\nYOUR PREVIOUS BRIEF WAS REJECTED. Fix exactly this:\n' + fb) : ''), 16000);
+      model = r.model || model;
+      const brief = fenced(r.text, 'brief');
+      const meta = parseJson(String(r.text || '').replace(/```brief[\s\S]*?```/, '')) || {};
+      let errs = briefProblems(brief);
+      if (!errs.length && opts.validate) {
+        progress({ stage: 'Server is test-planning the brief (try ' + t + ')', done: parts.length, total: parts.length });
+        const kc = await compileMission({ brief: brief, files: files, draft: [], validate: opts.validate });
+        if (!kc.ok) errs = ['Test-planning failed - the brief does not yet produce a provable plan: ' + kc.reason];
+        else { var planned = kc.v.steps.length; }
+      }
+      if (!errs.length) {
+        return { ok: true, brief: brief, tries: t, model: model, partsRead: parts.length, itemsFound: items.length, probes: probes.length, plannedSteps: planned || 0,
+          decisions: (Array.isArray(meta.decisions) ? meta.decisions : []).slice(0, 300).map(function (d) { return { line: String(d.line || ''), decision: String(d.decision || '').slice(0, 400), status: String(d.status || '') }; }),
+          flags: (Array.isArray(meta.flags) ? meta.flags : []).map(String).slice(0, 20) };
+      }
+      fb = errs.join('\n'); last = errs;
+    }
+    return { ok: false, reason: 'Kanon could not produce a brief that passes test-planning after ' + MAX_TRIES + ' tries: ' + (last || []).join(' | ').slice(0, 900), partsRead: parts.length, itemsFound: items.length };
+  }
+
+  module.exports = { compileMission: compileMission, compileJob: compileJob, writeBrief: writeBrief, status: status, METHOD: METHOD,
+    _test: { provePlan: provePlan, countProbes: countProbes, parseJson: parseJson, splitParts: splitParts, briefProblems: briefProblems, setAsk: function (f) { askImpl = f; } } };
 })();

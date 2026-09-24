@@ -57,6 +57,18 @@
     '<div id="bmMain">' +
     '<div class="note">Give Hanna the brief and the files once. She plans the work across the desks; the server runs every step, checks it, sends regulated wording to Solon for review, and emails you one report with the delivered files. Closing this tab does not stop a mission.</div>' +
     '<div class="note" id="bmKanon">Kanon: checking...</div>' +
+    '<details id="bmKB" style="margin:10px 0"><summary style="cursor:pointer;font-weight:600;color:' + C.gold + '">Kanon: write the brief for me</summary>' +
+    '<div class="note">Tell Kanon what you want and give him the record - chat exports, notes, desk outputs, any size. Attach the target files below under Files. Kanon reads everything, the server counts the target files and test-plans the brief, and the brief appears in the Brief box for you to check. Nothing starts until you press Start mission.</div>' +
+    '<label for="bmKBWant">What do you want delivered?</label><textarea id="bmKBWant" placeholder="For example: OncoDefy v9 with Galen and Fotis items and the final posture sentence."></textarea>' +
+    '<label for="bmKBRec">The record (any size)</label><input type="file" id="bmKBRec" multiple>' +
+    '<div class="row"><button type="button" class="primary" id="bmKBGo">Kanon: write the brief</button><span class="note" id="bmKBMsg" role="status"></span></div>' +
+    '<div id="bmKBOut"></div>' +
+    '</details>' +
+    '<details id="bmKK" style="margin:10px 0"><summary style="cursor:pointer;font-weight:600">Kanon\'s standing knowledge</summary>' +
+    '<div class="note">Kanon reads this before every brief: your products, standing rules and ruled positions. Correct it once; it is saved on the server.</div>' +
+    '<textarea id="bmKKText" rows="12"></textarea>' +
+    '<div class="row"><button type="button" id="bmKKSave">Save knowledge</button><span class="note" id="bmKKMsg" role="status"></span></div>' +
+    '</details>' +
     '<div class="sec">New mission</div>' +
     '<label for="bmTitle">Title</label><input type="text" id="bmTitle" placeholder="OncoDefy posture update">' +
     '<label for="bmBrief">Brief for Hanna</label><textarea id="bmBrief" placeholder="What you want delivered, the rules it must follow, and what done looks like."></textarea>' +
@@ -161,6 +173,100 @@
       return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res({ name: f.name, text: String(r.result) }); }; r.onerror = function () { rej(new Error('Could not read ' + f.name)); }; r.readAsText(f, 'utf-8'); });
     }));
   }
+  /* BNT_KANON_BRIEF: Kanon writes the brief */
+  var PART = 700000, kbTimer = null, kbLast = null, kkLoaded = false;
+  function kbMsg(t, bad) { var m = $('bmKBMsg'); if (m) { m.textContent = t || ''; m.style.color = bad ? C.bad : C.dim; } }
+  function prepRecord(list) {
+    var seen = {}, out = [], orig = 0, removed = 0;
+    list.forEach(function (f) {
+      var lines = String(f.text || '').split(/\r?\n/); orig += String(f.text || '').length;
+      var tag = list.length > 1 ? (f.name + ' ') : '';
+      if (list.length > 1) out.push('=== RECORD FILE ' + f.name + ' ===');
+      lines.forEach(function (l, i) {
+        var t = l.length > 6000 ? (l.slice(0, 4000) + ' [... ' + (l.length - 5000) + ' characters omitted ...] ' + l.slice(-1000)) : l;
+        var key = t.trim();
+        if (key.length >= 40) { if (seen[key]) { removed++; return; } seen[key] = 1; }
+        if (!key) return;
+        out.push(tag + 'L' + (i + 1) + ': ' + t);
+      });
+    });
+    var text = out.join('\n');
+    return { text: text, orig: orig, kept: text.length, removed: removed };
+  }
+  function kbSend(id, text, i) {
+    if (i >= text.length) return Promise.resolve();
+    kbMsg('Sending the record to Kanon: ' + Math.min(100, Math.round((i + PART) * 100 / text.length)) + '%...');
+    return call('brief', { method: 'POST', body: JSON.stringify({ action: 'append', id: id, part: text.slice(i, i + PART) }) }).then(function (r) {
+      if (isLocked(r)) throw new Error('locked');
+      if (!r.ok) throw new Error((r.data && r.data.error) || ('HTTP ' + r.status));
+      return kbSend(id, text, i + PART);
+    });
+  }
+  function kbFill(force) {
+    if (!kbLast || !kbLast.brief) return;
+    var box = $('bmBrief');
+    if (box.value.trim() && !force) return false;
+    box.value = kbLast.brief; return true;
+  }
+  function kbRender(g) {
+    var o = $('bmKBOut'); if (!o) return;
+    if (!g || g.status !== 'done' || !g.result) { o.innerHTML = ''; return; }
+    var r = g.result; kbLast = r;
+    var h = '<div class="mis"><div class="t" style="color:' + C.ok + '">Kanon wrote the brief and the server test-planned it</div>' +
+      '<div class="s">Read ' + esc(r.partsRead) + ' part(s) of the record, found ' + esc(r.itemsFound) + ' decisions and requirements, measured ' + esc(r.probes) + ' counts in the target files, and the brief plans into ' + esc(r.plannedSteps) + ' proved steps.</div>' +
+      '<div class="row"><button type="button" id="bmKBPut">Put Kanon\'s brief in the Brief box</button></div>';
+    if (r.flags && r.flags.length) h += '<div style="margin-top:6px"><b style="color:' + C.gold + '">Flags - read these before you start:</b><ul>' + r.flags.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul></div>';
+    if (r.decisions && r.decisions.length) h += '<details><summary>Decision record (' + r.decisions.length + ', with line numbers in the record)</summary><ul>' + r.decisions.map(function (d) { return '<li><span style="color:' + (d.status === 'final' ? C.ok : (d.status === 'superseded' ? C.dim : C.gold)) + '">' + esc(d.status || '') + '</span> line ' + esc(d.line) + ': ' + esc(d.decision) + '</li>'; }).join('') + '</ul></details>';
+    o.innerHTML = h + '</div>';
+    var b = $('bmKBPut'); if (b) b.addEventListener('click', function () { kbFill(true); msg('Kanon\'s brief is in the Brief box. Check it, attach the target files, then press Start mission.'); });
+  }
+  function kbPoll(id) {
+    clearTimeout(kbTimer);
+    call('brief?action=get&id=' + encodeURIComponent(id), { method: 'GET' }).then(function (r) {
+      if (isLocked(r)) return;
+      var g = r.data && r.data.brief;
+      if (!g) { kbMsg('Lost track of the brief. Start again.', true); $('bmKBGo').disabled = false; return; }
+      if (g.status === 'done') { $('bmKBGo').disabled = false; kbRender(g); var put = kbFill(false); kbMsg(put ? 'Done - the brief is in the Brief box below.' : 'Done - your Brief box already had text; press the button above to replace it.'); return; }
+      if (g.status === 'failed') { $('bmKBGo').disabled = false; kbMsg('Kanon could not finish: ' + (g.reason || 'unknown reason'), true); return; }
+      kbMsg(g.stage || 'Kanon is working...');
+      kbTimer = setTimeout(function () { kbPoll(id); }, 3000);
+    }).catch(function () { kbTimer = setTimeout(function () { kbPoll(id); }, 5000); });
+  }
+  function kbGo() {
+    var want = $('bmKBWant').value.trim();
+    if (!want) { kbMsg('Say in a few words what you want delivered.', true); return; }
+    $('bmKBGo').disabled = true; $('bmKBOut').innerHTML = ''; kbMsg('Reading your files...');
+    var prep = null, id = null;
+    Promise.all([readAll($('bmKBRec').files), readAll($('bmFiles').files)]).then(function (res) {
+      prep = prepRecord(res[0]);
+      return call('brief', { method: 'POST', body: JSON.stringify({ action: 'create', want: want, files: res[1] }) });
+    }).then(function (r) {
+      if (isLocked(r)) throw new Error('locked');
+      if (!r.ok || !r.data || !r.data.ok) throw new Error((r.data && r.data.error) || ('HTTP ' + r.status));
+      id = r.data.id; return kbSend(id, prep.text, 0);
+    }).then(function () {
+      return call('brief', { method: 'POST', body: JSON.stringify({ action: 'start', id: id }) });
+    }).then(function (r) {
+      if (!r.ok) throw new Error((r.data && r.data.error) || ('HTTP ' + r.status));
+      kbMsg('Kanon started. Record: ' + prep.orig.toLocaleString() + ' characters, ' + prep.removed.toLocaleString() + ' repeated lines removed. You can close this panel.');
+      kbPoll(id);
+    }).catch(function (e) { $('bmKBGo').disabled = false; if (e && e.message !== 'locked') kbMsg('Could not start Kanon: ' + e.message, true); });
+  }
+  function kkLoad() {
+    if (kkLoaded) return;
+    call('brief?action=knowledge-get', { method: 'GET' }).then(function (r) {
+      if (isLocked(r)) return;
+      if (r.ok && r.data && r.data.ok) { kkLoaded = true; $('bmKKText').value = r.data.text || ''; $('bmKKMsg').textContent = r.data.isDefault ? 'This is the knowledge Kanon started with. Edit and save to make it yours.' : 'Saved knowledge.'; }
+    });
+  }
+  function kkSave() {
+    $('bmKKSave').disabled = true;
+    call('brief', { method: 'POST', body: JSON.stringify({ action: 'knowledge-set', text: $('bmKKText').value }) }).then(function (r) {
+      $('bmKKSave').disabled = false;
+      if (isLocked(r)) return;
+      $('bmKKMsg').textContent = (r.ok && r.data && r.data.ok) ? 'Saved. Kanon reads this before every brief.' : ('Not saved: ' + ((r.data && r.data.error) || ('HTTP ' + r.status)));
+    }).catch(function () { $('bmKKSave').disabled = false; $('bmKKMsg').textContent = 'Could not reach the Lab server.'; });
+  }
   function start() {
     var brief = $('bmBrief').value.trim();
     if (!brief) { msg('Write the brief for Hanna.', true); return; }
@@ -198,13 +304,16 @@
   function sync() {
     var s = signedIn();
     if (s && !fab.isConnected) { document.body.appendChild(fab); document.body.appendChild(panel); }
-    else if (!s && fab.isConnected) { if (open) toggle(false); render([]); ['bmTitle','bmBrief','bmCode'].forEach(function (i) { var x = $(i); if (x) x.value = ''; }); if (panel.parentNode) panel.parentNode.removeChild(panel); if (fab.parentNode) fab.parentNode.removeChild(fab); }
+    else if (!s && fab.isConnected) { if (open) toggle(false); render([]); clearTimeout(kbTimer); kbLast = null; kkLoaded = false; ['bmKBOut'].forEach(function (i) { var x = $(i); if (x) x.innerHTML = ''; }); ['bmKBWant','bmKKText'].forEach(function (i) { var x = $(i); if (x) x.value = ''; }); ['bmTitle','bmBrief','bmCode'].forEach(function (i) { var x = $(i); if (x) x.value = ''; }); if (panel.parentNode) panel.parentNode.removeChild(panel); if (fab.parentNode) fab.parentNode.removeChild(fab); }
   }
   function authRejected(r) { if (r && r.status === 401) { try { rejectedToken = TOKEN; } catch (e) {} sync(); return true; } return false; }
   function mount() {
     sync(); setInterval(sync, 1000);
     fab.addEventListener('click', function () { toggle(); });
     $('bmClose').addEventListener('click', function () { toggle(false); });
+    $('bmKBGo').addEventListener('click', kbGo);
+    $('bmKKSave').addEventListener('click', kkSave);
+    $('bmKK').addEventListener('toggle', function () { if ($('bmKK').open) kkLoad(); });
     $('bmLockBtn').addEventListener('click', doLock);
     $('bmUnlock').addEventListener('click', doUnlock);
     $('bmCode').addEventListener('keydown', function (e) { if (e.key === 'Enter') doUnlock(); });
