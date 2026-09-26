@@ -1,3 +1,4 @@
+require('./netlify/functions/lib/meter').install();   /* BNT_METER: measure every Anthropic call (never alters a call) */
 // Bionectech AI Lab — Render Node server (Express adapter for Netlify-style functions).
 //
 // Heavy chat jobs run to completion and return directly — no job-storage, no polling.
@@ -72,7 +73,7 @@ async function runHandler(handler, req, res) {
 const FUNCTIONS = [
   'chat', 'chat-result', 'login', 'me', 'data', 'memory',
   'team', 'admin', 'lessons', 'models', 'engine', 'fetchurl',
-  'sendmail', 'unlock', 'render', 'flux-sense', 'creative-gen', 'chat-background', 'job', 'mission', 'console-gate', 'brief'
+  'sendmail', 'unlock', 'render', 'flux-sense', 'creative-gen', 'chat-background', 'job', 'mission', 'console-gate', 'brief', 'meter'
 ];
 
 FUNCTIONS.forEach(function (name) {

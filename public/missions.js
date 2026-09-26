@@ -69,6 +69,11 @@
     '<textarea id="bmKKText" rows="12"></textarea>' +
     '<div class="row"><button type="button" id="bmKKSave">Save knowledge</button><span class="note" id="bmKKMsg" role="status"></span></div>' +
     '</details>' +
+    '<details id="bmSp" style="margin:10px 0"><summary style="cursor:pointer;font-weight:600">Spend - API tokens by desk</summary>' +
+    '<div class="note">Real usage reported by Anthropic for every call the Lab makes. Input tokens are usually most of the cost; cached tokens cost a fraction of normal input.</div>' +
+    '<div class="row"><button type="button" data-spd="1">Today</button><button type="button" data-spd="7">7 days</button><button type="button" data-spd="30">30 days</button><span class="note" id="bmSpMsg"></span></div>' +
+    '<div id="bmSpOut"></div>' +
+    '</details>' +
     '<div class="sec">New mission</div>' +
     '<label for="bmTitle">Title</label><input type="text" id="bmTitle" placeholder="OncoDefy posture update">' +
     '<label for="bmBrief">Brief for Hanna</label><textarea id="bmBrief" placeholder="What you want delivered, the rules it must follow, and what done looks like."></textarea>' +
@@ -267,6 +272,27 @@
       $('bmKKMsg').textContent = (r.ok && r.data && r.data.ok) ? 'Saved. Kanon reads this before every brief.' : ('Not saved: ' + ((r.data && r.data.error) || ('HTTP ' + r.status)));
     }).catch(function () { $('bmKKSave').disabled = false; $('bmKKMsg').textContent = 'Could not reach the Lab server.'; });
   }
+  /* BNT_METER: Spend view */
+  function n0(x) { return Number(x || 0).toLocaleString(); }
+  function spTable(title, map) {
+    var rows = Object.keys(map).map(function (k) { return [k, map[k]]; }).sort(function (a, b) { return (b[1].input + b[1].cacheWrite) - (a[1].input + a[1].cacheWrite); });
+    var tot = rows.reduce(function (t, r) { return t + r[1].input + r[1].cacheWrite; }, 0) || 1;
+    return '<div style="margin-top:8px"><b>' + esc(title) + '</b><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:' + C.gold + '"><th align="left">Name</th><th align="right">Calls</th><th align="right">Input</th><th align="right">Output</th><th align="right">Cache read</th><th align="right">Cache write</th><th align="right">Share of input</th></tr>' +
+      rows.map(function (r) { var v = r[1]; return '<tr style="border-top:1px solid ' + C.line + '"><td>' + esc(r[0]) + '</td><td align="right">' + n0(v.calls) + '</td><td align="right">' + n0(v.input) + '</td><td align="right">' + n0(v.output) + '</td><td align="right">' + n0(v.cacheRead) + '</td><td align="right">' + n0(v.cacheWrite) + '</td><td align="right">' + Math.round((v.input + v.cacheWrite) * 100 / tot) + '%</td></tr>'; }).join('') + '</table></div></div>';
+  }
+  function spLoad(days) {
+    $('bmSpMsg').textContent = 'Loading...';
+    call('meter?days=' + days, { method: 'GET' }).then(function (r) {
+      if (isLocked(r)) return;
+      if (!r.ok || !r.data || !r.data.ok) { $('bmSpMsg').textContent = (r.data && r.data.error) || ('HTTP ' + r.status); return; }
+      var desks = {}, models = {}, calls = 0;
+      function addTo(dst, src) { Object.keys(src || {}).forEach(function (k) { var a = dst[k] || (dst[k] = { calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }), b = src[k]; a.calls += b.calls; a.input += b.input; a.output += b.output; a.cacheRead += b.cacheRead; a.cacheWrite += b.cacheWrite; }); }
+      (r.data.days || []).forEach(function (d) { addTo(desks, d.desks); addTo(models, d.models); });
+      Object.keys(desks).forEach(function (k) { calls += desks[k].calls; });
+      $('bmSpMsg').textContent = calls ? (n0(calls) + ' calls in the last ' + days + ' day(s).') : 'No calls recorded yet in this period.';
+      $('bmSpOut').innerHTML = calls ? (spTable('By desk', desks) + spTable('By model', models)) : '';
+    }).catch(function () { $('bmSpMsg').textContent = 'Could not reach the Lab server.'; });
+  }
   function start() {
     var brief = $('bmBrief').value.trim();
     if (!brief) { msg('Write the brief for Hanna.', true); return; }
@@ -304,7 +330,7 @@
   function sync() {
     var s = signedIn();
     if (s && !fab.isConnected) { document.body.appendChild(fab); document.body.appendChild(panel); }
-    else if (!s && fab.isConnected) { if (open) toggle(false); render([]); clearTimeout(kbTimer); kbLast = null; kkLoaded = false; ['bmKBOut'].forEach(function (i) { var x = $(i); if (x) x.innerHTML = ''; }); ['bmKBWant','bmKKText'].forEach(function (i) { var x = $(i); if (x) x.value = ''; }); ['bmTitle','bmBrief','bmCode'].forEach(function (i) { var x = $(i); if (x) x.value = ''; }); if (panel.parentNode) panel.parentNode.removeChild(panel); if (fab.parentNode) fab.parentNode.removeChild(fab); }
+    else if (!s && fab.isConnected) { if (open) toggle(false); render([]); clearTimeout(kbTimer); kbLast = null; kkLoaded = false; ['bmKBOut','bmSpOut'].forEach(function (i) { var x = $(i); if (x) x.innerHTML = ''; }); ['bmKBWant','bmKKText'].forEach(function (i) { var x = $(i); if (x) x.value = ''; }); ['bmTitle','bmBrief','bmCode'].forEach(function (i) { var x = $(i); if (x) x.value = ''; }); if (panel.parentNode) panel.parentNode.removeChild(panel); if (fab.parentNode) fab.parentNode.removeChild(fab); }
   }
   function authRejected(r) { if (r && r.status === 401) { try { rejectedToken = TOKEN; } catch (e) {} sync(); return true; } return false; }
   function mount() {
@@ -312,6 +338,8 @@
     fab.addEventListener('click', function () { toggle(); });
     $('bmClose').addEventListener('click', function () { toggle(false); });
     $('bmKBGo').addEventListener('click', kbGo);
+    $('bmSp').addEventListener('click', function (e) { var dd = e.target && e.target.getAttribute('data-spd'); if (dd) spLoad(dd); });
+    $('bmSp').addEventListener('toggle', function () { if ($('bmSp').open) spLoad(7); });
     $('bmKKSave').addEventListener('click', kkSave);
     $('bmKK').addEventListener('toggle', function () { if ($('bmKK').open) kkLoad(); });
     $('bmLockBtn').addEventListener('click', doLock);
